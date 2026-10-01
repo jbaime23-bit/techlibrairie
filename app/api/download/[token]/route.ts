@@ -1,22 +1,36 @@
-import { notFound } from 'next/navigation';
-import { createDownloadLink } from '@/lib/downloads';
+import { NextResponse } from 'next/server';
+import { books } from '@/lib/data';
+import { consumeDownload, getDownloadByToken } from '@/lib/store';
 
 export async function GET(
   _request: Request,
   { params }: { params: { token: string } }
 ) {
-  const { valid, payload } = createDownloadLink(params.token);
+  const record = getDownloadByToken(params.token);
 
-  if (!valid || !payload) {
-    return Response.json({ success: false, message: 'Lien invalide ou expiré.' }, { status: 403 });
+  if (!record) {
+    return NextResponse.json({ success: false, message: 'Lien invalide ou expiré.' }, { status: 403 });
   }
 
-  return Response.json({
+  const book = books.find((entry) => entry.id === record.bookId) ?? {
+    id: record.bookId,
+    title: record.bookTitle,
+    slug: record.bookSlug,
+    price: 0,
+    category: 'PDF',
+    author: 'TechLibrairie',
+    image: '',
+    description: 'Livre numérique sécurisé',
+  };
+
+  return NextResponse.json({
     success: true,
     message: 'Téléchargement autorisé.',
-    book: payload.book,
-    remaining: payload.remaining,
-    used: payload.used,
+    book,
+    remaining: record.remaining,
+    used: record.used,
+    maxDownloads: record.maxDownloads,
+    expiresAt: record.expiresAt,
   });
 }
 
@@ -24,19 +38,16 @@ export async function POST(
   _request: Request,
   { params }: { params: { token: string } }
 ) {
-  const { valid, payload } = createDownloadLink(params.token);
+  const result = consumeDownload(params.token);
 
-  if (!valid || !payload) {
-    return Response.json({ success: false, message: 'Lien invalide ou expiré.' }, { status: 403 });
+  if (!result.ok) {
+    return NextResponse.json({ success: false, message: result.message }, { status: 403 });
   }
 
-  if (payload.remaining <= 0) {
-    return Response.json({ success: false, message: 'Ce téléchargement a déjà été utilisé deux fois.' }, { status: 403 });
-  }
-
-  return Response.json({
+  return NextResponse.json({
     success: true,
-    downloadUrl: `/api/files/${payload.book.slug}.pdf`,
-    remaining: payload.remaining - 1,
+    message: 'Téléchargement validé.',
+    remaining: result.remaining,
+    used: result.used,
   });
 }
