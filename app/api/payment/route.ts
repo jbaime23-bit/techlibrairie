@@ -1,10 +1,18 @@
+import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 const paymentSchema = z.object({
+  userId: z.string().min(1),
   amount: z.number().min(1),
   method: z.enum(['ORANGE_MONEY', 'MOOV_MONEY', 'BANK_TRANSFER']),
-  userId: z.string().min(1),
+  orderReference: z.string().optional(),
 });
+
+const paymentNumbers = {
+  ORANGE_MONEY: '76166974',
+  MOOV_MONEY: '70011017',
+  BANK_TRANSFER: 'Compte bancaire international à confirmer par l’admin',
+};
 
 export async function POST(request: Request) {
   try {
@@ -12,26 +20,31 @@ export async function POST(request: Request) {
     const parsed = paymentSchema.safeParse(body);
 
     if (!parsed.success) {
-      return Response.json({ success: false, message: 'Paiement invalide.' }, { status: 400 });
+      return NextResponse.json({ success: false, message: 'Données de paiement invalides.' }, { status: 400 });
     }
 
-    const { method, amount, userId } = parsed.data;
+    const { userId, amount, method, orderReference } = parsed.data;
+    const reference = orderReference ?? `TL-${Date.now()}`;
 
-    return Response.json({
+    const status = method === 'BANK_TRANSFER' ? 'PENDING_VERIFICATION' : 'PAID';
+
+    return NextResponse.json({
       success: true,
-      status: 'PAID',
-      method,
-      amount,
+      status,
       userId,
-      reference: `TL-${Date.now()}`,
-      paymentDetails:
-        method === 'ORANGE_MONEY'
-          ? { number: '76166974', note: 'Orange Money' }
-          : method === 'MOOV_MONEY'
-            ? { number: '70011017', note: 'Moov Money' }
-            : { note: 'Virement bancaire international', account: 'Compte bancaire à confirmer par l’admin' },
+      amount,
+      method,
+      reference,
+      paymentDetails: {
+        number: paymentNumbers[method],
+        note: method === 'ORANGE_MONEY' ? 'Orange Money' : method === 'MOOV_MONEY' ? 'Moov Money' : 'Virement bancaire international',
+      },
+      message:
+        method === 'BANK_TRANSFER'
+          ? 'Paiement par virement initié. Il doit être validé par l’admin.'
+          : 'Paiement validé. Le téléchargement peut désormais être activé.',
     });
   } catch {
-    return Response.json({ success: false, message: 'Erreur serveur.' }, { status: 500 });
+    return NextResponse.json({ success: false, message: 'Erreur serveur lors du paiement.' }, { status: 500 });
   }
 }
