@@ -1,41 +1,66 @@
-import { z } from 'zod';
-import { generateOrderReference, createSecureDownload } from '@/lib/downloads';
-
-const orderSchema = z.object({
-  userId: z.string().min(1),
-  items: z.array(z.object({ id: z.string(), quantity: z.number().min(1) })).min(1),
-  method: z.enum(['ORANGE_MONEY', 'MOOV_MONEY', 'BANK_TRANSFER']),
-  amount: z.number().min(1),
-});
+import { NextResponse } from 'next/server';
+import { books } from '@/lib/data';
+import { createOrderReference, issueDownloadToken } from '@/lib/store';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const parsed = orderSchema.safeParse(body);
 
-    if (!parsed.success) {
-      return Response.json({ success: false, message: 'Données invalides.' }, { status: 400 });
+    const userId = String(body.userId ?? 'anonymous-user');
+    const method = body.method;
+    const items = Array.isArray(body.items) ? body.items : [];
+
+    if (!items.length) {
+      return NextResponse.json({ success: false, message: 'Le panier est vide.' }, { status: 400 });
     }
 
-    const { items, amount, method, userId } = parsed.data;
-    const orderReference = generateOrderReference();
-    const secureDownload = createSecureDownload({
-      orderReference,
-      book: { id: items[0].id, title: 'Livre acheté', slug: 'livre-achete' },
+    const mappedItems = items
+      .map((item: { id: string; quantity?: number }) => {
+        const book = books.find((entry) => entry.id === item.id);
+        if (!book) return null;
+
+        return {
+          id: book.id,
+          title: book.title,
+          slug: book.slug,
+          quantity: Number(item.quantity ?? 1),
+          price: book.price,
+        };
+      })
+      .filter(Boolean);
+
+    if (!mappedItems.length) {
+      return NextResponse.json({ success: false, message: 'Aucun livre valide trouvé.' }, { status: 404 });
+    }
+
+    const totalAmount = mappedItems.reduce((sum, item) => {
+      const value = item as { quantity: number; price: number };
+      return sum + value.quantity * value.price;
+    }, 0);
+
+    const orderReference = createOrderReference();
+    const firstBook = mappedItems[0] as { id: string; title: string; slug: string; quantity: number; price: number };
+    const download = issueDownloadToken({
       userId,
+      orderReference,
+      book: { id: firstBook.id, title: firstBook.title, slug: firstBook.slug },
       maxDownloads: 2,
     });
 
-    return Response.json({
+    return NextResponse.json({
       success: true,
       orderReference,
+      status: method === 'BANK_TRANSFER' ? 'PENDING_VERIFICATION' : 'PAID',
       paymentMethod: method,
-      amount,
-      downloadToken: secureDownload.token,
-      downloadUrl: `/api/download/${secureDownload.token}`,
-      message: 'Paiement validé. Votre téléchargement est prêt.',
+      totalAmount,
+      downloadToken: download.token,
+      downloadUrl: `/api/download/${download.token}`,
+      message:
+        method === 'BANK_TRANSFER'
+          ? 'Commande enregistrée. Validation bancaire en attente.'
+          : 'Paiement validé. Votre téléchargement est prêt.',
     });
-  } catch (error) {
-    return Response.json({ success: false, message: 'Erreur serveur.' }, { status: 500 });
+  } catch {
+    return NextResponse.json({ success: false, message: 'Erreur serveur lors de la création de commande.' }, { status: 500 });
   }
 }
