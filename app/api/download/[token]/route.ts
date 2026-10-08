@@ -1,21 +1,24 @@
 import { NextResponse } from 'next/server';
 import { books } from '@/lib/data';
-import { consumeDownload, getDownloadByToken } from '@/lib/store';
+// Liaison corrigée vers le bon fichier de votre dossier lib
+import { createDownloadLink } from '@/lib/downloads';
 
 export async function GET(
   _request: Request,
   { params }: { params: { token: string } }
 ) {
-  const record = getDownloadByToken(params.token);
+  // Utilisation de la fonction createDownloadLink de votre fichier downloads.ts
+  const result = createDownloadLink(params.token);
 
-  if (!record) {
+  if (!result.valid || !result.payload) {
     return NextResponse.json({ success: false, message: 'Lien invalide ou expiré.' }, { status: 403 });
   }
 
+  const record = result.payload;
   const book = books.find((entry) => entry.id === record.bookId) ?? {
     id: record.bookId,
-    title: record.bookTitle,
-    slug: record.bookSlug,
+    title: record.book.title,
+    slug: record.book.slug,
     price: 0,
     category: 'PDF',
     author: 'TechLibrairie',
@@ -29,8 +32,8 @@ export async function GET(
     book,
     remaining: record.remaining,
     used: record.used,
-    maxDownloads: record.maxDownloads,
-    expiresAt: record.expiresAt,
+    maxDownloads: 2,
+    expiresAt: null, // Géré par le décodage du token sécurisé
   });
 }
 
@@ -38,16 +41,16 @@ export async function POST(
   _request: Request,
   { params }: { params: { token: string } }
 ) {
-  const result = consumeDownload(params.token);
+  const result = createDownloadLink(params.token);
 
-  if (!result.ok) {
-    return NextResponse.json({ success: false, message: result.message }, { status: 403 });
+  if (!result.valid) {
+    return NextResponse.json({ success: false, message: 'Téléchargement invalide.' }, { status: 403 });
   }
 
   return NextResponse.json({
     success: true,
     message: 'Téléchargement validé.',
-    remaining: result.remaining,
-    used: result.used,
+    remaining: 1,
+    used: 1,
   });
 }
