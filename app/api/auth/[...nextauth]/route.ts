@@ -40,12 +40,13 @@ const authOptions = {
     signIn: '/login',
   },
   session: {
-    strategy: 'jwt',
+    // Le "as const" ici corrige l'erreur de type sur Vercel
+    strategy: 'jwt' as const,
   },
 };
 
-// Initialisation de NextAuth avec vos options
+// Initialisation de NextAuth
 const handler = NextAuth(authOptions);
 
-// Exportation correcte et explicite des méthodes GET et POST pour Vercel
+// Exportation des méthodes pour l'API
 export { handler as GET, handler as POST };
