@@ -1,8 +1,26 @@
 import Link from 'next/link';
 import { BookCard } from '@/components/BookCard';
-import { books } from '@/lib/data';
+// Remplacement des fausses données par la connexion à votre base Neon
+import { prisma } from '../lib/prisma';
 
-export default function HomePage() {
+// Fonction pour récupérer les vrais livres enregistrés en base de données
+async function getBooks() {
+  try {
+    const books = await prisma.book.findMany({
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+    return books;
+  } catch (error) {
+    console.error("Erreur lors de la récupération des livres :", error);
+    return [];
+  }
+}
+
+export default async function HomePage() {
+  const books = await getBooks();
+
   return (
     <main>
       <section className="hero">
@@ -10,66 +28,38 @@ export default function HomePage() {
           <div className="eyebrow">TechLibrairie</div>
           <h1>Savoir & Technologie au Burkina Faso</h1>
           <p>
-            Découvrez des livres PDF en innovation, technologie, entrepreneuriat,
-            développement numérique et culture du savoir.
+            Découvrez des livres PDF en innovation, technologie, entrepreneuriat, développement
+            numérique et culture du savoir.
           </p>
           <div className="hero-actions">
-            <Link href="/catalogue" className="primary-btn">Voir le catalogue</Link>
-            <Link href="/dashboard" className="secondary-btn">Mon espace</Link>
-          </div>
-          <div className="hero-stats">
-            <div>
-              <strong>500+</strong>
-              <span>ouvrages</span>
-            </div>
-            <div>
-              <strong>24/7</strong>
-              <span>accès digital</span>
-            </div>
-            <div>
-              <strong>2</strong>
-              <span>téléchargements max</span>
-            </div>
+            <Link href="/catalogue" className="primary-btn">
+              Voir le catalogue
+            </Link>
+            <Link href="/login" className="secondary-btn">
+              Mon espace
+            </Link>
           </div>
         </div>
       </section>
 
-      <section className="section">
-        <div className="section-header">
-          <div>
-            <p className="kicker">Nos best sellers</p>
-            <h2>Livres populaires</h2>
-          </div>
-          <Link href="/catalogue" className="link-btn">Tout voir</Link>
+      <section className="popular-books" style={{ padding: '60px 20px', maxWidth: 1200, margin: '0 auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
+          <h2>Livres populaires</h2>
+          <Link href="/catalogue" style={{ color: '#0087db', fontWeight: 'bold' }}>Tout voir</Link>
         </div>
-        <div className="card-grid">
-          {books.slice(0, 3).map((book) => (
-            <BookCard key={book.id} book={book} />
-          ))}
-        </div>
-      </section>
 
-      <section className="section muted-section">
-        <div className="section-header">
-          <div>
-            <p className="kicker">Pourquoi nous</p>
-            <h2>Une boutique pensée pour la confiance</h2>
+        {books.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#666', border: '1px dashed #ccc', borderRadius: '8px' }}>
+            <p style={{ fontSize: '18px', marginBottom: '10px' }}>Aucun livre n'est disponible pour le moment.</p>
+            <p style={{ fontSize: '14px' }}>Inscrivez-vous comme vendeur pour ajouter le tout premier livre !</p>
           </div>
-        </div>
-        <div className="feature-grid">
-          <div className="feature-card">
-            <h3>Paiement sécurisé</h3>
-            <p>Orange Money, Moov Money, virement bancaire pour les achats internationaux.</p>
+        ) : (
+          <div className="books-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '30px' }}>
+            {books.map((book) => (
+              <BookCard key={book.id} book={book} />
+            ))}
           </div>
-          <div className="feature-card">
-            <h3>Téléchargement protégé</h3>
-            <p>Chaque achat génère un accès limité à 2 téléchargements maximum.</p>
-          </div>
-          <div className="feature-card">
-            <h3>Étapes claires</h3>
-            <p>Un parcours de paiement simple et transparent pour chaque client.</p>
-          </div>
-        </div>
+        )}
       </section>
     </main>
   );
