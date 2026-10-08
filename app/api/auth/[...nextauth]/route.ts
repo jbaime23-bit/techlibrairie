@@ -44,4 +44,8 @@ const authOptions = {
   },
 };
 
-export const { handlers, auth, signIn, signOut } = NextAuth(authOptions);
+// Initialisation de NextAuth avec vos options
+const handler = NextAuth(authOptions);
+
+// Exportation correcte et explicite des méthodes GET et POST pour Vercel
+export { handler as GET, handler as POST };
