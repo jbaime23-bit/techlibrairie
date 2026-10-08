@@ -1,9 +1,12 @@
 import Link from 'next/link';
 import { BookCard } from '@/components/BookCard';
-// Remplacement des fausses données par la connexion à votre base Neon
+// Connexion sécurisée avec le fichier prisma de votre dossier lib
 import { prisma } from '../lib/prisma';
 
-// Fonction pour récupérer les vrais livres enregistrés en base de données
+// Force Next.js à vérifier la base de données Neon en direct à chaque visite (pas de cache bloqué)
+export const dynamic = 'force-dynamic';
+
+// Fonction pour récupérer les vrais livres de la base de données
 async function getBooks() {
   try {
     const books = await prisma.book.findMany({
