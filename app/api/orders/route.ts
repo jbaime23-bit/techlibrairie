@@ -33,15 +33,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: 'Aucun livre valide trouvé.' }, { status: 404 });
     }
 
-    // Correction de l'erreur TypeScript en ajoutant le type ": number" à sum
-    const totalAmount = mappedItems.reduce((sum: number, item) => {
+    // Ajout des types précis (sum: number, item: any) pour rassurer définitivement TypeScript
+    const totalAmount = mappedItems.reduce((sum: number, item: any) => {
       const value = item as { quantity: number; price: number };
       return sum + value.quantity * value.price;
     }, 0);
 
     const orderReference = createOrderReference();
     
-    if (!mappedItems[0]) {
+    if (!mappedItems || mappedItems.length === 0) {
       return NextResponse.json({ success: false, message: 'Erreur lors du traitement du panier.' }, { status: 400 });
     }
     
@@ -70,5 +70,5 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ success: false, message: 'Erreur serveur lors de la création de commande.' }, { status: 500 });
   }
-}
+        }
   
