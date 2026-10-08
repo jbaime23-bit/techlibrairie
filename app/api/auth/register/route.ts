@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
-// Importation de l'outil de connexion à la base de données
-import { prisma } from '@/lib/prisma';
+// Utilisation du chemin relatif exact pour éviter les erreurs d'alias sur mobile
+import { prisma } from '../../../lib/prisma';
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
 
     const { email, name, password } = parsed.data;
 
-    // 1. Vérifier si l'utilisateur existe déjà dans la base de données
+    // 1. Vérifier si l'auteur existe déjà dans la base de données Neon
     const existingUser = await prisma.user.findUnique({
       where: { email },
     });
@@ -29,10 +29,10 @@ export async function POST(request: Request) {
       return Response.json({ success: false, message: 'Cet email est déjà utilisé.' }, { status: 400 });
     }
 
-    // 2. Crypter le mot de passe de sécurité
+    // 2. Hachage du mot de passe pour la sécurité de l'espace TechLibrairie
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // 3. Enregistrer le nouvel utilisateur / auteur dans Neon via Prisma
+    // 3. Création du compte dans Neon
     const user = await prisma.user.create({
       data: {
         email,
@@ -51,6 +51,7 @@ export async function POST(request: Request) {
       message: 'Compte créé avec succès. Connectez-vous pour commencer.',
     });
   } catch (error) {
+    console.error(error);
     return Response.json({ success: false, message: 'Erreur serveur lors de l\'inscription.' }, { status: 500 });
   }
-      }
+}
