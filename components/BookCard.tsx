@@ -1,5 +1,16 @@
 import Link from 'next/link';
-import type { Book } from '@/lib/data';
+
+// Nous définissons directement la structure du livre ici pour éviter l'erreur d'importation
+export interface Book {
+  id: string;
+  title: string;
+  slug: string;
+  description: string;
+  price: number;
+  category: string;
+  author: string;
+  image: string;
+}
 
 export function BookCard({ book }: { book: Book }) {
   return (
