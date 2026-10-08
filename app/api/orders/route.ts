@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { books } from '@/lib/data';
-// Liaison corrigée vers downloads.ts avec les vraies fonctions existantes
 import { createOrderReference, createSecureDownload } from '@/lib/downloads';
 
 export async function POST(request: Request) {
@@ -34,15 +33,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: 'Aucun livre valide trouvé.' }, { status: 404 });
     }
 
-    const totalAmount = mappedItems.reduce((sum, item) => {
+    // Correction de l'erreur TypeScript en ajoutant le type ": number" à sum
+    const totalAmount = mappedItems.reduce((sum: number, item) => {
       const value = item as { quantity: number; price: number };
       return sum + value.quantity * value.price;
     }, 0);
 
     const orderReference = createOrderReference();
+    
+    if (!mappedItems[0]) {
+      return NextResponse.json({ success: false, message: 'Erreur lors du traitement du panier.' }, { status: 400 });
+    }
+    
     const firstBook = mappedItems[0] as { id: string; title: string; slug: string; quantity: number; price: number };
     
-    // Utilisation de la vraie fonction de votre fichier downloads.ts
     const download = createSecureDownload({
       userId,
       orderReference,
@@ -67,3 +71,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, message: 'Erreur serveur lors de la création de commande.' }, { status: 500 });
   }
 }
+  
