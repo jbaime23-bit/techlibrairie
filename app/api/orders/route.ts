@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { books } from '@/lib/data';
-import { createOrderReference, issueDownloadToken } from '@/lib/store';
+// Liaison corrigée vers downloads.ts avec les vraies fonctions existantes
+import { createOrderReference, createSecureDownload } from '@/lib/downloads';
 
 export async function POST(request: Request) {
   try {
@@ -40,7 +41,9 @@ export async function POST(request: Request) {
 
     const orderReference = createOrderReference();
     const firstBook = mappedItems[0] as { id: string; title: string; slug: string; quantity: number; price: number };
-    const download = issueDownloadToken({
+    
+    // Utilisation de la vraie fonction de votre fichier downloads.ts
+    const download = createSecureDownload({
       userId,
       orderReference,
       book: { id: firstBook.id, title: firstBook.title, slug: firstBook.slug },
