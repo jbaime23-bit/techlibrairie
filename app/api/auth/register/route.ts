@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
-// Correction du chemin pour cibler exactement le dossier lib à la racine
+// Ciblage au millimètre près de votre fichier en minuscules : prisma
 import { prisma } from '../../../../lib/prisma';
 
 const registerSchema = z.object({
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
 
     const { email, name, password } = parsed.data;
 
-    // 1. Vérifier si l'auteur existe déjà dans la base de données Neon
+    // 1. Vérifier si l'auteur existe déjà
     const existingUser = await prisma.user.findUnique({
       where: { email },
     });
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
       return Response.json({ success: false, message: 'Cet email est déjà utilisé.' }, { status: 400 });
     }
 
-    // 2. Hachage du mot de passe pour la sécurité de l'espace TechLibrairie
+    // 2. Hachage du mot de passe
     const passwordHash = await bcrypt.hash(password, 10);
 
     // 3. Création du compte dans Neon
