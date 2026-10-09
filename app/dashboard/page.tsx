@@ -30,13 +30,20 @@ export default function DashboardAdmin() {
     }
   }, []);
 
-  // Fonction pour gérer l'envoi du nouveau livre
+  // Fonction pour faire défiler l'écran automatiquement vers le formulaire en bas
+  const scrollToForm = () => {
+    const formElement = document.getElementById('formulaire-ajout-livre');
+    if (formElement) {
+      formElement.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  // Fonction pour gérer l'envoi du nouveau livre vers l'API et Neon
   const handleAddBook = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatus({ loading: true, message: '', success: false });
 
     try {
-      // Connexion à l'API pour enregistrer le livre dans la base Neon
       const response = await fetch('/api/books', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -56,13 +63,10 @@ export default function DashboardAdmin() {
 
       setStatus({ loading: false, message: "Félicitations ! Votre livre technique a été enregistré avec succès et est maintenant visible sur la boutique globale.", success: true });
       
-      // Réinitialisation du formulaire
       setTitle('');
       setAuthor('');
       setPrice('');
       setDescription('');
-      
-      // Mise à jour visuelle du compteur
       setNombreLivres(prev => prev + 1);
 
     } catch (error: any) {
@@ -73,9 +77,37 @@ export default function DashboardAdmin() {
   return (
     <div className="min-h-screen bg-slate-900 text-white p-6">
       <header className="mb-8 border-b border-slate-700 pb-4">
-        <h1 className="text-2xl font-bold text-blue-400">📊 Tableau de Bord (Dashboard)</h1>
+        <p className="text-xs text-blue-400 uppercase font-bold tracking-wider">Espace Administration</p>
+        <h1 className="text-2xl font-bold text-white mt-1">📊 Tableau de Bord (Dashboard)</h1>
         <p className="text-sm text-slate-400 mt-1">Espace d'administration des Auteurs et Éditeurs</p>
       </header>
+
+      {/* Blocs configurés avec l'action onClick pour le défilement automatique */}
+      <div className="flex flex-col gap-4 mb-8">
+        <div 
+          onClick={scrollToForm}
+          className="bg-white text-slate-900 p-5 rounded-xl cursor-pointer hover:bg-slate-100 transition duration-200 shadow-sm"
+        >
+          <h3 className="text-md font-bold text-slate-950">Auteur</h3>
+          <p className="text-xs text-slate-600 mt-1">Gérez vos livres, suivez vos ventes et recevez vos gains.</p>
+        </div>
+
+        <div 
+          onClick={scrollToForm}
+          className="bg-white text-slate-900 p-5 rounded-xl cursor-pointer hover:bg-slate-100 transition duration-200 shadow-sm"
+        >
+          <h3 className="text-md font-bold text-slate-950">Éditeur</h3>
+          <p className="text-xs text-slate-600 mt-1">Publiez, validez et supervisez les ouvrages numériques.</p>
+        </div>
+
+        <div 
+          onClick={scrollToForm}
+          className="bg-white text-slate-900 p-5 rounded-xl cursor-pointer hover:bg-slate-100 transition duration-200 shadow-sm"
+        >
+          <h3 className="text-md font-bold text-slate-950">Vendeur</h3>
+          <p className="text-xs text-slate-600 mt-1">Ajoutez des catalogues de livres techniques et gérez vos stocks.</p>
+        </div>
+      </div>
 
       {/* Cartes de statistiques de la boutique */}
       <div className="grid gap-4 grid-cols-2 mb-8">
@@ -89,8 +121,8 @@ export default function DashboardAdmin() {
         </div>
       </div>
 
-      {/* NOUVEAU : Formulaire d'ajout de livre technique */}
-      <div className="bg-slate-800 p-6 rounded-lg border border-slate-700 mb-6">
+      {/* Formulaire d'ajout de livre technique (avec ID de repère pour l'effet de glisse) */}
+      <div id="formulaire-ajout-livre" className="bg-slate-800 p-6 rounded-lg border border-slate-700 mb-6">
         <h2 className="text-lg font-bold mb-4 text-blue-400">📚 Mettre un nouveau livre PDF en vente</h2>
         
         {status.message && (
@@ -105,7 +137,7 @@ export default function DashboardAdmin() {
               <label className="text-xs text-slate-300 font-semibold">Titre du livre numérique</label>
               <input 
                 type="text" required value={title} onChange={(e) => setTitle(e.target.value)}
-                placeholder="Ex: Guide complet du Développeur Web au Burkina"
+                placeholder="Ex: Électricien des installations domestiques"
                 className="p-3 bg-slate-900 border border-slate-700 rounded text-sm text-white focus:outline-none focus:border-blue-500"
               />
             </div>
@@ -113,7 +145,7 @@ export default function DashboardAdmin() {
               <label className="text-xs text-slate-300 font-semibold">Nom de l'auteur ou éditeur</label>
               <input 
                 type="text" required value={author} onChange={(e) => setAuthor(e.target.value)}
-                placeholder="Ex: J.B. Aimé"
+                placeholder="Ex: Jean-Baptiste Aimé"
                 className="p-3 bg-slate-900 border border-slate-700 rounded text-sm text-white focus:outline-none focus:border-blue-500"
               />
             </div>
@@ -124,7 +156,7 @@ export default function DashboardAdmin() {
               <label className="text-xs text-slate-300 font-semibold">Prix de vente (en FCFA)</label>
               <input 
                 type="number" required value={price} onChange={(e) => setPrice(e.target.value)}
-                placeholder="Ex: 5000"
+                placeholder="Ex: 8500"
                 className="p-3 bg-slate-900 border border-slate-700 rounded text-sm text-white focus:outline-none focus:border-blue-500"
               />
             </div>
@@ -141,7 +173,7 @@ export default function DashboardAdmin() {
             <label className="text-xs text-slate-300 font-semibold">Description ou résumé du livre</label>
             <textarea 
               rows={3} value={description} onChange={(e) => setDescription(e.target.value)}
-              placeholder="Décrivez brièvement les compétences techniques ou le savoir transmis dans cet e-book..."
+              placeholder="Décrivez les compétences ou travaux pratiques abordés..."
               className="p-3 bg-slate-900 border border-slate-700 rounded text-sm text-white focus:outline-none focus:border-blue-500 resize-none"
             />
           </div>
@@ -155,7 +187,7 @@ export default function DashboardAdmin() {
         </form>
       </div>
 
-      {/* Section de gestion des fichiers PDF */}
+      {/* Section de sécurité */}
       <div className="bg-slate-800 p-6 rounded-lg border border-slate-700 mb-6">
         <h2 className="text-lg font-bold mb-3 text-slate-200">🛡️ Sécurité des manuscrits</h2>
         <p className="text-sm text-slate-400 leading-relaxed">
@@ -163,6 +195,7 @@ export default function DashboardAdmin() {
         </p>
       </div>
 
+      {/* Section des gains */}
       <div className="bg-slate-800 p-6 rounded-lg border border-slate-700">
         <h2 className="text-lg font-bold mb-3 text-slate-200">🏦 Reversements & Gains</h2>
         <p className="text-sm text-slate-400 mb-4">
@@ -174,4 +207,5 @@ export default function DashboardAdmin() {
       </div>
     </div>
   );
-}
+               }
+      
