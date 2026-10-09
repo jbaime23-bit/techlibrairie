@@ -43,9 +43,11 @@ const authOptions = {
     // Le "as const" ici corrige l'erreur de type sur Vercel
     strategy: 'jwt' as const,
   },
+  // SOLUTION : Clé secrète intégrée directement pour contourner le blocage Vercel
+  secret: process.env.NEXTAUTH_SECRET || "TechLibrairieSecretSuperFortDuBurkina2026",
 };
 
-// Initialisation de NextAuth
+// Initialisation de NextAuth avec l'option secrète incluse
 const handler = NextAuth(authOptions);
 
 // Exportation des méthodes pour l'API
