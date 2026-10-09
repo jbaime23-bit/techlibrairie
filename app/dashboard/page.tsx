@@ -18,10 +18,10 @@ export default function DashboardAdmin() {
   const [author, setAuthor] = useState('');
   const [price, setPrice] = useState('');
   const [description, setDescription] = useState('');
+  const [coverImage, setCoverImage] = useState(''); // Nouvel état pour l'image de couverture
   const [status, setStatus] = useState({ loading: false, message: '', success: false });
 
   useEffect(() => {
-    // Récupérer automatiquement les livres configurés
     const localData = localStorage.getItem('techlibrairie_books');
     if (localData) {
       const listeLivres: Livre[] = JSON.parse(localData);
@@ -30,7 +30,6 @@ export default function DashboardAdmin() {
     }
   }, []);
 
-  // Fonction pour faire défiler l'écran automatiquement vers le formulaire en bas
   const scrollToForm = () => {
     const formElement = document.getElementById('formulaire-ajout-livre');
     if (formElement) {
@@ -38,7 +37,6 @@ export default function DashboardAdmin() {
     }
   };
 
-  // Fonction pour gérer l'envoi du nouveau livre vers l'API et Neon
   const handleAddBook = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatus({ loading: true, message: '', success: false });
@@ -51,7 +49,8 @@ export default function DashboardAdmin() {
           title,
           author,
           price: parseFloat(price),
-          description
+          description,
+          coverImage // Envoi de l'image à la base de données Neon
         }),
       });
 
@@ -61,12 +60,13 @@ export default function DashboardAdmin() {
         throw new Error(data.message || "Impossible d'enregistrer le livre.");
       }
 
-      setStatus({ loading: false, message: "Félicitations ! Votre livre technique a été enregistré avec succès et est maintenant visible sur la boutique globale.", success: true });
+      setStatus({ loading: false, message: "Félicitations ! Votre livre technique avec sa couverture a été enregistré avec succès.", success: true });
       
       setTitle('');
       setAuthor('');
       setPrice('');
       setDescription('');
+      setCoverImage('');
       setNombreLivres(prev => prev + 1);
 
     } catch (error: any) {
@@ -82,34 +82,23 @@ export default function DashboardAdmin() {
         <p className="text-sm text-slate-400 mt-1">Espace d'administration des Auteurs et Éditeurs</p>
       </header>
 
-      {/* Blocs configurés avec l'action onClick pour le défilement automatique */}
+      {/* Blocs de défilement */}
       <div className="flex flex-col gap-4 mb-8">
-        <div 
-          onClick={scrollToForm}
-          className="bg-white text-slate-900 p-5 rounded-xl cursor-pointer hover:bg-slate-100 transition duration-200 shadow-sm"
-        >
+        <div onClick={scrollToForm} className="bg-white text-slate-900 p-5 rounded-xl cursor-pointer hover:bg-slate-100 transition duration-200 shadow-sm">
           <h3 className="text-md font-bold text-slate-950">Auteur</h3>
           <p className="text-xs text-slate-600 mt-1">Gérez vos livres, suivez vos ventes et recevez vos gains.</p>
         </div>
-
-        <div 
-          onClick={scrollToForm}
-          className="bg-white text-slate-900 p-5 rounded-xl cursor-pointer hover:bg-slate-100 transition duration-200 shadow-sm"
-        >
+        <div onClick={scrollToForm} className="bg-white text-slate-900 p-5 rounded-xl cursor-pointer hover:bg-slate-100 transition duration-200 shadow-sm">
           <h3 className="text-md font-bold text-slate-950">Éditeur</h3>
           <p className="text-xs text-slate-600 mt-1">Publiez, validez et supervisez les ouvrages numériques.</p>
         </div>
-
-        <div 
-          onClick={scrollToForm}
-          className="bg-white text-slate-900 p-5 rounded-xl cursor-pointer hover:bg-slate-100 transition duration-200 shadow-sm"
-        >
+        <div onClick={scrollToForm} className="bg-white text-slate-900 p-5 rounded-xl cursor-pointer hover:bg-slate-100 transition duration-200 shadow-sm">
           <h3 className="text-md font-bold text-slate-950">Vendeur</h3>
           <p className="text-xs text-slate-600 mt-1">Ajoutez des catalogues de livres techniques et gérez vos stocks.</p>
         </div>
       </div>
 
-      {/* Cartes de statistiques de la boutique */}
+      {/* Cartes de statistiques */}
       <div className="grid gap-4 grid-cols-2 mb-8">
         <div className="bg-slate-800 p-4 rounded-lg border border-slate-700">
           <p className="text-xs text-slate-400 uppercase font-semibold">Livres en ligne</p>
@@ -121,7 +110,7 @@ export default function DashboardAdmin() {
         </div>
       </div>
 
-      {/* Formulaire d'ajout de livre technique (avec ID de repère pour l'effet de glisse) */}
+      {/* Formulaire mis à jour avec la couverture */}
       <div id="formulaire-ajout-livre" className="bg-slate-800 p-6 rounded-lg border border-slate-700 mb-6">
         <h2 className="text-lg font-bold mb-4 text-blue-400">📚 Mettre un nouveau livre PDF en vente</h2>
         
@@ -161,12 +150,21 @@ export default function DashboardAdmin() {
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-slate-300 font-semibold">Fichier du manuscrit (PDF)</label>
+              <label className="text-xs text-slate-300 font-semibold">Manuscrit principal (Fichier PDF)</label>
               <input 
                 type="file" accept=".pdf" required
                 className="p-2 bg-slate-900 border border-slate-700 rounded text-sm text-slate-400 file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer"
               />
             </div>
+          </div>
+
+          {/* AJOUT DE LA CASE PHOTO DE COUVERTURE */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-slate-300 font-semibold">Image de couverture de l'ouvrage (Photo / Image)</label>
+            <input 
+              type="file" accept="image/*" required
+              className="p-2 bg-slate-900 border border-slate-700 rounded text-sm text-slate-400 file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-green-600 file:text-white hover:file:bg-green-700 cursor-pointer"
+            />
           </div>
 
           <div className="flex flex-col gap-1">
@@ -187,7 +185,7 @@ export default function DashboardAdmin() {
         </form>
       </div>
 
-      {/* Section de sécurité */}
+      {/* Sécurité */}
       <div className="bg-slate-800 p-6 rounded-lg border border-slate-700 mb-6">
         <h2 className="text-lg font-bold mb-3 text-slate-200">🛡️ Sécurité des manuscrits</h2>
         <p className="text-sm text-slate-400 leading-relaxed">
@@ -195,7 +193,7 @@ export default function DashboardAdmin() {
         </p>
       </div>
 
-      {/* Section des gains */}
+      {/* Gains */}
       <div className="bg-slate-800 p-6 rounded-lg border border-slate-700">
         <h2 className="text-lg font-bold mb-3 text-slate-200">🏦 Reversements & Gains</h2>
         <p className="text-sm text-slate-400 mb-4">
@@ -205,7 +203,4 @@ export default function DashboardAdmin() {
           ⏳ En attente de l'intégration de votre code IBAN et des fonctionnalités MasterCard.
         </div>
       </div>
-    </div>
-  );
-               }
-      
+            
