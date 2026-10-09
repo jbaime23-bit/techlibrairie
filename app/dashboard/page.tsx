@@ -18,7 +18,7 @@ export default function DashboardAdmin() {
   const [author, setAuthor] = useState('');
   const [price, setPrice] = useState('');
   const [description, setDescription] = useState('');
-  const [coverImage, setCoverImage] = useState(''); // Nouvel état pour l'image de couverture
+  const [coverImage, setCoverImage] = useState(''); // Image de couverture
   const [status, setStatus] = useState({ loading: false, message: '', success: false });
 
   useEffect(() => {
@@ -50,7 +50,7 @@ export default function DashboardAdmin() {
           author,
           price: parseFloat(price),
           description,
-          coverImage // Envoi de l'image à la base de données Neon
+          coverImage 
         }),
       });
 
@@ -86,7 +86,7 @@ export default function DashboardAdmin() {
       <div className="flex flex-col gap-4 mb-8">
         <div onClick={scrollToForm} className="bg-white text-slate-900 p-5 rounded-xl cursor-pointer hover:bg-slate-100 transition duration-200 shadow-sm">
           <h3 className="text-md font-bold text-slate-950">Auteur</h3>
-          <p className="text-xs text-slate-600 mt-1">Gérez vos livres, suivez vos ventes et recevez vos gains.</p>
+          <p className="text-xs text-slate-600 mt-1">Gerez vos livres, suivez vos ventes et recevez vos gains.</p>
         </div>
         <div onClick={scrollToForm} className="bg-white text-slate-900 p-5 rounded-xl cursor-pointer hover:bg-slate-100 transition duration-200 shadow-sm">
           <h3 className="text-md font-bold text-slate-950">Éditeur</h3>
@@ -110,7 +110,7 @@ export default function DashboardAdmin() {
         </div>
       </div>
 
-      {/* Formulaire mis à jour avec la couverture */}
+      {/* Formulaire complet */}
       <div id="formulaire-ajout-livre" className="bg-slate-800 p-6 rounded-lg border border-slate-700 mb-6">
         <h2 className="text-lg font-bold mb-4 text-blue-400">📚 Mettre un nouveau livre PDF en vente</h2>
         
@@ -158,7 +158,6 @@ export default function DashboardAdmin() {
             </div>
           </div>
 
-          {/* AJOUT DE LA CASE PHOTO DE COUVERTURE */}
           <div className="flex flex-col gap-1">
             <label className="text-xs text-slate-300 font-semibold">Image de couverture de l'ouvrage (Photo / Image)</label>
             <input 
@@ -185,7 +184,6 @@ export default function DashboardAdmin() {
         </form>
       </div>
 
-      {/* Sécurité */}
       <div className="bg-slate-800 p-6 rounded-lg border border-slate-700 mb-6">
         <h2 className="text-lg font-bold mb-3 text-slate-200">🛡️ Sécurité des manuscrits</h2>
         <p className="text-sm text-slate-400 leading-relaxed">
@@ -193,7 +191,6 @@ export default function DashboardAdmin() {
         </p>
       </div>
 
-      {/* Gains */}
       <div className="bg-slate-800 p-6 rounded-lg border border-slate-700">
         <h2 className="text-lg font-bold mb-3 text-slate-200">🏦 Reversements & Gains</h2>
         <p className="text-sm text-slate-400 mb-4">
@@ -203,4 +200,7 @@ export default function DashboardAdmin() {
           ⏳ En attente de l'intégration de votre code IBAN et des fonctionnalités MasterCard.
         </div>
       </div>
-            
+    </div>
+  );
+        }
+        
