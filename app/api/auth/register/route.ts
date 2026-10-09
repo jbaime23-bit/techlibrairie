@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
-// Utilisation du chemin relatif exact pour éviter les erreurs d'alias sur mobile
-import { prisma } from '../../../lib/prisma';
+// Correction du chemin pour cibler exactement le dossier lib à la racine
+import { prisma } from '../../../../lib/prisma';
 
 const registerSchema = z.object({
   email: z.string().email(),
