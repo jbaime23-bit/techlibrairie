@@ -1,31 +1,39 @@
-import NextAuth from 'next-auth';
-import CredentialsProvider from 'next-auth/providers/credentials';
-import bcrypt from 'bcryptjs';
+import NextAuth from "next-auth";
+import CredentialsProvider from "next-auth/providers/credentials";
+import bcrypt from "bcryptjs";
+import { prisma } from "../../../../lib/prisma";
 
-const authOptions = {
+const handler = NextAuth({
   providers: [
     CredentialsProvider({
-      name: 'Credentials',
+      name: "Credentials",
       credentials: {
-        email: { label: 'Email', type: 'email' },
-        password: { label: 'Mot de passe', type: 'password' },
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials.password) {
-          return null;
+        if (!credentials?.email || !credentials?.password) {
+          throw new Error("Identifiants manquants.");
         }
 
-        const user = {
-          id: 'demo-user',
-          email: credentials.email,
-          name: 'Utilisateur TechLibrairie',
-          passwordHash: await bcrypt.hash('password123', 10),
-        };
+        // 1. Rechercher l'utilisateur dans Neon
+        const user = await prisma.user.findUnique({
+          where: { email: credentials.email },
+        });
 
-        const valid = await bcrypt.compare(credentials.password, user.passwordHash);
+        // 2. Si l'utilisateur n'existe pas
+        if (!user) {
+          throw new Error("Aucun utilisateur trouvé avec cet email.");
+        }
 
-        if (!valid) {
-          return null;
+        // 3. Vérification du mot de passe haché
+        const isPasswordValid = await bcrypt.compare(
+          credentials.password,
+          user.passwordHash
+        );
+
+        if (!isPasswordValid) {
+          throw new Error("Mot de passe incorrect.");
         }
 
         return {
@@ -33,22 +41,16 @@ const authOptions = {
           email: user.email,
           name: user.name,
         };
-      },
-    }),
+      }
+    })
   ],
-  pages: {
-    signIn: '/login',
-  },
   session: {
-    // Le "as const" ici corrige l'erreur de type sur Vercel
-    strategy: 'jwt' as const,
+    strategy: "jwt",
   },
-  // SOLUTION : Clé secrète intégrée directement pour contourner le blocage Vercel
-  secret: process.env.NEXTAUTH_SECRET || "TechLibrairieSecretSuperFortDuBurkina2026",
-};
+  pages: {
+    signIn: "/login",
+  },
+  secret: process.env.NEXTAUTH_SECRET,
+});
 
-// Initialisation de NextAuth avec l'option secrète incluse
-const handler = NextAuth(authOptions);
-
-// Exportation des méthodes pour l'API
 export { handler as GET, handler as POST };
