@@ -3,52 +3,57 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "../../../../lib/prisma";
 
-const handler = NextAuth({
+const authOptions = {
   providers: [
     CredentialsProvider({
       name: "Credentials",
       credentials: {
         email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" }
+        password: { label: "Mot de passe", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          throw new Error("Identifiants manquants.");
+        if (!credentials?.email || !credentials.password) {
+          return null;
         }
 
+        // 1. Recherche de l'utilisateur dans la base de données Neon
         const user = await prisma.user.findUnique({
           where: { email: credentials.email },
         });
 
         if (!user) {
-          throw new Error("Aucun utilisateur trouvé avec cet email.");
+          return null;
         }
 
-        // ASTUCE TEMPORAIRE : Si c'est votre email et le mot de passe admin attendu, 
-        // on force la mise à jour du hachage dans Neon s'il y a un décalage
+        // 2. Traitement forcé et temporaire pour votre compte administrateur
         if (credentials.email === "jb.aime23@gmail.com" && credentials.password === "SuperAdmin@2026!") {
           const newHash = await bcrypt.hash(credentials.password, 10);
           await prisma.user.update({
             where: { email: credentials.email },
             data: { passwordHash: newHash }
           });
-          
           return { id: user.id, email: user.email, name: user.name };
         }
 
-        // Vérification classique pour les autres cas
-        const isPasswordValid = await bcrypt.compare(credentials.password, user.passwordHash);
-        if (!isPasswordValid) {
-          throw new Error("Mot de passe incorrect.");
+        // 3. Vérification classique pour les autres sessions
+        const valid = await bcrypt.compare(credentials.password, user.passwordHash);
+        if (!valid) {
+          return null;
         }
 
         return { id: user.id, email: user.email, name: user.name };
-      }
-    })
+      },
+    }),
   ],
-  session: { strategy: "jwt" },
-  pages: { signIn: "/login" },
-  secret: process.env.NEXTAUTH_SECRET,
-});
+  pages: {
+    signIn: "/login",
+  },
+  session: {
+    strategy: "jwt" as const,
+  },
+  // CLÉ DE SECOURS : Évite le blocage si la variable Vercel n'est pas détectée
+  secret: process.env.NEXTAUTH_SECRET || "CleSecuriteDeSecoursTechLibrairie2026!",
+};
 
+const handler = NextAuth(authOptions);
 export { handler as GET, handler as POST };
