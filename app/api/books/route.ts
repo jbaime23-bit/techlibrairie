@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '../../../../lib/prisma';
+import { prisma } from '../../../lib/prisma';
 
 export async function POST(request: Request) {
   try {
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
   }
 }
 
-// Optionnel : Route GET pour afficher les livres sur la boutique
+// Route GET pour afficher les livres sur la boutique
 export async function GET() {
   try {
     const livres = await prisma.book.findMany({
@@ -56,4 +56,4 @@ export async function GET() {
       { status: 500 }
     );
   }
-      }
+}
