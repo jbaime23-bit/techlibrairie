@@ -18,7 +18,8 @@ export default function DashboardAdmin() {
   const [author, setAuthor] = useState('');
   const [price, setPrice] = useState('');
   const [description, setDescription] = useState('');
-  const [coverImage, setCoverImage] = useState(''); // Image de couverture
+  const [coverImage, setCoverImage] = useState(''); // Contiendrait la photo convertie
+  const [pdfUrl, setPdfUrl] = useState('');         // Contiendrait le PDF converti
   const [status, setStatus] = useState({ loading: false, message: '', success: false });
 
   useEffect(() => {
@@ -37,9 +38,30 @@ export default function DashboardAdmin() {
     }
   };
 
+  // Convertisseur universel de fichier en chaîne transmissible
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'pdf') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (type === 'image') {
+        setCoverImage(reader.result as string);
+      } else {
+        setPdfUrl(reader.result as string);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleAddBook = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatus({ loading: true, message: '', success: false });
+
+    if (!coverImage || !pdfUrl) {
+      setStatus({ loading: false, message: "Veuillez téléverser à la fois le PDF et la photo de couverture.", success: false });
+      return;
+    }
 
     try {
       const response = await fetch('/api/books', {
@@ -50,7 +72,8 @@ export default function DashboardAdmin() {
           author,
           price: parseFloat(price),
           description,
-          coverImage 
+          coverImage,
+          pdfUrl
         }),
       });
 
@@ -62,11 +85,13 @@ export default function DashboardAdmin() {
 
       setStatus({ loading: false, message: "Félicitations ! Votre livre technique avec sa couverture a été enregistré avec succès.", success: true });
       
+      // Nettoyage uniquement en cas de franc succès
       setTitle('');
       setAuthor('');
       setPrice('');
       setDescription('');
       setCoverImage('');
+      setPdfUrl('');
       setNombreLivres(prev => prev + 1);
 
     } catch (error: any) {
@@ -86,7 +111,7 @@ export default function DashboardAdmin() {
       <div className="flex flex-col gap-4 mb-8">
         <div onClick={scrollToForm} className="bg-white text-slate-900 p-5 rounded-xl cursor-pointer hover:bg-slate-100 transition duration-200 shadow-sm">
           <h3 className="text-md font-bold text-slate-950">Auteur</h3>
-          <p className="text-xs text-slate-600 mt-1">Gerez vos livres, suivez vos ventes et recevez vos gains.</p>
+          <p className="text-xs text-slate-600 mt-1">Gérez vos livres, suivez vos ventes et recevez vos gains.</p>
         </div>
         <div onClick={scrollToForm} className="bg-white text-slate-900 p-5 rounded-xl cursor-pointer hover:bg-slate-100 transition duration-200 shadow-sm">
           <h3 className="text-md font-bold text-slate-950">Éditeur</h3>
@@ -152,7 +177,7 @@ export default function DashboardAdmin() {
             <div className="flex flex-col gap-1">
               <label className="text-xs text-slate-300 font-semibold">Manuscrit principal (Fichier PDF)</label>
               <input 
-                type="file" accept=".pdf" required
+                type="file" accept=".pdf" required onChange={(e) => handleFileChange(e, 'pdf')}
                 className="p-2 bg-slate-900 border border-slate-700 rounded text-sm text-slate-400 file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer"
               />
             </div>
@@ -161,7 +186,7 @@ export default function DashboardAdmin() {
           <div className="flex flex-col gap-1">
             <label className="text-xs text-slate-300 font-semibold">Image de couverture de l'ouvrage (Photo / Image)</label>
             <input 
-              type="file" accept="image/*" required
+              type="file" accept="image/*" required onChange={(e) => handleFileChange(e, 'image')}
               className="p-2 bg-slate-900 border border-slate-700 rounded text-sm text-slate-400 file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-green-600 file:text-white hover:file:bg-green-700 cursor-pointer"
             />
           </div>
@@ -170,37 +195,19 @@ export default function DashboardAdmin() {
             <label className="text-xs text-slate-300 font-semibold">Description ou résumé du livre</label>
             <textarea 
               rows={3} value={description} onChange={(e) => setDescription(e.target.value)}
-              placeholder="Décrivez les compétences ou travaux pratiques abordés..."
-              className="p-3 bg-slate-900 border border-slate-700 rounded text-sm text-white focus:outline-none focus:border-blue-500 resize-none"
+              placeholder="Décrivez les compétences, modules ou travaux pratiques abordés..."
+              className="p-3 bg-slate-900 border border-slate-700 rounded text-sm text-white focus:outline-none focus:border-blue-500"
             />
           </div>
 
-          <button 
+          <button
             type="submit" disabled={status.loading}
-            className="mt-2 bg-blue-600 hover:bg-blue-700 text-white font-bold p-3 rounded text-sm transition duration-200 disabled:opacity-50"
+            className="w-full bg-blue-600 text-white font-bold p-3 rounded text-sm mt-2 hover:bg-blue-700 transition duration-200 disabled:opacity-50"
           >
-            {status.loading ? 'Enregistrement dans Neon...' : '🚀 Publier le livre et activer la vente'}
+            {status.loading ? 'Publication en cours...' : '🚀 Valider et Publier l\'Ouvrage'}
           </button>
         </form>
       </div>
-
-      <div className="bg-slate-800 p-6 rounded-lg border border-slate-700 mb-6">
-        <h2 className="text-lg font-bold mb-3 text-slate-200">🛡️ Sécurité des manuscrits</h2>
-        <p className="text-sm text-slate-400 leading-relaxed">
-          Chaque fichier PDF téléversé par un éditeur est automatiquement protégé. Le système limite l'accès à un maximum de 2 téléchargements par achat pour éviter le partage non autorisé.
-        </p>
-      </div>
-
-      <div className="bg-slate-800 p-6 rounded-lg border border-slate-700">
-        <h2 className="text-lg font-bold mb-3 text-slate-200">🏦 Reversements & Gains</h2>
-        <p className="text-sm text-slate-400 mb-4">
-          Le suivi des commissions et les retraits seront disponibles ici dès l'activation de vos modules de paiement.
-        </p>
-        <div className="bg-slate-900 p-3 rounded text-xs text-yellow-500 border border-yellow-600/30">
-          ⏳ En attente de l'intégration de votre code IBAN et des fonctionnalités MasterCard.
-        </div>
-      </div>
     </div>
   );
-        }
-        
+            }
