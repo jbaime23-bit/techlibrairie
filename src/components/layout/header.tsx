@@ -2,6 +2,7 @@
 import Link from "next/link";
 import type { Role } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
+import { getCartIds } from "@/lib/cart";
 import { SignOutButton } from "@/components/layout/sign-out-button";
 
 const SPACE_BY_ROLE: Record<Role, { href: string; label: string }> = {
@@ -12,6 +13,7 @@ const SPACE_BY_ROLE: Record<Role, { href: string; label: string }> = {
 
 export async function Header() {
   const user = await getCurrentUser();
+  const cartCount = getCartIds().length;
 
   return (
     <header className="border-b border-slate-200 bg-white">
@@ -23,6 +25,10 @@ export async function Header() {
         <nav className="flex flex-wrap items-center gap-3 text-sm font-medium">
           <Link href="/catalogue" className="text-slate-700 hover:text-brand-700">
             Catalogue
+          </Link>
+
+          <Link href="/panier" className="text-slate-700 hover:text-brand-700">
+            Panier{cartCount > 0 ? ` (${cartCount})` : ""}
           </Link>
 
           {user ? (
@@ -49,4 +55,4 @@ export async function Header() {
       </div>
     </header>
   );
-  }
+}
