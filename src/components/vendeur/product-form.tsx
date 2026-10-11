@@ -1,0 +1,405 @@
+// src/components/vendeur/product-form.tsx
+"use client";
+
+import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { upload } from "@vercel/blob/client";
+import {
+  ALLOWED_COVER_TYPES,
+  MAX_COVER_SIZE_BYTES,
+  MAX_PDF_SIZE_BYTES,
+  PRODUCT_CURRENCIES,
+  PRODUCT_LANGUAGES,
+} from "@/lib/product-validation";
+
+type FieldErrors = Record<string, string[] | undefined>;
+type Step = "idle" | "uploading" | "saving";
+
+interface CategoryOption {
+  id: string;
+  name: string;
+}
+
+function FieldError({ messages }: { messages?: string[] }) {
+  if (!messages || messages.length === 0) return null;
+  return <p className="field-error">{messages[0]}</p>;
+}
+
+// Version locale (le module utils du serveur ne doit pas être chargé ici).
+function toSafeFileName(name: string): string {
+  const base = name
+    .replace(/\.[^/.]+$/, "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+  return base || "document";
+}
+
+export function ProductForm({
+  sellerId,
+  categories,
+  commissionPercent,
+}: {
+  sellerId: string;
+  categories: CategoryOption[];
+  commissionPercent: number;
+}) {
+  const router = useRouter();
+  const [values, setValues] = useState({
+    title: "",
+    description: "",
+    categoryId: "",
+    currency: "XOF",
+    price: "",
+    language: "fr",
+    pageCount: "",
+  });
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [globalError, setGlobalError] = useState<string | null>(null);
+  const [step, setStep] = useState<Step>("idle");
+  const [progress, setProgress] = useState(0);
+
+  // Mémorise le PDF déjà envoyé pour ne pas le renvoyer en cas de nouvel essai.
+  const uploadedRef = useRef<{ file: File; pathname: string } | null>(null);
+
+  const busy = step !== "idle";
+
+  function handleChange(
+    event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) {
+    const { name, value } = event.target;
+    setValues((previous) => ({ ...previous, [name]: value }));
+  }
+
+  function handlePdfChange(event: ChangeEvent<HTMLInputElement>) {
+    setPdfFile(event.target.files?.[0] ?? null);
+  }
+
+  function handleCoverChange(event: ChangeEvent<HTMLInputElement>) {
+    setCoverFile(event.target.files?.[0] ?? null);
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setGlobalError(null);
+    setFieldErrors({});
+
+    // Contrôles rapides côté navigateur (le serveur revérifie tout).
+    const localErrors: FieldErrors = {};
+
+    if (!pdfFile) {
+      localErrors.pdf = ["Sélectionnez le fichier PDF de votre ouvrage."];
+    } else if (
+      pdfFile.type !== "application/pdf" &&
+      !pdfFile.name.toLowerCase().endsWith(".pdf")
+    ) {
+      localErrors.pdf = ["Seuls les fichiers PDF sont acceptés."];
+    } else if (pdfFile.size === 0) {
+      localErrors.pdf = ["Le fichier PDF est vide."];
+    } else if (pdfFile.size > MAX_PDF_SIZE_BYTES) {
+      localErrors.pdf = ["Le PDF dépasse la taille maximale de 50 Mo."];
+    }
+
+    if (coverFile) {
+      if (!ALLOWED_COVER_TYPES.includes(coverFile.type)) {
+        localErrors.cover = ["La couverture doit être au format JPEG, PNG ou WebP."];
+      } else if (coverFile.size > MAX_COVER_SIZE_BYTES) {
+        localErrors.cover = ["La couverture dépasse la taille maximale de 2 Mo."];
+      }
+    }
+
+    if (Object.keys(localErrors).length > 0 || !pdfFile) {
+      setFieldErrors(localErrors);
+      return;
+    }
+
+    try {
+      // 1) Envoi direct du PDF vers le store privé.
+      let pdfPathname: string;
+
+      if (uploadedRef.current && uploadedRef.current.file === pdfFile) {
+        pdfPathname = uploadedRef.current.pathname;
+      } else {
+        setStep("uploading");
+        setProgress(0);
+
+        const blob = await upload(
+          `pdfs/${sellerId}/${toSafeFileName(pdfFile.name)}.pdf`,
+          pdfFile,
+          {
+            access: "private",
+            handleUploadUrl: "/api/upload/pdf",
+            onUploadProgress: ({ percentage }) => setProgress(Math.round(percentage)),
+          }
+        );
+
+        pdfPathname = blob.pathname;
+        uploadedRef.current = { file: pdfFile, pathname: pdfPathname };
+      }
+
+      // 2) Création du produit (publication automatique).
+      setStep("saving");
+
+      const formData = new FormData();
+      formData.append("title", values.title);
+      formData.append("description", values.description);
+      if (values.categoryId) formData.append("categoryId", values.categoryId);
+      formData.append("currency", values.currency);
+      formData.append("price", values.price);
+      formData.append("language", values.language);
+      if (values.pageCount) formData.append("pageCount", values.pageCount);
+      formData.append("pdfStorageKey", pdfPathname);
+      formData.append("pdfFileName", pdfFile.name);
+      formData.append("pdfSizeBytes", String(pdfFile.size));
+      if (coverFile) formData.append("cover", coverFile);
+
+      const response = await fetch("/api/produits", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = (await response.json().catch(() => null)) as {
+        error?: string;
+        fieldErrors?: FieldErrors;
+      } | null;
+
+      if (!response.ok) {
+        // Le PDF a été supprimé côté serveur s'il était invalide.
+        if (response.status === 403 || response.status === 422) {
+          if (data?.fieldErrors?.pdf) uploadedRef.current = null;
+        }
+        setGlobalError(data?.error ?? "Une erreur est survenue. Veuillez réessayer.");
+        setFieldErrors(data?.fieldErrors ?? {});
+        setStep("idle");
+        return;
+      }
+
+      router.push("/vendeur/produits");
+      router.refresh();
+    } catch (error) {
+      setGlobalError(
+        error instanceof Error && error.message
+          ? `Échec de l'opération : ${error.message}`
+          : "Impossible de contacter le serveur. Vérifiez votre connexion et réessayez."
+      );
+      setStep("idle");
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+      {globalError && <div className="alert-error">{globalError}</div>}
+
+      <div>
+        <label htmlFor="title" className="label">
+          Titre de l&apos;ouvrage
+        </label>
+        <input
+          id="title"
+          name="title"
+          type="text"
+          required
+          value={values.title}
+          onChange={handleChange}
+          className="input"
+          disabled={busy}
+        />
+        <FieldError messages={fieldErrors.title} />
+      </div>
+
+      <div>
+        <label htmlFor="description" className="label">
+          Description
+        </label>
+        <textarea
+          id="description"
+          name="description"
+          rows={6}
+          required
+          value={values.description}
+          onChange={handleChange}
+          className="input"
+          disabled={busy}
+        />
+        <FieldError messages={fieldErrors.description} />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label htmlFor="categoryId" className="label">
+            Catégorie
+          </label>
+          <select
+            id="categoryId"
+            name="categoryId"
+            value={values.categoryId}
+            onChange={handleChange}
+            className="input"
+            disabled={busy}
+          >
+            <option value="">Sans catégorie</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+          <FieldError messages={fieldErrors.categoryId} />
+        </div>
+
+        <div>
+          <label htmlFor="language" className="label">
+            Langue
+          </label>
+          <select
+            id="language"
+            name="language"
+            value={values.language}
+            onChange={handleChange}
+            className="input"
+            disabled={busy}
+          >
+            {PRODUCT_LANGUAGES.map((language) => (
+              <option key={language.value} value={language.value}>
+                {language.label}
+              </option>
+            ))}
+          </select>
+          <FieldError messages={fieldErrors.language} />
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div>
+          <label htmlFor="currency" className="label">
+            Devise
+          </label>
+          <select
+            id="currency"
+            name="currency"
+            value={values.currency}
+            onChange={handleChange}
+            className="input"
+            disabled={busy}
+          >
+            {PRODUCT_CURRENCIES.map((currency) => (
+              <option key={currency.value} value={currency.value}>
+                {currency.label}
+              </option>
+            ))}
+          </select>
+          <FieldError messages={fieldErrors.currency} />
+        </div>
+
+        <div>
+          <label htmlFor="price" className="label">
+            Prix
+          </label>
+          <input
+            id="price"
+            name="price"
+            type="number"
+            inputMode="decimal"
+            min="0"
+            step={values.currency === "XOF" ? "1" : "0.01"}
+            required
+            value={values.price}
+            onChange={handleChange}
+            className="input"
+            disabled={busy}
+          />
+          <FieldError messages={fieldErrors.price} />
+        </div>
+
+        <div>
+          <label htmlFor="pageCount" className="label">
+            Nombre de pages (facultatif)
+          </label>
+          <input
+            id="pageCount"
+            name="pageCount"
+            type="number"
+            inputMode="numeric"
+            min="1"
+            step="1"
+            value={values.pageCount}
+            onChange={handleChange}
+            className="input"
+            disabled={busy}
+          />
+          <FieldError messages={fieldErrors.pageCount} />
+        </div>
+      </div>
+
+      <p className="text-xs text-slate-500">
+        Aucune taxe n&apos;est ajoutée au prix. La boutique prélève une
+        commission de {commissionPercent} % sur chaque vente ; le reste vous
+        revient.
+      </p>
+
+      <div>
+        <label htmlFor="pdf" className="label">
+          Fichier PDF (50 Mo maximum)
+        </label>
+        <input
+          id="pdf"
+          name="pdf"
+          type="file"
+          accept="application/pdf,.pdf"
+          onChange={handlePdfChange}
+          className="input"
+          disabled={busy}
+        />
+        <FieldError messages={fieldErrors.pdf} />
+      </div>
+
+      <div>
+        <label htmlFor="cover" className="label">
+          Image de couverture (facultatif, JPEG, PNG ou WebP, 2 Mo maximum)
+        </label>
+        <input
+          id="cover"
+          name="cover"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          onChange={handleCoverChange}
+          className="input"
+          disabled={busy}
+        />
+        <FieldError messages={fieldErrors.cover} />
+      </div>
+
+      {step === "uploading" && (
+        <div aria-live="polite">
+          <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
+            <div
+              className="h-full bg-brand-600 transition-all"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <p className="mt-1 text-xs text-slate-600">
+            Envoi du PDF : {progress} %
+          </p>
+        </div>
+      )}
+
+      <p className="text-xs text-slate-500">
+        En cliquant sur « Publier », votre ouvrage est mis en vente
+        immédiatement.
+      </p>
+
+      <button type="submit" className="btn-primary w-full" disabled={busy}>
+        {step === "uploading"
+          ? "Envoi du PDF en cours..."
+          : step === "saving"
+            ? "Publication en cours..."
+            : "Publier l'ouvrage"}
+      </button>
+    </form>
+  );
+                 }
