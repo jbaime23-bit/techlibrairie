@@ -100,6 +100,13 @@ export const productFieldsSchema = z
           path: ["price"],
           message: "Le franc CFA n'a pas de centimes : saisissez un nombre entier.",
         });
+      } else if (data.price % 5 !== 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["price"],
+          message:
+            "Le prix en FCFA doit être un multiple de 5 (exigence du paiement Mobile Money).",
+        });
       }
     } else if (Math.abs(data.price * 100 - Math.round(data.price * 100)) > 1e-6) {
       ctx.addIssue({
