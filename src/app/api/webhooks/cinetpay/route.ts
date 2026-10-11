@@ -1,11 +1,12 @@
 // src/app/api/webhooks/cinetpay/route.ts
-// Notification de paiement CinetPay (notify_url).
+// Notification de paiement CinetPay (notify_url) pour les commandes et le support.
 // CinetPay appelle cette URL en GET (test de disponibilité) et en POST (notification).
 // Le statut n'est jamais lu dans la notification : il est revérifié via l'API CinetPay.
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { syncCinetPayPayment } from "@/lib/orders";
+import { syncSupportPayment } from "@/lib/support";
 
 export const dynamic = "force-dynamic";
 
@@ -40,15 +41,29 @@ export async function POST(request: Request) {
       where: { providerReference: transactionId },
     });
 
-    // Transaction inconnue ou déjà traitée : on répond 200 sans rien faire.
-    if (!payment || payment.provider !== "CINETPAY" || payment.status !== "PENDING") {
+    if (payment) {
+      if (payment.provider === "CINETPAY" && payment.status === "PENDING") {
+        await syncCinetPayPayment(payment);
+      }
       return new NextResponse("OK", { status: 200 });
     }
 
-    await syncCinetPayPayment(payment);
+    const supportPayment = await prisma.supportPayment.findUnique({
+      where: { providerReference: transactionId },
+    });
+
+    if (
+      supportPayment &&
+      supportPayment.provider === "CINETPAY" &&
+      supportPayment.status === "PENDING"
+    ) {
+      await syncSupportPayment(supportPayment);
+    }
+
+    // Transaction inconnue ou déjà traitée : on répond 200 sans rien faire.
     return new NextResponse("OK", { status: 200 });
   } catch (error) {
     console.error("Erreur de traitement de la notification CinetPay :", error);
     return NextResponse.json({ error: "Erreur de traitement." }, { status: 500 });
   }
-}
+      }
