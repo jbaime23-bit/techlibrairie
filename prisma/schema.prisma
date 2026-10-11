@@ -1,112 +1,364 @@
+// prisma/schema.prisma
+// TechLibrairie - Schéma de base de données (PostgreSQL)
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
+
+// ---------------------------------------------------------------------------
+// ENUMS
+// ---------------------------------------------------------------------------
+
+enum Role {
+  BUYER
+  SELLER
+  ADMIN
+}
+
+enum SellerStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum ProductStatus {
+  PUBLISHED
+  UNPUBLISHED
+  SUSPENDED
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELED
+  REFUNDED
+}
+
+enum PaymentProvider {
+  STRIPE
+  CINETPAY
+}
+
+enum PaymentMethod {
+  CARD
+  MOBILE_MONEY
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  CANCELED
+  REFUNDED
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+}
+
+enum Currency {
+  XOF
+  EUR
+  USD
+}
+
+// ---------------------------------------------------------------------------
+// UTILISATEURS & AUTHENTIFICATION (compatible Auth.js)
+// ---------------------------------------------------------------------------
 
 model User {
-  id            String     @id @default(cuid())
-  email         String     @unique
-  name          String
-  passwordHash  String
-  role          UserRole   @default(CUSTOMER)
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  profile       Profile?
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  passwordHash  String?
+  image         String?
+  phone         String?
+  role          Role      @default(BUYER)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  sellerProfile SellerProfile?
   orders        Order[]
-  downloads     Download[]
+
+  @@index([role])
 }
 
-enum UserRole {
-  ADMIN
-  AUTHOR
-  EDITOR
-  VENDOR
-  CUSTOMER
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
 }
 
-model Profile {
-  id          String   @id @default(cuid())
-  userId      String   @unique
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bio         String?
-  phone       String?
-  avatarUrl   String?
-  country     String?  @default("Burkina Faso")
-  isVerified  Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
-model Book {
-  id          String      @id @default(cuid())
-  title       String
-  slug        String      @unique
-  description String
-  price       Float
-  currency    String      @default("XOF")
-  coverImage  String?
-  pdfUrl      String
-  authorName  String
-  category    String
-  tags        String[]
-  isPublished Boolean     @default(true)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  items       OrderItem[]
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
 }
+
+// ---------------------------------------------------------------------------
+// VENDEURS (auteurs et éditeurs)
+// ---------------------------------------------------------------------------
+
+model SellerProfile {
+  id                  String       @id @default(cuid())
+  userId              String       @unique
+  displayName         String
+  slug                String       @unique
+  bio                 String?      @db.Text
+  avatarUrl           String?
+  status              SellerStatus @default(ACTIVE)
+
+  // Taux de commission spécifique à ce vendeur (en points de base, 1000 = 10 %).
+  // Si null, le taux global de PlatformSetting s'applique.
+  commissionRateBps   Int?
+
+  // Coordonnées de versement des revenus
+  payoutMobileNumber  String?
+  payoutMobileOperator String?
+  payoutBankDetails   String?      @db.Text
+
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products Product[]
+  items    OrderItem[]
+  payouts  Payout[]
+}
+
+// ---------------------------------------------------------------------------
+// CATALOGUE
+// ---------------------------------------------------------------------------
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  slug        String    @unique
+  description String?
+  createdAt   DateTime  @default(now())
+
+  products Product[]
+}
+
+model Product {
+  id            String        @id @default(cuid())
+  sellerId      String
+  categoryId    String?
+  title         String
+  slug          String        @unique
+  description   String        @db.Text
+  language      String        @default("fr")
+  pageCount     Int?
+
+  // Prix en unité entière de la devise (XOF : francs ; EUR/USD : centimes)
+  priceAmount   Int
+  currency      Currency      @default(XOF)
+
+  coverImageUrl String?
+
+  // Fichier PDF stocké en accès PRIVÉ. Jamais exposé publiquement.
+  pdfStorageKey String
+  pdfFileName   String
+  pdfSizeBytes  Int
+
+  // Publication automatique dès la soumission par le vendeur
+  status        ProductStatus @default(PUBLISHED)
+  publishedAt   DateTime      @default(now())
+
+  salesCount    Int           @default(0)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  seller   SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  category Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  items    OrderItem[]
+
+  @@index([sellerId])
+  @@index([categoryId])
+  @@index([status, publishedAt])
+}
+
+// ---------------------------------------------------------------------------
+// COMMANDES (aucune taxe sur les produits numériques)
+// ---------------------------------------------------------------------------
 
 model Order {
-  id            String      @id @default(cuid())
-  userId        String
-  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  reference     String      @unique
-  totalAmount   Float
-  currency      String      @default("XOF")
-  paymentMethod String
-  paymentStatus String      @default("PENDING")
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  items         OrderItem[]
-  downloads     Download[]
+  id          String      @id @default(cuid())
+  number      String      @unique
+  buyerId     String
+  buyerEmail  String
+  status      OrderStatus @default(PENDING)
+
+  // Total payé par l'acheteur = somme des lignes. Aucune taxe ajoutée.
+  totalAmount Int
+  currency    Currency
+
+  paidAt      DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  buyer    User        @relation(fields: [buyerId], references: [id], onDelete: Restrict)
+  items    OrderItem[]
+  payments Payment[]
+
+  @@index([buyerId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model OrderItem {
-  id         String   @id @default(cuid())
-  orderId    String
-  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  bookId     String
-  book       Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
-  quantity   Int      @default(1)
-  unitPrice  Float
-  createdAt  DateTime @default(now())
+  id                String   @id @default(cuid())
+  orderId           String
+  productId         String
+  sellerId          String
+
+  // Instantané du produit au moment de l'achat
+  productTitle      String
+  unitAmount        Int
+  currency          Currency
+
+  // Répartition calculée automatiquement à la vente
+  commissionRateBps Int
+  commissionAmount  Int
+  sellerAmount      Int
+
+  createdAt         DateTime @default(now())
+
+  order     Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  seller    SellerProfile   @relation(fields: [sellerId], references: [id], onDelete: Restrict)
+  downloads DownloadToken[]
+
+  @@unique([orderId, productId])
+  @@index([sellerId])
+  @@index([productId])
 }
 
-model Download {
-  id            String   @id @default(cuid())
-  userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orderId       String
-  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  token         String   @unique
-  downloadCount Int      @default(0)
-  maxDownloads Int      @default(2)
-  expiresAt     DateTime
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-}
+// ---------------------------------------------------------------------------
+// PAIEMENTS (Stripe pour les cartes, CinetPay pour le Mobile Money)
+// ---------------------------------------------------------------------------
 
 model Payment {
-  id            String   @id @default(cuid())
-  orderReference String   @unique
-  method        String
-  amount        Float
-  currency      String   @default("XOF")
-  status        String   @default("PENDING")
-  reference     String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                String          @id @default(cuid())
+  orderId           String
+  provider          PaymentProvider
+  method            PaymentMethod
+  status            PaymentStatus   @default(PENDING)
+  amount            Int
+  currency          Currency
+
+  // Identifiant de la transaction chez le prestataire
+  // (Stripe : session/payment intent ; CinetPay : transaction_id)
+  providerReference String          @unique
+  providerPayload   Json?
+
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// TÉLÉCHARGEMENT SÉCURISÉ
+// ---------------------------------------------------------------------------
+
+model DownloadToken {
+  id            String    @id @default(cuid())
+  orderItemId   String
+  token         String    @unique
+  expiresAt     DateTime
+  maxDownloads  Int       @default(5)
+  downloadCount Int       @default(0)
+  lastUsedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@index([orderItemId])
+  @@index([expiresAt])
+}
+
+// ---------------------------------------------------------------------------
+// VERSEMENTS AUX VENDEURS
+// ---------------------------------------------------------------------------
+
+model Payout {
+  id          String       @id @default(cuid())
+  sellerId    String
+  amount      Int
+  currency    Currency
+  status      PayoutStatus @default(PENDING)
+  method      String?
+  reference   String?
+  note        String?
+  requestedAt DateTime     @default(now())
+  paidAt      DateTime?
+
+  seller SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Restrict)
+
+  @@index([sellerId])
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// PARAMÈTRES GLOBAUX DE LA PLATEFORME (une seule ligne, id = "global")
+// ---------------------------------------------------------------------------
+
+model PlatformSetting {
+  id                       String   @id @default("global")
+
+  // Commission par défaut en points de base (1000 = 10 %)
+  defaultCommissionRateBps Int      @default(1000)
+
+  // Téléchargement sécurisé
+  downloadLinkTtlHours     Int      @default(72)
+  downloadMaxAttempts      Int      @default(5)
+
+  // Montant minimal pour demander un versement (en XOF)
+  minPayoutAmountXof       Int      @default(5000)
+
+  updatedAt                DateTime @updatedAt
 }
