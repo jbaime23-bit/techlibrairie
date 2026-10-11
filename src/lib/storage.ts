@@ -1,68 +1,77 @@
 // src/lib/storage.ts
 // Stockage des fichiers avec Vercel Blob.
-// - PDF : store PRIVÉ (BLOB_READ_WRITE_TOKEN). Jamais d'URL publique : le
-//   fichier n'est lu que côté serveur, après vérification du jeton d'achat.
+// - PDF : store PRIVÉ. Aucune URL publique : le fichier n'est lu que côté
+//   serveur, après vérification du droit de téléchargement.
 // - Couvertures : store PUBLIC (BLOB_PUBLIC_READ_WRITE_TOKEN).
 
 import { put, get, del } from "@vercel/blob";
 import { slugify } from "@/lib/utils";
+import {
+  ALLOWED_COVER_TYPES,
+  MAX_COVER_SIZE_BYTES,
+} from "@/lib/product-validation";
 
-export const MAX_PDF_SIZE_BYTES = 50 * 1024 * 1024; // 50 Mo
-export const MAX_COVER_SIZE_BYTES = 5 * 1024 * 1024; // 5 Mo
-export const ALLOWED_COVER_TYPES = ["image/jpeg", "image/png", "image/webp"];
-
-/** Retire l'extension et nettoie le nom d'un fichier. */
-function safeBaseName(fileName: string): string {
-  const withoutExtension = fileName.replace(/\.[^/.]+$/, "");
-  return slugify(withoutExtension) || "document";
+/** Préfixe de stockage des PDF d'un vendeur. */
+export function pdfPathPrefix(sellerId: string): string {
+  return `pdfs/${sellerId}/`;
 }
 
-/** Vérifie qu'un fichier est bien un PDF valide et de taille acceptable. */
-export async function validatePdfFile(file: File): Promise<void> {
-  if (file.size === 0) {
-    throw new Error("Le fichier PDF est vide.");
-  }
-  if (file.size > MAX_PDF_SIZE_BYTES) {
-    throw new Error("Le fichier PDF dépasse la taille maximale de 50 Mo.");
-  }
-  if (file.type !== "application/pdf") {
-    throw new Error("Seuls les fichiers au format PDF sont acceptés.");
-  }
-
-  // Contrôle de la signature réelle du fichier (%PDF-), pas seulement de l'extension.
-  const header = new Uint8Array(await file.slice(0, 5).arrayBuffer());
-  const signature = String.fromCharCode(...Array.from(header));
-  if (signature !== "%PDF-") {
-    throw new Error("Le fichier n'est pas un PDF valide.");
-  }
+/**
+ * Vérifie qu'une clé de stockage désigne bien un PDF appartenant à ce vendeur.
+ * Empêche un vendeur de référencer le fichier d'un autre vendeur.
+ */
+export function isOwnedPdfKey(storageKey: string, sellerId: string): boolean {
+  return (
+    storageKey.startsWith(pdfPathPrefix(sellerId)) &&
+    storageKey.toLowerCase().endsWith(".pdf") &&
+    !storageKey.includes("..") &&
+    !storageKey.includes("\\")
+  );
 }
 
-export interface StoredPdf {
-  storageKey: string;
-  fileName: string;
-  sizeBytes: number;
+export interface PdfInspection {
+  exists: boolean;
+  isPdf: boolean;
+  sizeBytes: number | null;
 }
 
-/** Envoie un PDF dans le store privé et renvoie sa clé de stockage. */
-export async function uploadPrivatePdf(
-  file: File,
-  sellerId: string
-): Promise<StoredPdf> {
-  await validatePdfFile(file);
+/**
+ * Vérifie qu'un PDF existe dans le store privé et commence par la
+ * signature %PDF-. Ne télécharge que les premiers octets.
+ */
+export async function inspectPrivatePdf(
+  storageKey: string
+): Promise<PdfInspection> {
+  let result;
+  try {
+    result = await get(storageKey, { access: "private" });
+  } catch {
+    return { exists: false, isPdf: false, sizeBytes: null };
+  }
 
-  const pathname = `pdfs/${sellerId}/${safeBaseName(file.name)}.pdf`;
+  if (!result || result.statusCode !== 200 || !result.stream) {
+    return { exists: false, isPdf: false, sizeBytes: null };
+  }
 
-  const result = await put(pathname, file, {
-    access: "private",
-    addRandomSuffix: true,
-    contentType: "application/pdf",
-  });
+  const reader = result.stream.getReader();
+  let received = new Uint8Array(0);
 
-  return {
-    storageKey: result.pathname,
-    fileName: `${safeBaseName(file.name)}.pdf`,
-    sizeBytes: file.size,
-  };
+  while (received.length < 5) {
+    const { done, value } = await reader.read();
+    if (done || !value) break;
+    const merged = new Uint8Array(received.length + value.length);
+    merged.set(received);
+    merged.set(value, received.length);
+    received = merged;
+  }
+
+  await reader.cancel().catch(() => undefined);
+
+  const signature = new TextDecoder().decode(received.slice(0, 5));
+  const blobInfo = result.blob as unknown as { size?: number };
+  const sizeBytes = typeof blobInfo.size === "number" ? blobInfo.size : null;
+
+  return { exists: true, isPdf: signature === "%PDF-", sizeBytes };
 }
 
 /**
@@ -75,12 +84,11 @@ export async function openPrivatePdfStream(
 ): Promise<ReadableStream<Uint8Array> | null> {
   const result = await get(storageKey, { access: "private" });
 
-  // Lecture défensive du flux, indépendante des variantes de type du SDK.
-  const stream = (
-    result as unknown as { stream?: ReadableStream<Uint8Array> | null } | null
-  )?.stream;
+  if (!result || result.statusCode !== 200 || !result.stream) {
+    return null;
+  }
 
-  return stream ?? null;
+  return result.stream;
 }
 
 /** Supprime un PDF du store privé. */
@@ -100,14 +108,16 @@ export async function uploadPublicCover(
     );
   }
   if (file.size === 0 || file.size > MAX_COVER_SIZE_BYTES) {
-    throw new Error("L'image de couverture doit faire entre 1 octet et 5 Mo.");
+    throw new Error("L'image de couverture doit faire entre 1 octet et 2 Mo.");
   }
   if (!ALLOWED_COVER_TYPES.includes(file.type)) {
     throw new Error("La couverture doit être au format JPEG, PNG ou WebP.");
   }
 
-  const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
-  const pathname = `couvertures/${sellerId}/${safeBaseName(file.name)}.${extension}`;
+  const extension =
+    file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+  const baseName = slugify(file.name.replace(/\.[^/.]+$/, "")) || "couverture";
+  const pathname = `couvertures/${sellerId}/${baseName}.${extension}`;
 
   const result = await put(pathname, file, {
     access: "public",
@@ -124,4 +134,4 @@ export async function deletePublicCover(url: string): Promise<void> {
   const token = process.env.BLOB_PUBLIC_READ_WRITE_TOKEN;
   if (!token) return;
   await del(url, { token });
-}
+               }
