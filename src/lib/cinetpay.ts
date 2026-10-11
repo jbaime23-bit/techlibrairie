@@ -23,8 +23,11 @@ export interface CinetPayInitParams {
   transactionId: string;
   amount: number;
   description: string;
+  // Identifiant métier transmis à CinetPay (commande ou conversation de support)
   orderId: string;
   appUrl: string;
+  // Chemin de retour du client après paiement (par défaut : confirmation de commande)
+  returnPath?: string;
 }
 
 export interface CinetPayInitResult {
@@ -41,6 +44,9 @@ export async function initCinetPayPayment(
 ): Promise<CinetPayInitResult> {
   const { apikey, siteId } = getCredentials();
 
+  const returnPath =
+    params.returnPath ?? `/api/paiement/retour?commande=${params.orderId}`;
+
   const response = await fetch(`${CINETPAY_BASE_URL}/payment`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -52,7 +58,7 @@ export async function initCinetPayPayment(
       currency: "XOF",
       description: params.description,
       notify_url: `${params.appUrl}/api/webhooks/cinetpay`,
-      return_url: `${params.appUrl}/api/paiement/retour?commande=${params.orderId}`,
+      return_url: `${params.appUrl}${returnPath}`,
       channels: "MOBILE_MONEY",
       lang: "fr",
       metadata: params.orderId,
@@ -143,4 +149,4 @@ export async function checkCinetPayPayment(
       typeof data.payment_method === "string" ? data.payment_method : null,
     operatorId: typeof data.operator_id === "string" ? data.operator_id : null,
   };
-      }
+                                     }
