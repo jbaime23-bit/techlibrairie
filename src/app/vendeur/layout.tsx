@@ -1,6 +1,7 @@
 // src/app/vendeur/layout.tsx
 import Link from "next/link";
 import { requireRole } from "@/lib/auth";
+import AdSlot from "@/components/publicite/AdSlot";
 
 export default async function VendeurLayout({
   children,
@@ -22,7 +23,12 @@ export default async function VendeurLayout({
           Nouveau produit
         </Link>
       </nav>
+
       {children}
+
+      <div className="mt-10">
+        <AdSlot placement="SELLER_DASHBOARD" />
+      </div>
     </div>
   );
 }
