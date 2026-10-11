@@ -7,6 +7,7 @@ import { requireUser } from "@/lib/auth";
 import { syncOrderPayments } from "@/lib/orders";
 import { AutoRefresh } from "@/components/paiement/auto-refresh";
 import { ClearCart } from "@/components/paiement/clear-cart";
+import AdSlot from "@/components/publicite/AdSlot";
 import { formatDate, formatPrice } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -109,6 +110,10 @@ export default async function RetourPaiementPage({
               Continuer mes achats
             </Link>
           </div>
+        </div>
+
+        <div className="mx-auto mt-6 max-w-2xl">
+          <AdSlot placement="DOWNLOAD_CONFIRMATION" />
         </div>
       </div>
     );
