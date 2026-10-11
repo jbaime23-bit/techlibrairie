@@ -6,7 +6,7 @@ import { getCartIds } from "@/lib/cart";
 import { SignOutButton } from "@/components/layout/sign-out-button";
 
 const SPACE_BY_ROLE: Record<Role, { href: string; label: string }> = {
-  BUYER: { href: "/acheteur", label: "Mon espace" },
+  BUYER: { href: "/acheteur", label: "Mes achats" },
   SELLER: { href: "/vendeur", label: "Espace vendeur" },
   ADMIN: { href: "/admin", label: "Administration" },
 };
@@ -39,6 +39,16 @@ export async function Header() {
               >
                 {SPACE_BY_ROLE[user.role].label}
               </Link>
+
+              {user.role !== "BUYER" && (
+                <Link
+                  href="/acheteur"
+                  className="text-slate-700 hover:text-brand-700"
+                >
+                  Mes achats
+                </Link>
+              )}
+
               <SignOutButton />
             </>
           ) : (
