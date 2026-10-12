@@ -17,7 +17,16 @@ const getPublishedProduct = cache(async (slug: string) => {
   const product = await prisma.product.findUnique({
     where: { slug },
     include: {
-      seller: { select: { id: true, displayName: true, bio: true, status: true, userId: true } },
+      seller: {
+        select: {
+          id: true,
+          slug: true,
+          displayName: true,
+          bio: true,
+          status: true,
+          userId: true,
+        },
+      },
       category: { select: { name: true, slug: true } },
     },
   });
@@ -139,7 +148,13 @@ export default async function ProductPage({
         <div>
           <h1 className="text-3xl font-bold">{product.title}</h1>
           <p className="mt-2 text-slate-600">
-            par <span className="font-semibold">{product.seller.displayName}</span>
+            par{" "}
+            <Link
+              href={`/auteurs/${product.seller.slug}`}
+              className="font-semibold text-brand-700 hover:underline"
+            >
+              {product.seller.displayName}
+            </Link>
           </p>
 
           <p className="mt-6 text-3xl font-bold">
@@ -194,7 +209,13 @@ export default async function ProductPage({
           {product.seller.bio && (
             <>
               <h2 className="mt-8 text-lg font-semibold">
-                À propos de {product.seller.displayName}
+                À propos de{" "}
+                <Link
+                  href={`/auteurs/${product.seller.slug}`}
+                  className="text-brand-700 hover:underline"
+                >
+                  {product.seller.displayName}
+                </Link>
               </h2>
               <p className="mt-2 whitespace-pre-line text-slate-700">
                 {product.seller.bio}
@@ -218,4 +239,4 @@ export default async function ProductPage({
       )}
     </div>
   );
-            }
+                                           }
