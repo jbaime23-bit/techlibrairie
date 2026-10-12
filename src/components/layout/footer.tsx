@@ -85,8 +85,19 @@ export async function Footer() {
       </div>
 
       <div className="border-t border-slate-200">
-        <div className="container-page py-4 text-center text-sm text-slate-500">
-          © {new Date().getFullYear()} TechLibrairie. Tous droits réservés.
+        <div className="container-page flex flex-col items-center gap-2 py-4 text-sm text-slate-500 sm:flex-row sm:justify-between">
+          <p>© {new Date().getFullYear()} TechLibrairie. Tous droits réservés.</p>
+          <nav aria-label="Informations légales" className="flex flex-wrap justify-center gap-4">
+            <Link href="/conditions" className="hover:text-brand-700">
+              Conditions générales
+            </Link>
+            <Link href="/mentions-legales" className="hover:text-brand-700">
+              Mentions légales
+            </Link>
+            <Link href="/confidentialite" className="hover:text-brand-700">
+              Confidentialité
+            </Link>
+          </nav>
         </div>
       </div>
     </footer>
