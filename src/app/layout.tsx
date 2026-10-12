@@ -1,33 +1,39 @@
-// src/app/layout.tsx
-import type { Metadata } from "next";
-import "./globals.css";
-import { Header } from "@/components/layout/header";
-import { Footer } from "@/components/layout/footer";
+// src/app/admin/layout.tsx
+import Link from "next/link";
+import { requireAdmin } from "@/lib/admin";
 
-export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
-  ),
-  title: {
-    default: "TechLibrairie - Livres et guides techniques en PDF",
-    template: "%s | TechLibrairie",
-  },
-  description:
-    "La plateforme multi-vendeurs de livres et guides techniques au format PDF. Paiement par carte bancaire ou Mobile Money, téléchargement immédiat.",
-};
+const LINKS = [
+  { href: "/admin", label: "Tableau de bord" },
+  { href: "/admin/vendeurs", label: "Vendeurs" },
+  { href: "/admin/produits", label: "Produits" },
+  { href: "/admin/commandes", label: "Commandes" },
+  { href: "/admin/versements", label: "Versements" },
+  { href: "/admin/support", label: "Support" },
+  { href: "/admin/publicites", label: "Publicités" },
+  { href: "/admin/messages", label: "Messages de contact" },
+  { href: "/admin/taux", label: "Taux de change" },
+  { href: "/admin/emails", label: "Emails" },
+  { href: "/admin/parametres", label: "Paramètres" },
+];
 
-export default function RootLayout({
+export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  await requireAdmin("/admin");
+
   return (
-    <html lang="fr">
-      <body className="flex min-h-screen flex-col font-sans">
-        <Header />
-        <main className="flex-1">{children}</main>
-        <Footer />
-      </body>
-    </html>
+    <div className="container-page py-8">
+      <nav className="mb-8 flex flex-wrap gap-2 border-b border-slate-200 pb-4 text-sm font-medium">
+        {LINKS.map((link) => (
+          <Link key={link.href} href={link.href} className="btn-secondary">
+            {link.label}
+          </Link>
+        ))}
+      </nav>
+
+      {children}
+    </div>
   );
 }
