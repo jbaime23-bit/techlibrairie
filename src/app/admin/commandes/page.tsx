@@ -164,7 +164,12 @@ export default async function AdminCommandesPage({
                 return (
                   <tr key={order.id} className="border-b border-slate-100 align-top">
                     <td className="px-4 py-3">
-                      <p className="font-medium">{order.number}</p>
+                      <Link
+                        href={`/admin/commandes/${order.id}`}
+                        className="font-medium text-brand-700 hover:underline"
+                      >
+                        {order.number}
+                      </Link>
                       <p className="text-xs text-slate-500">{order.buyerEmail}</p>
                       <p className="text-xs text-slate-400">
                         {formatDate(order.createdAt)}
@@ -208,4 +213,4 @@ export default async function AdminCommandesPage({
       />
     </div>
   );
-}
+                      }
