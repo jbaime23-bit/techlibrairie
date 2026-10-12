@@ -1,6 +1,7 @@
 // src/components/auth/register-form.tsx
 "use client";
 
+import Link from "next/link";
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
@@ -24,6 +25,7 @@ export function RegisterForm() {
     displayName: "",
     phone: "",
   });
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -37,13 +39,21 @@ export function RegisterForm() {
     event.preventDefault();
     setGlobalError(null);
     setFieldErrors({});
+
+    if (!acceptTerms) {
+      setFieldErrors({
+        acceptTerms: ["Vous devez accepter les conditions pour créer un compte."],
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
       const response = await fetch("/api/inscription", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...values, accountType }),
+        body: JSON.stringify({ ...values, accountType, acceptTerms: true }),
       });
 
       const data = (await response.json().catch(() => null)) as {
@@ -250,9 +260,43 @@ export function RegisterForm() {
         <FieldError messages={fieldErrors.confirmPassword} />
       </div>
 
+      <div>
+        <label className="flex items-start gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={acceptTerms}
+            onChange={(event) => setAcceptTerms(event.target.checked)}
+            disabled={loading}
+            className="mt-1"
+          />
+          <span>
+            J&apos;ai lu et j&apos;accepte les{" "}
+            <Link
+              href="/conditions"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-brand-700 hover:underline"
+            >
+              conditions générales
+            </Link>{" "}
+            et la{" "}
+            <Link
+              href="/confidentialite"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-brand-700 hover:underline"
+            >
+              politique de confidentialité
+            </Link>
+            .
+          </span>
+        </label>
+        <FieldError messages={fieldErrors.acceptTerms} />
+      </div>
+
       <button type="submit" className="btn-primary w-full" disabled={loading}>
         {loading ? "Création du compte..." : "Créer mon compte"}
       </button>
     </form>
   );
-      }
+                                           }
