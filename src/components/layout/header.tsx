@@ -60,6 +60,17 @@ export async function Header() {
           )}
         </nav>
       </div>
+
+      {user && !user.emailVerified && (
+        <div className="border-t border-yellow-200 bg-yellow-50">
+          <div className="container-page py-2 text-sm text-yellow-900">
+            Votre adresse email n&apos;est pas encore vérifiée.{" "}
+            <Link href="/verifier-email" className="font-semibold underline">
+              Vérifier maintenant
+            </Link>
+          </div>
+        </div>
+      )}
     </header>
   );
-}
+          }
