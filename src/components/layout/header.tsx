@@ -46,6 +46,10 @@ export async function Header() {
                 </Link>
               )}
 
+              <Link href="/profil" className="text-slate-700 hover:text-brand-700">
+                Mon profil
+              </Link>
+
               <SignOutButton />
             </>
           ) : (
@@ -73,4 +77,4 @@ export async function Header() {
       )}
     </header>
   );
-          }
+}
