@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/auth";
 import { resetPasswordSchema } from "@/lib/account-validation";
 import { deleteTokensFor, findValidToken } from "@/lib/account-tokens";
+import { clearLoginFailures } from "@/lib/login-throttle";
 
 export const dynamic = "force-dynamic";
 
@@ -56,12 +57,15 @@ export async function POST(request: Request) {
       where: { id: user.id },
       data: {
         passwordHash,
+        // Toutes les sessions ouvertes avant ce moment sont désormais refusées.
+        passwordChangedAt: new Date(),
         // Le lien reçu par email prouve que l'adresse appartient bien à la personne.
         ...(user.emailVerified ? {} : { emailVerified: new Date() }),
       },
     });
 
     await deleteTokensFor("reset", valid.email);
+    await clearLoginFailures(valid.email);
   } catch (error) {
     console.error("Erreur lors de la réinitialisation du mot de passe :", error);
     return NextResponse.json(
