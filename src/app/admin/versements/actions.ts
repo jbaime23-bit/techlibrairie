@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { assertAdminAction } from "@/lib/admin";
+import { notifyPayoutPaid, notifyPayoutRejected } from "@/lib/notifications";
 
 const BACK = "/admin/versements";
 
@@ -57,6 +58,10 @@ export async function markPayoutPaidAction(formData: FormData): Promise<void> {
     data: { status: "PAID", paidAt: new Date(), reference },
   });
 
+  if (result.count > 0) {
+    await notifyPayoutPaid(payoutId);
+  }
+
   revalidatePath(BACK);
   revalidatePath("/vendeur/revenus");
 
@@ -94,8 +99,12 @@ export async function rejectPayoutAction(formData: FormData): Promise<void> {
     },
   });
 
+  if (result.count > 0) {
+    await notifyPayoutRejected(payout.id, reason);
+  }
+
   revalidatePath(BACK);
   revalidatePath("/vendeur/revenus");
 
   redirect(result.count > 0 ? `${BACK}?message=refuse` : `${BACK}?erreur=etat`);
-}
+  }
