@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 export default async function ConnexionPage({
   searchParams,
 }: {
-  searchParams: { callbackUrl?: string | string[] };
+  searchParams: { callbackUrl?: string | string[]; message?: string | string[] };
 }) {
   const callbackUrl = safeCallbackUrl(searchParams.callbackUrl);
   const user = await getCurrentUser();
@@ -21,6 +21,10 @@ export default async function ConnexionPage({
   if (user) {
     redirect(callbackUrl);
   }
+
+  const message = Array.isArray(searchParams.message)
+    ? searchParams.message[0]
+    : searchParams.message;
 
   return (
     <div className="container-page py-12">
@@ -30,6 +34,14 @@ export default async function ConnexionPage({
           <p className="mt-1 text-sm text-slate-600">
             Accédez à votre espace TechLibrairie.
           </p>
+
+          {message === "mot-de-passe-modifie" && (
+            <div className="mt-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+              Votre mot de passe a été modifié. Pour votre sécurité, vous avez
+              été déconnecté de tous vos appareils : reconnectez-vous avec votre
+              nouveau mot de passe.
+            </div>
+          )}
 
           <div className="mt-6">
             <LoginForm callbackUrl={callbackUrl} />
