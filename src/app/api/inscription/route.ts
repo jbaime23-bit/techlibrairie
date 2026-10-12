@@ -8,6 +8,9 @@ import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/auth";
 import { registerSchema } from "@/lib/validations";
 import { slugWithSuffix } from "@/lib/utils";
+import { createAccountToken } from "@/lib/account-tokens";
+import { sendVerificationEmail } from "@/lib/account-emails";
+import { isEmailConfigured } from "@/lib/email";
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -82,5 +85,15 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json({ ok: true }, { status: 201 });
+  // Email de vérification : un échec ne doit jamais empêcher l'inscription.
+  if (isEmailConfigured()) {
+    try {
+      const token = await createAccountToken("verify", data.email);
+      await sendVerificationEmail({ email: data.email, name: data.name, token });
+    } catch (error) {
+      console.error("Erreur lors de l'envoi de l'email de vérification :", error);
     }
+  }
+
+  return NextResponse.json({ ok: true }, { status: 201 });
+}
