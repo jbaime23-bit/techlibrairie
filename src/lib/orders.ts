@@ -9,6 +9,7 @@ import { buildOrderLines, getDefaultCommissionRateBps } from "@/lib/commission";
 import { generateDownloadToken, generateOrderNumber } from "@/lib/utils";
 import { checkCinetPayPayment } from "@/lib/cinetpay";
 import { getStripe } from "@/lib/stripe";
+import { notifyOrderPaid } from "@/lib/notifications";
 
 /** URL publique du site (obligatoire pour les retours et notifications de paiement). */
 export function getAppUrl(): string {
@@ -268,7 +269,7 @@ export async function syncCinetPayPayment(payment: Payment): Promise<SyncResult>
       return "mismatch";
     }
 
-    await markOrderPaid({
+    const firstTime = await markOrderPaid({
       orderId: payment.orderId,
       paymentId: payment.id,
       providerPayload: {
@@ -277,6 +278,10 @@ export async function syncCinetPayPayment(payment: Payment): Promise<SyncResult>
         operatorId: result.operatorId,
       },
     });
+
+    if (firstTime) {
+      await notifyOrderPaid(payment.orderId);
+    }
     return "paid";
   }
 
@@ -309,11 +314,15 @@ export async function syncStripePayment(payment: Payment): Promise<SyncResult> {
       return "mismatch";
     }
 
-    await markOrderPaid({
+    const firstTime = await markOrderPaid({
       orderId: payment.orderId,
       paymentId: payment.id,
       providerPayload: { status: "paid", sessionId: session.id },
     });
+
+    if (firstTime) {
+      await notifyOrderPaid(payment.orderId);
+    }
     return "paid";
   }
 
@@ -346,4 +355,4 @@ export async function syncOrderPayments(orderId: string): Promise<void> {
       console.error(`Vérification impossible du paiement ${payment.id} :`, error);
     }
   }
-                             }
+}
