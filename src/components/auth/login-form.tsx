@@ -1,6 +1,7 @@
 // src/components/auth/login-form.tsx
 "use client";
 
+import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
@@ -78,9 +79,18 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
         />
       </div>
 
+      <div className="text-right text-sm">
+        <Link
+          href="/mot-de-passe-oublie"
+          className="font-semibold text-brand-700 hover:underline"
+        >
+          Mot de passe oublié ?
+        </Link>
+      </div>
+
       <button type="submit" className="btn-primary w-full" disabled={loading}>
         {loading ? "Connexion en cours..." : "Se connecter"}
       </button>
     </form>
   );
-    }
+}
