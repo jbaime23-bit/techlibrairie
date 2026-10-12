@@ -70,7 +70,7 @@ export default async function ProduitsPage() {
                 <th className="px-4 py-3 font-medium">Statut</th>
                 <th className="px-4 py-3 font-medium">Ventes</th>
                 <th className="px-4 py-3 font-medium">Publié le</th>
-                <th className="px-4 py-3 font-medium">Action</th>
+                <th className="px-4 py-3 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -113,16 +113,25 @@ export default async function ProduitsPage() {
                   <td className="px-4 py-3">{product.salesCount}</td>
                   <td className="px-4 py-3">{formatDate(product.publishedAt)}</td>
                   <td className="px-4 py-3">
-                    {product.status === "SUSPENDED" ? (
-                      <span className="text-xs text-slate-500">
-                        Contactez l&apos;administration
-                      </span>
-                    ) : (
-                      <ProductStatusToggle
-                        productId={product.id}
-                        status={product.status}
-                      />
-                    )}
+                    <div className="flex flex-col items-start gap-2">
+                      <Link
+                        href={`/vendeur/produits/${product.id}/modifier`}
+                        className="btn-secondary px-3 py-1 text-xs"
+                      >
+                        Modifier
+                      </Link>
+
+                      {product.status === "SUSPENDED" ? (
+                        <span className="text-xs text-slate-500">
+                          Contactez l&apos;administration
+                        </span>
+                      ) : (
+                        <ProductStatusToggle
+                          productId={product.id}
+                          status={product.status}
+                        />
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -132,4 +141,4 @@ export default async function ProduitsPage() {
       )}
     </div>
   );
-  }
+                  }
