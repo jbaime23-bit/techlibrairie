@@ -8,7 +8,6 @@ import {
   ALLOWED_COVER_TYPES,
   MAX_COVER_SIZE_BYTES,
   MAX_PDF_SIZE_BYTES,
-  PRODUCT_CURRENCIES,
   PRODUCT_LANGUAGES,
 } from "@/lib/product-validation";
 
@@ -52,7 +51,6 @@ export function ProductForm({
     title: "",
     description: "",
     categoryId: "",
-    currency: "XOF",
     price: "",
     language: "fr",
     pageCount: "",
@@ -113,6 +111,13 @@ export function ProductForm({
       }
     }
 
+    const priceNumber = Number(values.price);
+    if (values.price.trim() !== "" && Number.isFinite(priceNumber)) {
+      if (!Number.isInteger(priceNumber) || priceNumber % 5 !== 0) {
+        localErrors.price = ["Le prix en FCFA doit être un multiple de 5."];
+      }
+    }
+
     if (Object.keys(localErrors).length > 0 || !pdfFile) {
       setFieldErrors(localErrors);
       return;
@@ -149,7 +154,7 @@ export function ProductForm({
       formData.append("title", values.title);
       formData.append("description", values.description);
       if (values.categoryId) formData.append("categoryId", values.categoryId);
-      formData.append("currency", values.currency);
+      formData.append("currency", "XOF");
       formData.append("price", values.price);
       formData.append("language", values.language);
       if (values.pageCount) formData.append("pageCount", values.pageCount);
@@ -274,39 +279,18 @@ export function ProductForm({
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div>
-          <label htmlFor="currency" className="label">
-            Devise
-          </label>
-          <select
-            id="currency"
-            name="currency"
-            value={values.currency}
-            onChange={handleChange}
-            className="input"
-            disabled={busy}
-          >
-            {PRODUCT_CURRENCIES.map((currency) => (
-              <option key={currency.value} value={currency.value}>
-                {currency.label}
-              </option>
-            ))}
-          </select>
-          <FieldError messages={fieldErrors.currency} />
-        </div>
-
+      <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="price" className="label">
-            Prix
+            Prix en FCFA (multiple de 5, minimum 100)
           </label>
           <input
             id="price"
             name="price"
             type="number"
-            inputMode="decimal"
-            min="0"
-            step={values.currency === "XOF" ? "1" : "0.01"}
+            inputMode="numeric"
+            min="100"
+            step="5"
             required
             value={values.price}
             onChange={handleChange}
@@ -314,6 +298,7 @@ export function ProductForm({
             disabled={busy}
           />
           <FieldError messages={fieldErrors.price} />
+          <FieldError messages={fieldErrors.currency} />
         </div>
 
         <div>
@@ -328,6 +313,82 @@ export function ProductForm({
             min="1"
             step="1"
             value={values.pageCount}
+            onChange={handleChange}
+            className="input"
+            disabled={busy}
+          />
+          <FieldError messages={fieldErrors.pageCount} />
+        </div>
+      </div>
+
+      <p className="text-xs text-slate-500">
+        Le prix est fixé en FCFA. Pour les paiements par carte bancaire, il est
+        converti automatiquement en euros ou en dollars au moment du paiement.
+        Aucune taxe n&apos;est ajoutée. La boutique prélève une commission de{" "}
+        {commissionPercent} % sur chaque vente ; le reste vous revient.
+      </p>
+
+      <div>
+        <label htmlFor="pdf" className="label">
+          Fichier PDF (50 Mo maximum)
+        </label>
+        <input
+          id="pdf"
+          name="pdf"
+          type="file"
+          accept="application/pdf,.pdf"
+          onChange={handlePdfChange}
+          className="input"
+          disabled={busy}
+        />
+        <FieldError messages={fieldErrors.pdf} />
+      </div>
+
+      <div>
+        <label htmlFor="cover" className="label">
+          Image de couverture (facultatif, JPEG, PNG ou WebP, 2 Mo maximum)
+        </label>
+        <input
+          id="cover"
+          name="cover"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          onChange={handleCoverChange}
+          className="input"
+          disabled={busy}
+        />
+        <FieldError messages={fieldErrors.cover} />
+      </div>
+
+      {step === "uploading" && (
+        <div aria-live="polite">
+          <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
+            <div
+              className="h-full bg-brand-600 transition-all"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <p className="mt-1 text-xs text-slate-600">
+            Envoi du PDF : {progress} %
+          </p>
+        </div>
+      )}
+
+      <p className="text-xs text-slate-500">
+        En cliquant sur « Publier », votre ouvrage est mis en vente
+        immédiatement.
+      </p>
+
+      <button type="submit" className="btn-primary w-full" disabled={busy}>
+        {step === "uploading"
+          ? "Envoi du PDF en cours..."
+          : step === "saving"
+            ? "Publication en cours..."
+            : "Publier l'ouvrage"}
+      </button>
+    </form>
+  );
+      }        value={values.pageCount}
             onChange={handleChange}
             className="input"
             disabled={busy}
