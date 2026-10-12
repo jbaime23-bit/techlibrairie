@@ -1,11 +1,12 @@
 // src/app/api/webhooks/stripe/route.ts
-// Confirmation des paiements par carte (signature Stripe vérifiée).
+// Confirmation des paiements par carte et des remboursements (signature Stripe vérifiée).
 
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
-import { constructStripeEvent } from "@/lib/stripe";
+import { constructStripeEvent, getStripe } from "@/lib/stripe";
 import { markPaymentFailed, syncPayment } from "@/lib/orders";
+import { markOrderRefunded } from "@/lib/refunds";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +53,40 @@ export async function POST(request: Request) {
         break;
       }
 
+      case "charge.refunded": {
+        const charge = event.data.object as Stripe.Charge;
+
+        // Un remboursement partiel n'est pas traité automatiquement.
+        if (!charge.refunded) break;
+
+        const intentId =
+          typeof charge.payment_intent === "string"
+            ? charge.payment_intent
+            : charge.payment_intent?.id;
+        if (!intentId) break;
+
+        const sessions = await getStripe().checkout.sessions.list({
+          payment_intent: intentId,
+          limit: 1,
+        });
+        const session = sessions.data[0];
+        if (!session) break;
+
+        const payment = await prisma.payment.findUnique({
+          where: { providerReference: session.id },
+        });
+
+        if (payment && payment.status === "SUCCEEDED") {
+          await markOrderRefunded({
+            orderId: payment.orderId,
+            paymentId: payment.id,
+            method: "stripe-dashboard",
+            reason: "Remboursement effectué depuis le tableau de bord Stripe",
+          });
+        }
+        break;
+      }
+
       default:
         break;
     }
@@ -62,4 +97,4 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ received: true });
-}
+      }
