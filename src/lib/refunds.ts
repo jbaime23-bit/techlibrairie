@@ -4,6 +4,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getStripe } from "@/lib/stripe";
+import { notifyOrderRefunded } from "@/lib/notifications";
 
 export class RefundError extends Error {
   constructor(message: string) {
@@ -34,7 +35,7 @@ export async function markOrderRefunded(params: {
 }): Promise<boolean> {
   const now = new Date();
 
-  return prisma.$transaction(async (tx) => {
+  const refunded = await prisma.$transaction(async (tx) => {
     const claimed = await tx.order.updateMany({
       where: { id: params.orderId, status: "PAID" },
       data: { status: "REFUNDED" },
@@ -87,6 +88,12 @@ export async function markOrderRefunded(params: {
 
     return true;
   });
+
+  if (refunded) {
+    await notifyOrderRefunded(params.orderId, params.method);
+  }
+
+  return refunded;
 }
 
 /**
