@@ -5,6 +5,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
+import {
+  notifyAdminsUserReply,
+  notifySupportStaffReply,
+} from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -111,6 +115,13 @@ export async function POST(
         },
       }),
     ]);
+
+    if (isStaff) {
+      await notifySupportStaffReply(thread.id);
+    } else if (thread.status === "ANSWERED") {
+      // Une seule alerte par réponse en attente : pas de message supplémentaire pour l'équipe.
+      await notifyAdminsUserReply(thread.id);
+    }
   } catch (error) {
     console.error("Erreur lors de l'envoi du message de support :", error);
     return NextResponse.json(
@@ -120,4 +131,4 @@ export async function POST(
   }
 
   return NextResponse.json({ ok: true }, { status: 201 });
-    }
+        }
