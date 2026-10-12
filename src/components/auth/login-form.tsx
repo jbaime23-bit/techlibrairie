@@ -26,7 +26,11 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
       });
 
       if (!result || result.error) {
-        setError("Email ou mot de passe incorrect.");
+        setError(
+          result?.error === "TROP_DE_TENTATIVES"
+            ? "Trop de tentatives échouées. Patientez 15 minutes avant de réessayer, ou utilisez « Mot de passe oublié ? »."
+            : "Email ou mot de passe incorrect."
+        );
         setLoading(false);
         return;
       }
@@ -93,4 +97,4 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
       </button>
     </form>
   );
-}
+        }
