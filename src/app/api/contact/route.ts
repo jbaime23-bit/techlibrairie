@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
+import { notifyAdminsNewContact } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -107,6 +108,13 @@ export async function POST(request: Request) {
         ipHash,
       },
     });
+
+    await notifyAdminsNewContact({
+      name: data.name,
+      email: data.email,
+      subject: data.subject,
+      message: data.message,
+    });
   } catch (error) {
     console.error("Erreur d'enregistrement du message de contact :", error);
     return NextResponse.json(
@@ -116,4 +124,4 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ ok: true }, { status: 201 });
-                                  }
+}
