@@ -259,7 +259,7 @@ export function ProductForm({
 
         <div>
           <label htmlFor="language" className="label">
-            Langue
+            Langue de l&apos;ouvrage
           </label>
           <select
             id="language"
@@ -269,9 +269,9 @@ export function ProductForm({
             className="input"
             disabled={busy}
           >
-            {PRODUCT_LANGUAGES.map((language) => (
-              <option key={language.value} value={language.value}>
-                {language.label}
+            {Object.entries(PRODUCT_LANGUAGES).map(([code, label]) => (
+              <option key={code} value={code}>
+                {label}
               </option>
             ))}
           </select>
@@ -282,23 +282,23 @@ export function ProductForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="price" className="label">
-            Prix en FCFA (multiple de 5, minimum 100)
+            Prix de vente (en FCFA)
           </label>
           <input
             id="price"
             name="price"
             type="number"
-            inputMode="numeric"
-            min="100"
-            step="5"
             required
             value={values.price}
             onChange={handleChange}
             className="input"
             disabled={busy}
+            placeholder="Ex: 2500"
           />
+          <p className="text-xs text-slate-500 mt-1">
+            Commission boutique ({commissionPercent}%) déduite automatiquement à la vente.
+          </p>
           <FieldError messages={fieldErrors.price} />
-          <FieldError messages={fieldErrors.currency} />
         </div>
 
         <div>
@@ -309,20 +309,17 @@ export function ProductForm({
             id="pageCount"
             name="pageCount"
             type="number"
-            inputMode="numeric"
-            min="1"
-            step="1"
             value={values.pageCount}
             onChange={handleChange}
             className="input"
             disabled={busy}
+            placeholder="Ex: 120"
           />
           <FieldError messages={fieldErrors.pageCount} />
         </div>
       </div>
 
-      <p className="text-xs text-slate-500">
-        Le prix est fixé en FCFA. Pour les paiements par carte bancaire, il est
+                                            par carte bancaire, il est
         converti automatiquement en euros ou en dollars au moment du paiement.
         Aucune taxe n&apos;est ajoutée. La boutique prélève une commission de{" "}
         {commissionPercent} % sur chaque vente ; le reste vous revient.
