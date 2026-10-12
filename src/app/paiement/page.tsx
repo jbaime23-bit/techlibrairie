@@ -4,6 +4,15 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { loadCart } from "@/lib/cart";
 import { CheckoutButton } from "@/components/paiement/checkout-button";
+import {
+  FOREIGN_CURRENCIES,
+  MIN_CARD_CHARGE_MINOR,
+  convertAmounts,
+  formatRateMicro,
+  getCardRate,
+  type CardRate,
+  type ForeignCurrency,
+} from "@/lib/fx";
 import { formatPrice } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -11,6 +20,17 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = "force-dynamic";
+
+interface CardOption {
+  currency: ForeignCurrency;
+  rate: CardRate;
+  total: number;
+}
+
+const CURRENCY_LABELS: Record<ForeignCurrency, string> = {
+  EUR: "euros",
+  USD: "dollars",
+};
 
 export default async function PaiementPage() {
   await requireUser("/paiement");
@@ -23,6 +43,23 @@ export default async function PaiementPage() {
 
   const currency = cart.currency;
   const isXof = currency === "XOF";
+
+  // Pour un panier en FCFA, la carte est proposée dans chaque devise dont le taux est valide.
+  const cardOptions: CardOption[] = [];
+  if (isXof) {
+    for (const code of FOREIGN_CURRENCIES) {
+      const rate = await getCardRate(code);
+      if (!rate) continue;
+
+      const { total } = convertAmounts(
+        cart.items.map((item) => item.priceAmount),
+        rate
+      );
+      if (total >= MIN_CARD_CHARGE_MINOR) {
+        cardOptions.push({ currency: code, rate, total });
+      }
+    }
+  }
 
   return (
     <div className="container-page py-8">
@@ -52,7 +89,7 @@ export default async function PaiementPage() {
               <dd>Aucune</dd>
             </div>
             <div className="flex justify-between text-base font-bold">
-              <dt>Total à payer</dt>
+              <dt>Total</dt>
               <dd>{formatPrice(cart.totalAmount, currency)}</dd>
             </div>
           </dl>
@@ -62,33 +99,58 @@ export default async function PaiementPage() {
           <h2 className="text-lg font-semibold">Moyen de paiement</h2>
 
           {isXof ? (
-            <div className="mt-4 space-y-3">
-              <p className="text-sm text-slate-600">
-                Paiement par Mobile Money via CinetPay. Les opérateurs proposés
-                dépendent de votre pays.
-              </p>
-              <CheckoutButton
-                endpoint="/api/checkout/cinetpay"
-                label="Payer par Mobile Money"
-              />
-              <p className="text-xs text-slate-500">
-                Les ouvrages en euros ou en dollars se règlent par carte
-                bancaire.
-              </p>
+            <div className="mt-4 space-y-6">
+              <div className="space-y-3">
+                <p className="text-sm font-medium">Mobile Money (FCFA)</p>
+                <p className="text-sm text-slate-600">
+                  Orange Money, Moov Money et autres opérateurs, via CinetPay.
+                  Montant débité : {formatPrice(cart.totalAmount, "XOF")}.
+                </p>
+                <CheckoutButton
+                  endpoint="/api/checkout/cinetpay"
+                  label="Payer par Mobile Money"
+                />
+              </div>
+
+              <hr className="border-slate-200" />
+
+              <div className="space-y-4">
+                <p className="text-sm font-medium">Carte bancaire (Visa, Mastercard)</p>
+
+                {cardOptions.length === 0 ? (
+                  <p className="text-sm text-slate-600">
+                    Le paiement par carte n&apos;est pas disponible pour le
+                    moment. Utilisez le Mobile Money.
+                  </p>
+                ) : (
+                  cardOptions.map((option) => (
+                    <div key={option.currency} className="space-y-2">
+                      <CheckoutButton
+                        endpoint="/api/checkout/stripe"
+                        payload={{ currency: option.currency }}
+                        label={`Payer ${formatPrice(option.total, option.currency)} par carte`}
+                      />
+                      <p className="text-xs text-slate-500">
+                        Votre total en FCFA est converti en {CURRENCY_LABELS[option.currency]} :
+                        1 {option.currency} = {formatRateMicro(option.rate.effectiveRateMicro)}{" "}
+                        FCFA (marge de change incluse). Le montant débité est celui
+                        affiché ci-dessus.
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           ) : (
             <div className="mt-4 space-y-3">
               <p className="text-sm text-slate-600">
                 Paiement sécurisé par carte bancaire (Visa, Mastercard) via
-                Stripe.
+                Stripe. Montant débité : {formatPrice(cart.totalAmount, currency)}.
               </p>
               <CheckoutButton
                 endpoint="/api/checkout/stripe"
                 label="Payer par carte bancaire"
               />
-              <p className="text-xs text-slate-500">
-                Les ouvrages en francs CFA se règlent par Mobile Money.
-              </p>
             </div>
           )}
 
@@ -100,4 +162,4 @@ export default async function PaiementPage() {
       </div>
     </div>
   );
-            }
+              }
