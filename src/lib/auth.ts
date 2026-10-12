@@ -176,4 +176,4 @@ export async function requireRole(allowed: Role[], callbackUrl: string = "/") {
     redirect("/?erreur=acces-refuse");
   }
   return user;
-                                                  }
+      }
