@@ -14,6 +14,7 @@ const LINKS = [
   { href: "/admin/messages", label: "Messages de contact" },
   { href: "/admin/taux", label: "Taux de change" },
   { href: "/admin/emails", label: "Emails" },
+  { href: "/admin/maintenance", label: "Maintenance" },
   { href: "/admin/parametres", label: "Paramètres" },
 ];
 
@@ -37,4 +38,4 @@ export default async function AdminLayout({
       {children}
     </div>
   );
-   }
+  }
