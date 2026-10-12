@@ -38,6 +38,11 @@ export const registerSchema = z
       .trim()
       .max(30, "Numéro de téléphone trop long.")
       .optional(),
+    acceptTerms: z.literal(true, {
+      errorMap: () => ({
+        message: "Vous devez accepter les conditions pour créer un compte.",
+      }),
+    }),
   })
   .superRefine((data, ctx) => {
     if (data.password !== data.confirmPassword) {
