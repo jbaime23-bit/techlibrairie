@@ -21,7 +21,7 @@ interface CategoryOption {
 
 function FieldError({ messages }: { messages?: string[] }) {
   if (!messages || messages.length === 0) return null;
-  return <p className="field-error">{messages}</p>;
+  return <p className="field-error">{messages[0]}</p>;
 }
 
 // Version locale (le module utils du serveur ne doit pas être chargé ici).
@@ -197,127 +197,119 @@ export function ProductForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-      {globalError && <div className="alert-error">{globalError}</div>}
-
-      <div>
-        <label htmlFor="title" className="label">
-          Titre de l&apos;ouvrage
-        </label>
-        <input
-          id="title"
-          name="title"
-          type="text"
-          required
-          value={values.title}
-          onChange={handleChange}
-          className="input"
-          disabled={busy}
-        />
-        <FieldError messages={fieldErrors.title} />
-      </div>
-
-      <div>
-        <label htmlFor="description" className="label">
-          Description
-        </label>
-        <textarea
-          id="description"
-          name="description"
-          rows={6}
-          required
-          value={values.description}
-          onChange={handleChange}
-          className="input"
-          disabled={busy}
-        />
-        <FieldError messages={fieldErrors.description} />
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label htmlFor="categoryId" className="label">
-            Catégorie
-          </label>
-          <select
-            id="categoryId"
-            name="categoryId"
-            value={values.categoryId}
-            onChange={handleChange}
-            className="input"
-            disabled={busy}
-          >
-            <option value="">Sans catégorie</option>
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
-          </select>
-          <FieldError messages={fieldErrors.categoryId} />
-        </div>
+    <div className="w-full">
+      <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+        {globalError && <div className="alert-error">{globalError}</div>}
 
         <div>
-          <label htmlFor="language" className="label">
-            Langue de l&apos;ouvrage
-          </label>
-          <select
-            id="language"
-            name="language"
-            value={values.language}
-            onChange={handleChange}
-            className="input"
-            disabled={busy}
-          >
-            {Object.entries(PRODUCT_LANGUAGES).map(([code, label]) => (
-              <option key={code} value={code}>
-                {label}
-              </option>
-            ))}
-          </select>
-          <FieldError messages={fieldErrors.language} />
-        </div>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label htmlFor="price" className="label">
-            Prix de vente (en FCFA)
+          <label htmlFor="title" className="label">
+            Titre de l&apos;ouvrage
           </label>
           <input
-            id="price"
-            name="price"
-            type="number"
+            id="title"
+            name="title"
+            type="text"
             required
-            value={values.price}
+            value={values.title}
             onChange={handleChange}
             className="input"
             disabled={busy}
-            placeholder="Ex: 2500"
           />
-          <p className="text-xs text-slate-500 mt-1">
-            Commission boutique ({commissionPercent}%) déduite automatiquement à la vente.
-          </p>
-          <FieldError messages={fieldErrors.price} />
+          <FieldError messages={fieldErrors.title} />
         </div>
 
         <div>
-          <label htmlFor="pageCount" className="label">
-            Nombre de pages (facultatif)
+          <label htmlFor="description" className="label">
+            Description
           </label>
-          <input
-            id="pageCount"
-            name="pageCount"
-            type="number"
-            value={values.pageCount}
+          <textarea
+            id="description"
+            name="description"
+            rows={6}
+            required
+            value={values.description}
             onChange={handleChange}
             className="input"
             disabled={busy}
-            placeholder="Ex: 120"
           />
-          <FieldError messages={fieldErrors.pageCount} />
+          <FieldError messages={fieldErrors.description} />
         </div>
-      </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor="categoryId" className="label">
+              Catégorie
+            </label>
+            <select
+              id="categoryId"
+              name="categoryId"
+              value={values.categoryId}
+              onChange={handleChange}
+              className="input"
+              disabled={busy}
+            >
+              <option value="">Sans catégorie</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+            <FieldError messages={fieldErrors.categoryId} />
+          </div>
+
+          <div>
+            <label htmlFor="language" className="label">
+              Langue de l&apos;ouvrage
+            </label>
+            <select
+              id="language"
+              name="language"
+              value={values.language}
+              onChange={handleChange}
+              className="input"
+              disabled={busy}
+            >
+              {Object.entries(PRODUCT_LANGUAGES).map(([code, label]) => (
+                <option key={code} value={code}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <FieldError messages={fieldErrors.language} />
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor="price" className="label">
+              Prix de vente (en FCFA)
+            </label>
+            <input
+              id="price"
+              name="price"
+              type="number"
+              required
+              value={values.price}
+              onChange={handleChange}
+              className="input"
+              disabled={busy}
+              placeholder="Ex: 2500"
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              Commission boutique ({commissionPercent}%) déduite automatiquement à la vente.
+            </p>
+            <FieldError messages={fieldErrors.price} />
+          </div>
+
+          <div>
+            <label htmlFor="pageCount" className="label">
+              Nombre de pages (facultatif)
+            </label>
+            <input
+              id="pageCount"
+              name="pageCount"
+              type="number"
+              value={values.pageCount}
+              onChange={handleChange}
+                  
