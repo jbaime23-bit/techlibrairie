@@ -124,6 +124,7 @@ export async function getCurrentUser() {
       image: true,
       role: true,
       isActive: true,
+      emailVerified: true,
     },
   });
 
