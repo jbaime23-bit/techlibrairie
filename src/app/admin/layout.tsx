@@ -12,6 +12,7 @@ const LINKS = [
   { href: "/admin/publicites", label: "Publicités" },
   { href: "/admin/messages", label: "Messages de contact" },
   { href: "/admin/taux", label: "Taux de change" },
+  { href: "/admin/emails", label: "Emails" },
   { href: "/admin/parametres", label: "Paramètres" },
 ];
 
