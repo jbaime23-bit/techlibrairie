@@ -22,6 +22,9 @@ export default async function VendeurLayout({
         <Link href="/vendeur/revenus" className="btn-secondary">
           Mes revenus
         </Link>
+        <Link href="/vendeur/profil" className="btn-secondary">
+          Profil public
+        </Link>
         <Link href="/vendeur/produits/nouveau" className="btn-primary">
           Nouveau produit
         </Link>
