@@ -10,6 +10,7 @@ const LINKS = [
   { href: "/admin/support", label: "Support" },
   { href: "/admin/publicites", label: "Publicités" },
   { href: "/admin/messages", label: "Messages de contact" },
+  { href: "/admin/taux", label: "Taux de change" },
   { href: "/admin/parametres", label: "Paramètres" },
 ];
 
