@@ -312,4 +312,3 @@ export function ProductForm({
               type="number"
               value={values.pageCount}
               onChange={handleChange}
-                  
