@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
+import { notifyAdminsNewSupportThread } from "@/lib/notifications";
 import {
   SUPPORT_CATEGORY_VALUES,
   generateThreadNumber,
@@ -119,6 +120,12 @@ export async function POST(request: Request) {
       select: { id: true },
     });
 
+    // Conversation gratuite : l'équipe est alertée tout de suite.
+    // (Une conversation payante est signalée à l'équipe après confirmation du paiement.)
+    if (isFree) {
+      await notifyAdminsNewSupportThread(thread.id);
+    }
+
     return NextResponse.json(
       { id: thread.id, requiresPayment: !isFree },
       { status: 201 }
@@ -130,4 +137,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-  }
+      }
