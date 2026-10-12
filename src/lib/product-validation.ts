@@ -1,5 +1,6 @@
 // src/lib/product-validation.ts
 // Règles de validation d'un produit (utilisables côté navigateur et serveur).
+// Règle métier : tous les prix sont fixés en FCFA (XOF), sans taxe.
 
 import { z } from "zod";
 
@@ -14,13 +15,11 @@ export const PRODUCT_LANGUAGES = [
 
 export const PRODUCT_CURRENCIES = [
   { value: "XOF", label: "Franc CFA (XOF)" },
-  { value: "EUR", label: "Euro (EUR)" },
-  { value: "USD", label: "Dollar US (USD)" },
 ] as const;
 
-// Prix minimum et maximum en unité affichée (XOF : francs ; EUR/USD : unités).
-export const MIN_PRICE = { XOF: 100, EUR: 1, USD: 1 } as const;
-export const MAX_PRICE = { XOF: 10_000_000, EUR: 15_000, USD: 15_000 } as const;
+// Prix minimum et maximum en FCFA
+export const MIN_PRICE = { XOF: 100 } as const;
+export const MAX_PRICE = { XOF: 10_000_000 } as const;
 
 export const productFieldsSchema = z
   .object({
@@ -35,8 +34,8 @@ export const productFieldsSchema = z
       .min(20, "La description doit contenir au moins 20 caractères.")
       .max(5000, "La description est trop longue (5000 caractères maximum)."),
     categoryId: z.string().trim().optional(),
-    currency: z.enum(["XOF", "EUR", "USD"], {
-      errorMap: () => ({ message: "Choisissez une devise." }),
+    currency: z.enum(["XOF"], {
+      errorMap: () => ({ message: "Les prix sont fixés en FCFA." }),
     }),
     price: z.coerce.number({ invalid_type_error: "Prix invalide." }),
     language: z.enum(["fr", "en"], {
@@ -74,14 +73,14 @@ export const productFieldsSchema = z
       return;
     }
 
-    const min = MIN_PRICE[data.currency];
-    const max = MAX_PRICE[data.currency];
+    const min = MIN_PRICE.XOF;
+    const max = MAX_PRICE.XOF;
 
     if (data.price < min) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["price"],
-        message: `Le prix minimum est de ${min} ${data.currency}.`,
+        message: `Le prix minimum est de ${min} FCFA.`,
       });
     }
 
@@ -89,30 +88,22 @@ export const productFieldsSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["price"],
-        message: `Le prix maximum est de ${max} ${data.currency}.`,
+        message: `Le prix maximum est de ${max} FCFA.`,
       });
     }
 
-    if (data.currency === "XOF") {
-      if (!Number.isInteger(data.price)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["price"],
-          message: "Le franc CFA n'a pas de centimes : saisissez un nombre entier.",
-        });
-      } else if (data.price % 5 !== 0) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["price"],
-          message:
-            "Le prix en FCFA doit être un multiple de 5 (exigence du paiement Mobile Money).",
-        });
-      }
-    } else if (Math.abs(data.price * 100 - Math.round(data.price * 100)) > 1e-6) {
+    if (!Number.isInteger(data.price)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["price"],
-        message: "Le prix ne peut pas avoir plus de 2 décimales.",
+        message: "Le franc CFA n'a pas de centimes : saisissez un nombre entier.",
+      });
+    } else if (data.price % 5 !== 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["price"],
+        message:
+          "Le prix en FCFA doit être un multiple de 5 (exigence du paiement Mobile Money).",
       });
     }
   });
