@@ -6,9 +6,11 @@ import { useState } from "react";
 export function CheckoutButton({
   endpoint,
   label,
+  payload,
 }: {
   endpoint: string;
   label: string;
+  payload?: Record<string, string>;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -18,7 +20,16 @@ export function CheckoutButton({
     setLoading(true);
 
     try {
-      const response = await fetch(endpoint, { method: "POST" });
+      const response = await fetch(endpoint, {
+        method: "POST",
+        ...(payload
+          ? {
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            }
+          : {}),
+      });
+
       const data = (await response.json().catch(() => null)) as {
         url?: string;
         error?: string;
