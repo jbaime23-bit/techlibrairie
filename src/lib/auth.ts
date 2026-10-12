@@ -9,6 +9,13 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import type { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import {
+  THROTTLED_ERROR,
+  clearLoginFailures,
+  hashClientIp,
+  isLoginThrottled,
+  recordLoginFailure,
+} from "@/lib/login-throttle";
 
 const credentialsSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
@@ -46,11 +53,18 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Mot de passe", type: "password" },
       },
-      async authorize(rawCredentials) {
+      async authorize(rawCredentials, req) {
         const parsed = credentialsSchema.safeParse(rawCredentials);
         if (!parsed.success) return null;
 
         const { email, password } = parsed.data;
+
+        const forwarded = req?.headers?.["x-forwarded-for"];
+        const ipHash = hashClientIp(typeof forwarded === "string" ? forwarded : undefined);
+
+        if (await isLoginThrottled(email, ipHash)) {
+          throw new Error(THROTTLED_ERROR);
+        }
 
         const user = await prisma.user.findUnique({ where: { email } });
 
@@ -58,8 +72,11 @@ export const authOptions: NextAuthOptions = {
         const passwordIsValid = await bcrypt.compare(password, hashToCheck);
 
         if (!user || !user.passwordHash || !passwordIsValid || !user.isActive) {
+          await recordLoginFailure(email, ipHash);
           return null;
         }
+
+        await clearLoginFailures(email);
 
         return {
           id: user.id,
@@ -97,6 +114,7 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id;
         session.user.role = token.role;
       }
+      session.issuedAt = typeof token.iat === "number" ? token.iat : 0;
       return session;
     },
   },
@@ -109,7 +127,8 @@ export async function getSession() {
 
 /**
  * Utilisateur courant relu depuis la base : vérifie que le compte existe
- * toujours, est actif, et renvoie son rôle à jour.
+ * toujours, est actif, que la session n'a pas été ouverte avant le dernier
+ * changement de mot de passe, et renvoie son rôle à jour.
  */
 export async function getCurrentUser() {
   const session = await getSession();
@@ -125,10 +144,19 @@ export async function getCurrentUser() {
       role: true,
       isActive: true,
       emailVerified: true,
+      passwordChangedAt: true,
     },
   });
 
   if (!user || !user.isActive) return null;
+
+  if (user.passwordChangedAt) {
+    const changedAtSeconds = Math.floor(user.passwordChangedAt.getTime() / 1000);
+    if (session.issuedAt < changedAtSeconds) {
+      return null;
+    }
+  }
+
   return user;
 }
 
@@ -148,4 +176,4 @@ export async function requireRole(allowed: Role[], callbackUrl: string = "/") {
     redirect("/?erreur=acces-refuse");
   }
   return user;
-}
+                                                  }
