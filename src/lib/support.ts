@@ -12,6 +12,7 @@ import type {
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { checkCinetPayPayment } from "@/lib/cinetpay";
+import { notifyAdminsNewSupportThread } from "@/lib/notifications";
 import type { SyncResult } from "@/lib/orders";
 
 export const SUPPORT_CATEGORY_VALUES = [
@@ -158,7 +159,7 @@ export async function syncSupportPayment(
       return "mismatch";
     }
 
-    await markSupportThreadPaid({
+    const firstTime = await markSupportThreadPaid({
       threadId: payment.threadId,
       paymentId: payment.id,
       providerPayload: {
@@ -167,6 +168,10 @@ export async function syncSupportPayment(
         operatorId: result.operatorId,
       },
     });
+
+    if (firstTime) {
+      await notifyAdminsNewSupportThread(payment.threadId);
+    }
     return "paid";
   }
 
@@ -196,4 +201,4 @@ export async function syncThreadPayments(threadId: string): Promise<void> {
       console.error(`Vérification impossible du paiement de support ${payment.id} :`, error);
     }
   }
-                                     }
+  }
