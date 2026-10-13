@@ -11,6 +11,9 @@ import { notifyAdminsNewContact } from "@/lib/notifications";
 export const dynamic = "force-dynamic";
 
 const MAX_MESSAGES_PER_HOUR = 5;
+// Au-delà de ce nombre de messages par heure sur tout le site, les messages sont
+// enregistrés mais n'envoient plus d'alerte email (protège le quota d'envoi).
+const MAX_ALERT_EMAILS_PER_HOUR = 20;
 
 const contactSchema = z.object({
   name: z
@@ -81,11 +84,10 @@ export async function POST(request: Request) {
   const ipHash = hashIp(request);
 
   try {
+    const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
+
     const recentCount = await prisma.contactMessage.count({
-      where: {
-        ipHash,
-        createdAt: { gt: new Date(Date.now() - 60 * 60 * 1000) },
-      },
+      where: { ipHash, createdAt: { gt: hourAgo } },
     });
 
     if (recentCount >= MAX_MESSAGES_PER_HOUR) {
@@ -109,12 +111,18 @@ export async function POST(request: Request) {
       },
     });
 
-    await notifyAdminsNewContact({
-      name: data.name,
-      email: data.email,
-      subject: data.subject,
-      message: data.message,
+    const totalLastHour = await prisma.contactMessage.count({
+      where: { createdAt: { gt: hourAgo } },
     });
+
+    if (totalLastHour <= MAX_ALERT_EMAILS_PER_HOUR) {
+      await notifyAdminsNewContact({
+        name: data.name,
+        email: data.email,
+        subject: data.subject,
+        message: data.message,
+      });
+    }
   } catch (error) {
     console.error("Erreur d'enregistrement du message de contact :", error);
     return NextResponse.json(
@@ -124,4 +132,4 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ ok: true }, { status: 201 });
-}
+      }
