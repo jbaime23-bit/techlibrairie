@@ -283,7 +283,7 @@ model Product {
 }
 
 // ---------------------------------------------------------------------------
-// COMMANDES (aucune taxe sur les produits numériques)
+// COMMANDES & LIGNES DE COMMANDE
 // ---------------------------------------------------------------------------
 
 model Order {
@@ -339,110 +339,53 @@ model OrderItem {
 }
 
 // ---------------------------------------------------------------------------
-// PAIEMENTS (CinetPay : Orange Money / Moov Money ; Stripe : cartes bancaires)
+// PAIEMENTS & REVERSEMENTS
 // ---------------------------------------------------------------------------
 
 model Payment {
-  id                String          @id @default(cuid())
-  orderId           String
-  provider          PaymentProvider
-  method            PaymentMethod
-  status            PaymentStatus   @default(PENDING)
-
-  // Montant réellement débité, dans la devise du paiement
-  // (XOF pour le Mobile Money ; EUR/USD en centimes pour la carte convertie).
-  amount            Int
-  currency          Currency
-
-  // Conversion : montant de référence en FCFA et taux appliqué
-  // (nombre de FCFA pour 1 unité de la devise de paiement). Null si paiement en FCFA.
-  baseAmountXof     Int?
-  exchangeRate      Decimal?        @db.Decimal(18, 6)
-
-  // Identifiant de la transaction chez le prestataire
-  // (Stripe : session ; CinetPay : transaction_id)
-  providerReference String          @unique
-  providerPayload   Json?
-
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  id            String          @id @default(cuid())
+  orderId       String
+  provider      PaymentProvider
+  method        PaymentMethod
+  status        PaymentStatus   @default(PENDING)
+  amount        Int
+  currency      Currency        @default(XOF)
+  transactionId String?         @unique
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId])
-  @@index([status])
 }
-
-// Taux de change pour convertir les prix en FCFA vers les devises internationales.
-// L'historique est conservé ; le taux actif le plus récent est utilisé.
-model ExchangeRate {
-  id          String   @id @default(cuid())
-  currency    Currency
-  // Nombre de FCFA pour 1 unité de la devise (ex. EUR : 655.957000)
-  xofPerUnit  Decimal  @db.Decimal(18, 6)
-  source      String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-
-  @@index([currency, isActive, createdAt])
-}
-
-// ---------------------------------------------------------------------------
-// TÉLÉCHARGEMENT SÉCURISÉ
-// ---------------------------------------------------------------------------
-
-model DownloadToken {
-  id            String    @id @default(cuid())
-  orderItemId   String
-  token         String    @unique
-  expiresAt     DateTime
-  maxDownloads  Int       @default(5)
-  downloadCount Int       @default(0)
-  lastUsedAt    DateTime?
-  createdAt     DateTime  @default(now())
-
-  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
-
-  @@index([orderItemId])
-  @@index([expiresAt])
-}
-
-// ---------------------------------------------------------------------------
-// VERSEMENTS AUX VENDEURS
-// ---------------------------------------------------------------------------
 
 model Payout {
-  id          String       @id @default(cuid())
-  sellerId    String
-  amount      Int
-  currency    Currency
-  status      PayoutStatus @default(PENDING)
-  method      String?
-  reference   String?
-  note        String?
-  requestedAt DateTime     @default(now())
-  paidAt      DateTime?
+  id            String       @id @default(cuid())
+  sellerId      String
+  amount        Int
+  currency      Currency     @default(XOF)
+  status        PayoutStatus @default(PENDING)
+  payoutMethod  String
+  transactionId String?      @unique
+  paidAt        DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
   seller SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Restrict)
 
   @@index([sellerId])
-  @@index([status])
 }
 
 // ---------------------------------------------------------------------------
-// MESSAGERIE MONÉTISÉE : support payant en FCFA avec la plateforme
+// JETONS DE TÉLÉCHARGEMENT SÉCURISÉS (Accès limité)
 // ---------------------------------------------------------------------------
 
-model SupportThread {
-  id            String          @id @default(cuid())
-  number        String          @unique
-  userId        String
-  subject       String
-  category      SupportCategory @default(GENERAL)
-  status        ThreadStatus    @default(AWAITING_PAYMENT)
+model DownloadToken {
+  id          String   @id @default(cuid())
+  orderItemId String
+  token       String   @unique
+  usesCount   Int      @default(0)
+  maxUses     Int      @default(2) // Limite stricte de 2 téléchargements par achat
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
 
-  // Tarif du support en FCFA, figé à la création de la conversation
-  feeAmountXof  Int
-  paidAt        DateTime?
-
-  //
