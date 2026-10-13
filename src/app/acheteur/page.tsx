@@ -3,85 +3,80 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
-import { firstParam } from "@/lib/admin";
-import { OrderItemRow } from "@/components/acheteur/order-item-row";
-import { formatPrice } from "@/lib/utils";
+import {
+  DownloadItem,
+  type ActiveDownloadLink,
+} from "@/components/acheteur/download-item";
+import { formatDate, formatPrice } from "@/lib/utils";
 
 export const metadata: Metadata = {
-  title: "Mes achats",
+  title: "Mon espace",
 };
 
 export const dynamic = "force-dynamic";
 
-const LIBRARY_LIMIT = 12;
-
-const LINK_MESSAGES: Record<string, { text: string; success: boolean }> = {
-  ok: { text: "Un nouveau lien de téléchargement a été généré.", success: true },
-  valide: {
-    text: "Votre lien actuel est encore valide : utilisez le bouton « Télécharger le PDF ».",
-    success: false,
-  },
-  limite: {
-    text: "Trop de liens ont été générés aujourd'hui pour cet ouvrage. Réessayez demain ou contactez-nous.",
-    success: false,
-  },
-  invalide: { text: "Ouvrage introuvable.", success: false },
+const MESSAGES: Record<string, string> = {
+  "lien-genere": "Un nouveau lien de téléchargement a été généré.",
+  "lien-valide": "Vous avez déjà un lien de téléchargement valide pour cet ouvrage.",
 };
+
+const ERRORS: Record<string, string> = {
+  introuvable: "Ouvrage introuvable.",
+  limite:
+    "Limite atteinte : 3 nouveaux liens par ouvrage et par jour. Réessayez demain ou contactez-nous.",
+};
+
+function firstValue(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
 
 export default async function AcheteurPage({
   searchParams,
 }: {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const user = await requireUser("/acheteur");
+  const sp = await searchParams;
 
-  const [paidOrders, pendingCount, spentByCurrency] = await Promise.all([
-    prisma.order.findMany({
-      where: { buyerId: user.id, status: "PAID" },
-      orderBy: { paidAt: "desc" },
-      take: 50,
-      include: {
-        items: {
-          include: {
-            downloads: {
-              orderBy: { createdAt: "desc" },
-              take: 1,
-              select: {
-                token: true,
-                expiresAt: true,
-                maxDownloads: true,
-                downloadCount: true,
-              },
-            },
-          },
-        },
-      },
-    }),
-    prisma.order.count({ where: { buyerId: user.id, status: "PENDING" } }),
+  const user = await requireUser("/acheteur");
+  const now = new Date();
+
+  const [paidStats, pendingOrders, recentItems, purchasedCount] = await Promise.all([
     prisma.order.groupBy({
       by: ["currency"],
       where: { buyerId: user.id, status: "PAID" },
       _sum: { totalAmount: true },
       _count: { _all: true },
     }),
+    prisma.order.findMany({
+      where: {
+        buyerId: user.id,
+        status: "PENDING",
+        createdAt: { gt: new Date(now.getTime() - 48 * 60 * 60 * 1000) },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 3,
+      select: { id: true, number: true, totalAmount: true, currency: true, createdAt: true },
+    }),
+    prisma.orderItem.findMany({
+      where: { order: { buyerId: user.id, status: "PAID" } },
+      orderBy: { createdAt: "desc" },
+      take: 3,
+      include: {
+        order: { select: { number: true } },
+        downloads: { orderBy: { createdAt: "desc" }, take: 10 },
+      },
+    }),
+    prisma.orderItem.count({
+      where: { order: { buyerId: user.id, status: "PAID" } },
+    }),
   ]);
 
-  // Bibliothèque : chaque ouvrage acheté une seule fois (le plus récent d'abord).
-  const seenProducts = new Set<string>();
-  const library = [];
-  for (const order of paidOrders) {
-    for (const item of order.items) {
-      if (seenProducts.has(item.productId)) continue;
-      seenProducts.add(item.productId);
-      library.push(item);
-    }
-  }
+  const ordersCount = paidStats.reduce((sum, row) => sum + row._count._all, 0);
 
-  const visibleLibrary = library.slice(0, LIBRARY_LIMIT);
-  const ordersTotal = spentByCurrency.reduce((sum, row) => sum + row._count._all, 0);
-
-  const messageKey = firstParam(searchParams.lien);
-  const message = messageKey ? LINK_MESSAGES[messageKey] : undefined;
+  const messageKey = firstValue(sp.message);
+  const errorKey = firstValue(sp.erreur);
+  const message = messageKey ? MESSAGES[messageKey] : undefined;
+  const error = errorKey ? ERRORS[errorKey] : undefined;
 
   return (
     <div className="space-y-8">
@@ -90,60 +85,74 @@ export default async function AcheteurPage({
           Bonjour{user.name ? `, ${user.name}` : ""}
         </h1>
         <p className="mt-1 text-sm text-slate-600">
-          Retrouvez ici vos ouvrages achetés et leurs liens de téléchargement.
+          Retrouvez ici vos achats et vos liens de téléchargement.
         </p>
       </div>
 
       {message && (
-        <div
-          className={
-            message.success
-              ? "rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800"
-              : "alert-error"
-          }
-        >
-          {message.text}
+        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+          {message}
         </div>
       )}
-
-      {pendingCount > 0 && (
-        <div className="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
-          Vous avez {pendingCount} commande{pendingCount > 1 ? "s" : ""} en attente
-          de paiement.{" "}
-          <Link href="/acheteur/commandes" className="font-semibold underline">
-            Voir mes commandes
-          </Link>
-        </div>
-      )}
+      {error && <div className="alert-error">{error}</div>}
 
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="card">
           <p className="text-sm text-slate-600">Ouvrages achetés</p>
-          <p className="mt-1 text-3xl font-bold">{library.length}</p>
+          <p className="mt-1 text-3xl font-bold">{purchasedCount}</p>
         </div>
         <div className="card">
           <p className="text-sm text-slate-600">Commandes payées</p>
-          <p className="mt-1 text-3xl font-bold">{ordersTotal}</p>
+          <p className="mt-1 text-3xl font-bold">{ordersCount}</p>
         </div>
         <div className="card">
           <p className="text-sm text-slate-600">Total dépensé</p>
-          {spentByCurrency.length === 0 ? (
-            <p className="mt-1 text-3xl font-bold">-</p>
+          {paidStats.length === 0 ? (
+            <p className="mt-1 text-3xl font-bold">0</p>
           ) : (
-            <div className="mt-1 space-y-1">
-              {spentByCurrency.map((row) => (
-                <p key={row.currency} className="text-xl font-bold">
-                  {formatPrice(row._sum.totalAmount ?? 0, row.currency)}
-                </p>
-              ))}
-            </div>
+            paidStats.map((row) => (
+              <p key={row.currency} className="mt-1 text-xl font-bold">
+                {formatPrice(row._sum.totalAmount ?? 0, row.currency)}
+              </p>
+            ))
           )}
         </div>
       </div>
 
+      {pendingOrders.length > 0 && (
+        <section className="card border-yellow-200 bg-yellow-50">
+          <h2 className="text-lg font-semibold text-yellow-900">
+            Paiement en attente de confirmation
+          </h2>
+          <ul className="mt-3 divide-y divide-yellow-100 text-sm">
+            {pendingOrders.map((order) => (
+              <li
+                key={order.id}
+                className="flex flex-wrap items-center justify-between gap-3 py-3"
+              >
+                <div>
+                  <p className="font-medium">
+                    Commande {order.number} · {formatPrice(order.totalAmount, order.currency)}
+                  </p>
+                  <p className="text-xs text-yellow-800">
+                    Créée le {formatDate(order.createdAt)}
+                  </p>
+                </div>
+                <Link
+                  href={`/paiement/retour?commande=${order.id}`}
+                  className="btn-secondary px-3 py-1 text-xs"
+                >
+                  Vérifier le paiement
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <section className="card">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">Ma bibliothèque</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Mes derniers achats</h2>
           <Link
             href="/acheteur/commandes"
             className="text-sm font-semibold text-brand-700 hover:underline"
@@ -152,7 +161,7 @@ export default async function AcheteurPage({
           </Link>
         </div>
 
-        {visibleLibrary.length === 0 ? (
+        {recentItems.length === 0 ? (
           <div className="mt-4 text-sm text-slate-600">
             <p>Vous n&apos;avez pas encore acheté d&apos;ouvrage.</p>
             <div className="mt-4">
@@ -162,20 +171,31 @@ export default async function AcheteurPage({
             </div>
           </div>
         ) : (
-          <>
-            <ul className="mt-2 divide-y divide-slate-100">
-              {visibleLibrary.map((item) => (
-                <OrderItemRow key={item.id} item={item} returnTo="dashboard" />
-              ))}
-            </ul>
+          <ul className="mt-2 divide-y divide-slate-100">
+            {recentItems.map((item) => {
+              const valid = item.downloads.find(
+                (download) =>
+                  download.expiresAt > now && download.downloadCount < download.maxDownloads
+              );
+              const link: ActiveDownloadLink | null = valid
+                ? {
+                    token: valid.token,
+                    expiresAt: valid.expiresAt,
+                    remaining: valid.maxDownloads - valid.downloadCount,
+                  }
+                : null;
 
-            {library.length > LIBRARY_LIMIT && (
-              <p className="mt-4 text-xs text-slate-500">
-                {library.length - LIBRARY_LIMIT} autre(s) ouvrage(s) disponible(s)
-                dans la page « Mes commandes ».
-              </p>
-            )}
-          </>
+              return (
+                <DownloadItem
+                  key={item.id}
+                  itemId={item.id}
+                  title={item.productTitle}
+                  link={link}
+                  returnTo="/acheteur"
+                />
+              );
+            })}
+          </ul>
         )}
       </section>
     </div>
