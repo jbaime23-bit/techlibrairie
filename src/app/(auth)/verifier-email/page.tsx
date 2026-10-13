@@ -33,9 +33,11 @@ function firstValue(value: string | string[] | undefined): string | undefined {
 export default async function VerifierEmailPage({
   searchParams,
 }: {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const rawToken = firstValue(searchParams.token);
+  const sp = await searchParams;
+
+  const rawToken = firstValue(sp.token);
 
   // Cas 1 : l'utilisateur arrive depuis le lien reçu par email.
   if (rawToken) {
@@ -88,8 +90,8 @@ export default async function VerifierEmailPage({
     redirect(`/connexion?callbackUrl=${encodeURIComponent("/verifier-email")}`);
   }
 
-  const messageKey = firstValue(searchParams.message);
-  const errorKey = firstValue(searchParams.erreur);
+  const messageKey = firstValue(sp.message);
+  const errorKey = firstValue(sp.erreur);
   const message = messageKey ? MESSAGES[messageKey] : undefined;
   const error = errorKey ? ERRORS[errorKey] : undefined;
 
