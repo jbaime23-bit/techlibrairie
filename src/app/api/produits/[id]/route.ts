@@ -13,8 +13,10 @@ const patchSchema = z.object({
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
+
   const context = await getSellerContext();
   if (context.status !== "ok") {
     return NextResponse.json(
@@ -36,7 +38,7 @@ export async function PATCH(
   }
 
   const product = await prisma.product.findUnique({
-    where: { id: params.id },
+    where: { id },
     select: { id: true, sellerId: true, status: true },
   });
 
@@ -67,4 +69,4 @@ export async function PATCH(
   revalidatePath("/catalogue");
 
   return NextResponse.json({ ok: true });
-                              }
+}
