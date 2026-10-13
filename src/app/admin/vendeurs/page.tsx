@@ -25,11 +25,13 @@ export const dynamic = "force-dynamic";
 export default async function AdminVendeursPage({
   searchParams,
 }: {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const sp = await searchParams;
+
   await requireAdmin("/admin/vendeurs");
 
-  const q = (firstParam(searchParams.q) ?? "").trim().slice(0, 100);
+  const q = (firstParam(sp.q) ?? "").trim().slice(0, 100);
 
   const where: Prisma.SellerProfileWhereInput = q
     ? {
@@ -42,7 +44,7 @@ export default async function AdminVendeursPage({
 
   const total = await prisma.sellerProfile.count({ where });
   const totalPages = Math.max(1, Math.ceil(total / ADMIN_PAGE_SIZE));
-  const page = Math.min(parsePage(searchParams.page), totalPages);
+  const page = Math.min(parsePage(sp.page), totalPages);
 
   const [sellers, defaultRateBps] = await Promise.all([
     prisma.sellerProfile.findMany({
@@ -207,4 +209,4 @@ export default async function AdminVendeursPage({
       />
     </div>
   );
-                    }
+}
