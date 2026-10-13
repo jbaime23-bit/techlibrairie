@@ -18,19 +18,21 @@ function jsonError(message: string, status: number): Response {
 
 export async function GET(
   _request: Request,
-  { params }: { params: { token: string } }
+  { params }: { params: Promise<{ token: string }> }
 ) {
+  const { token } = await params;
+
   const user = await getCurrentUser();
   if (!user) {
     return jsonError("Veuillez vous connecter pour télécharger votre achat.", 401);
   }
 
-  if (!/^[a-f0-9]{64}$/.test(params.token)) {
+  if (!/^[a-f0-9]{64}$/.test(token)) {
     return jsonError("Lien de téléchargement introuvable.", 404);
   }
 
   const record = await prisma.downloadToken.findUnique({
-    where: { token: params.token },
+    where: { token },
     include: {
       orderItem: {
         include: {
