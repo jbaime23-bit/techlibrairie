@@ -6,7 +6,7 @@ import { SignOutButton } from "@/components/layout/sign-out-button";
 
 export async function Header() {
   const user = await getCurrentUser();
-  const cartCount = getCartIds().length;
+  const cartCount = (await getCartIds()).length;
 
   return (
     <header className="border-b border-slate-200 bg-white">
@@ -77,4 +77,4 @@ export async function Header() {
       )}
     </header>
   );
-}
+        }
