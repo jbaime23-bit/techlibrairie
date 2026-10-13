@@ -26,9 +26,10 @@ async function loadLatestProducts(): Promise<ProductCardData[]> {
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: { erreur?: string | string[] };
+  searchParams: Promise<{ erreur?: string | string[] }>;
 }) {
-  const accessDenied = searchParams.erreur === "acces-refuse";
+  const { erreur } = await searchParams;
+  const accessDenied = erreur === "acces-refuse";
   const latestProducts = await loadLatestProducts();
 
   return (
