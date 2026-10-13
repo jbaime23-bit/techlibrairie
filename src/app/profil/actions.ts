@@ -81,7 +81,8 @@ export async function changePasswordAction(formData: FormData): Promise<void> {
     redirect(`${BACK}?erreur=confirmation`);
   }
 
-  const ipHash = hashClientIp(headers().get("x-forwarded-for"));
+  const requestHeaders = await headers();
+  const ipHash = hashClientIp(requestHeaders.get("x-forwarded-for"));
 
   if (await isLoginThrottled(user.email, ipHash)) {
     redirect(`${BACK}?erreur=limite`);
