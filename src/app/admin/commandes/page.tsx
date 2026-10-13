@@ -56,12 +56,14 @@ const STATUSES: OrderStatus[] = ["PENDING", "PAID", "FAILED", "CANCELED", "REFUN
 export default async function AdminCommandesPage({
   searchParams,
 }: {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const sp = await searchParams;
+
   await requireAdmin("/admin/commandes");
 
-  const q = (firstParam(searchParams.q) ?? "").trim().slice(0, 100);
-  const rawStatus = firstParam(searchParams.statut);
+  const q = (firstParam(sp.q) ?? "").trim().slice(0, 100);
+  const rawStatus = firstParam(sp.statut);
   const status = STATUSES.find((value) => value === rawStatus);
 
   const where: Prisma.OrderWhereInput = {
@@ -78,7 +80,7 @@ export default async function AdminCommandesPage({
 
   const total = await prisma.order.count({ where });
   const totalPages = Math.max(1, Math.ceil(total / ADMIN_PAGE_SIZE));
-  const page = Math.min(parsePage(searchParams.page), totalPages);
+  const page = Math.min(parsePage(sp.page), totalPages);
 
   const orders = await prisma.order.findMany({
     where,
@@ -213,4 +215,4 @@ export default async function AdminCommandesPage({
       />
     </div>
   );
-                      }
+        }
