@@ -39,8 +39,10 @@ function validationError(fieldErrors: FieldErrors, status: number = 422) {
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
+
   const context = await getSellerContext();
   if (context.status !== "ok") {
     return NextResponse.json(
@@ -50,12 +52,12 @@ export async function POST(
   }
   const { seller } = context;
 
-  if (!/^[a-z0-9]{1,40}$/i.test(params.id)) {
+  if (!/^[a-z0-9]{1,40}$/i.test(id)) {
     return NextResponse.json({ error: "Produit introuvable." }, { status: 404 });
   }
 
   const product = await prisma.product.findFirst({
-    where: { id: params.id, sellerId: seller.id },
+    where: { id, sellerId: seller.id },
   });
 
   if (!product) {
@@ -208,4 +210,4 @@ export async function POST(
   revalidatePath(`/catalogue/${product.slug}`);
 
   return NextResponse.json({ ok: true });
-}
+  }
