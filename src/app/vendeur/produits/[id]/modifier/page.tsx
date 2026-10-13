@@ -25,13 +25,15 @@ export const dynamic = "force-dynamic";
 export default async function ModifierProduitPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  if (!/^[a-z0-9]{1,40}$/i.test(params.id)) {
+  const { id } = await params;
+
+  if (!/^[a-z0-9]{1,40}$/i.test(id)) {
     notFound();
   }
 
-  const context = await loadSellerPage(`/vendeur/produits/${params.id}/modifier`);
+  const context = await loadSellerPage(`/vendeur/produits/${id}/modifier`);
 
   if (context.status !== "ok") {
     return <SellerUnavailable reason={context.status} />;
@@ -40,7 +42,7 @@ export default async function ModifierProduitPage({
   const { seller } = context;
 
   const product = await prisma.product.findFirst({
-    where: { id: params.id, sellerId: seller.id },
+    where: { id, sellerId: seller.id },
   });
 
   if (!product) {
