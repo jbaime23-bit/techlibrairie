@@ -45,14 +45,16 @@ const ERRORS: Record<string, string> = {
 export default async function AdminUtilisateursPage({
   searchParams,
 }: {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const sp = await searchParams;
+
   const admin = await requireAdmin("/admin/utilisateurs");
 
-  const q = (firstParam(searchParams.q) ?? "").trim().slice(0, 100);
-  const rawRole = firstParam(searchParams.role);
+  const q = (firstParam(sp.q) ?? "").trim().slice(0, 100);
+  const rawRole = firstParam(sp.role);
   const role = ROLES.find((value) => value === rawRole);
-  const rawStatus = firstParam(searchParams.statut);
+  const rawStatus = firstParam(sp.statut);
   const status: StatusFilter | undefined =
     rawStatus === "actifs" || rawStatus === "desactives" ? rawStatus : undefined;
 
@@ -72,7 +74,7 @@ export default async function AdminUtilisateursPage({
 
   const total = await prisma.user.count({ where });
   const totalPages = Math.max(1, Math.ceil(total / ADMIN_PAGE_SIZE));
-  const page = Math.min(parsePage(searchParams.page), totalPages);
+  const page = Math.min(parsePage(sp.page), totalPages);
 
   const users = await prisma.user.findMany({
     where,
@@ -103,8 +105,8 @@ export default async function AdminUtilisateursPage({
     return query ? `/admin/utilisateurs?${query}` : "/admin/utilisateurs";
   }
 
-  const messageKey = firstParam(searchParams.message);
-  const errorKey = firstParam(searchParams.erreur);
+  const messageKey = firstParam(sp.message);
+  const errorKey = firstParam(sp.erreur);
   const message = messageKey ? MESSAGES[messageKey] : undefined;
   const error = errorKey ? ERRORS[errorKey] : undefined;
 
@@ -280,4 +282,4 @@ export default async function AdminUtilisateursPage({
       />
     </div>
   );
-        }
+    }
