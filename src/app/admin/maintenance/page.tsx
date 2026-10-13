@@ -23,20 +23,22 @@ const SCAN_LABELS: Record<string, string> = {
 export default async function AdminMaintenancePage({
   searchParams,
 }: {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const sp = await searchParams;
+
   await requireAdmin("/admin/maintenance");
 
   const cronConfigured = Boolean(
     process.env.CRON_SECRET && process.env.CRON_SECRET.length >= 16
   );
 
-  const mode = firstParam(searchParams.mode);
+  const mode = firstParam(sp.mode);
   const hasReport = mode === "blanc" || mode === "reel";
   const isDryRun = mode === "blanc";
-  const error = firstParam(searchParams.erreur);
+  const error = firstParam(sp.erreur);
 
-  const scan = firstParam(searchParams.sc) ?? "ok";
+  const scan = firstParam(sp.sc) ?? "ok";
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -83,12 +85,12 @@ export default async function AdminMaintenancePage({
           <dl className="mt-3 space-y-2 text-sm">
             <div className="flex justify-between gap-4">
               <dt>{isDryRun ? "Commandes abandonnées à annuler" : "Commandes abandonnées annulées"}</dt>
-              <dd className="font-semibold">{count(searchParams.oc)}</dd>
+              <dd className="font-semibold">{count(sp.oc)}</dd>
             </div>
             {!isDryRun && (
               <div className="flex justify-between gap-4">
                 <dt>Commandes finalement payées (rattrapées)</dt>
-                <dd className="font-semibold">{count(searchParams.or)}</dd>
+                <dd className="font-semibold">{count(sp.or)}</dd>
               </div>
             )}
             <div className="flex justify-between gap-4">
@@ -97,11 +99,11 @@ export default async function AdminMaintenancePage({
                   ? "Conversations de support non payées à supprimer"
                   : "Conversations de support non payées supprimées"}
               </dt>
-              <dd className="font-semibold">{count(searchParams.st)}</dd>
+              <dd className="font-semibold">{count(sp.st)}</dd>
             </div>
             <div className="flex justify-between gap-4">
               <dt>{isDryRun ? "Jetons expirés à supprimer" : "Jetons expirés supprimés"}</dt>
-              <dd className="font-semibold">{count(searchParams.tk)}</dd>
+              <dd className="font-semibold">{count(sp.tk)}</dd>
             </div>
             <div className="flex justify-between gap-4">
               <dt>
@@ -109,7 +111,7 @@ export default async function AdminMaintenancePage({
                   ? "Anciens échecs de connexion à supprimer"
                   : "Anciens échecs de connexion supprimés"}
               </dt>
-              <dd className="font-semibold">{count(searchParams.la)}</dd>
+              <dd className="font-semibold">{count(sp.la)}</dd>
             </div>
             <div className="flex justify-between gap-4">
               <dt>
@@ -117,23 +119,23 @@ export default async function AdminMaintenancePage({
                   ? "Anciens liens de téléchargement à supprimer"
                   : "Anciens liens de téléchargement supprimés"}
               </dt>
-              <dd className="font-semibold">{count(searchParams.dt)}</dd>
+              <dd className="font-semibold">{count(sp.dt)}</dd>
             </div>
             <div className="flex justify-between gap-4">
               <dt>PDF orphelins trouvés</dt>
-              <dd className="font-semibold">{count(searchParams.of)}</dd>
+              <dd className="font-semibold">{count(sp.of)}</dd>
             </div>
             {!isDryRun && (
               <div className="flex justify-between gap-4">
                 <dt>PDF orphelins supprimés</dt>
-                <dd className="font-semibold">{count(searchParams.od)}</dd>
+                <dd className="font-semibold">{count(sp.od)}</dd>
               </div>
             )}
           </dl>
 
           <p className="mt-3 text-xs text-slate-600">
-            {SCAN_LABELS[scan] ?? SCAN_LABELS.ok} · durée : {count(searchParams.ms)} ms
-            {firstParam(searchParams.ex) === "1"
+            {SCAN_LABELS[scan] ?? SCAN_LABELS.ok} · durée : {count(sp.ms)} ms
+            {firstParam(sp.ex) === "1"
               ? " · temps imparti atteint : relancez pour traiter la suite"
               : ""}
           </p>
@@ -172,4 +174,4 @@ export default async function AdminMaintenancePage({
       </section>
     </div>
   );
-            }
+                }
