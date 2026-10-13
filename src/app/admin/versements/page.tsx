@@ -55,11 +55,13 @@ const ERRORS: Record<string, string> = {
 export default async function AdminVersementsPage({
   searchParams,
 }: {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const sp = await searchParams;
+
   await requireAdmin("/admin/versements");
 
-  const rawFilter = firstParam(searchParams.statut);
+  const rawFilter = firstParam(sp.statut);
   const filter: Filter =
     FILTERS.find((option) => option.value === rawFilter)?.value ?? "OPEN";
 
@@ -79,7 +81,7 @@ export default async function AdminVersementsPage({
 
   const total = await prisma.payout.count({ where });
   const totalPages = Math.max(1, Math.ceil(total / ADMIN_PAGE_SIZE));
-  const page = Math.min(parsePage(searchParams.page), totalPages);
+  const page = Math.min(parsePage(sp.page), totalPages);
 
   const [payouts, earnedBySeller, payoutsBySeller, payoutTotals] = await Promise.all([
     prisma.payout.findMany({
@@ -160,8 +162,8 @@ export default async function AdminVersementsPage({
     .reduce((sum, row) => sum + row._count._all, 0);
   const totalDue = totalEarned - totalPaid - totalOpen;
 
-  const messageKey = firstParam(searchParams.message);
-  const errorKey = firstParam(searchParams.erreur);
+  const messageKey = firstParam(sp.message);
+  const errorKey = firstParam(sp.erreur);
   const message = messageKey ? MESSAGES[messageKey] : undefined;
   const error = errorKey ? ERRORS[errorKey] : undefined;
 
