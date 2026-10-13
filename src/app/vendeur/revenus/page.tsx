@@ -36,8 +36,10 @@ const MESSAGES: Record<string, string> = {
 export default async function RevenusPage({
   searchParams,
 }: {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const sp = await searchParams;
+
   const context = await loadSellerPage("/vendeur/revenus");
 
   if (context.status !== "ok") {
@@ -91,8 +93,8 @@ export default async function RevenusPage({
     introuvable: "Demande introuvable ou déjà prise en charge.",
   };
 
-  const messageKey = firstParam(searchParams.message);
-  const errorKey = firstParam(searchParams.erreur);
+  const messageKey = firstParam(sp.message);
+  const errorKey = firstParam(sp.erreur);
   const message = messageKey ? MESSAGES[messageKey] : undefined;
   const error = errorKey ? ERRORS[errorKey] : undefined;
 
@@ -320,4 +322,4 @@ export default async function RevenusPage({
       </section>
     </div>
   );
-        }
+}
