@@ -15,8 +15,10 @@ const MAX_PAYMENT_ATTEMPTS_PER_HOUR = 5;
 
 export async function POST(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
+
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json(
@@ -25,12 +27,12 @@ export async function POST(
     );
   }
 
-  if (!/^[a-z0-9]{1,40}$/i.test(params.id)) {
+  if (!/^[a-z0-9]{1,40}$/i.test(id)) {
     return NextResponse.json({ error: "Conversation introuvable." }, { status: 404 });
   }
 
   const thread = await prisma.supportThread.findFirst({
-    where: { id: params.id, userId: user.id },
+    where: { id, userId: user.id },
     select: { id: true, number: true, status: true, feeAmountXof: true },
   });
 
