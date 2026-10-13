@@ -25,8 +25,10 @@ const PAGE_SIZE = Math.min(ADMIN_PAGE_SIZE, 10);
 export default async function SupportPage({
   searchParams,
 }: {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const sp = await searchParams;
+
   const user = await requireSupportUser("/support");
 
   const [fee, total] = await Promise.all([
@@ -35,7 +37,7 @@ export default async function SupportPage({
   ]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const page = Math.min(parsePage(searchParams.page), totalPages);
+  const page = Math.min(parsePage(sp.page), totalPages);
 
   const threads = await prisma.supportThread.findMany({
     where: { userId: user.id },
