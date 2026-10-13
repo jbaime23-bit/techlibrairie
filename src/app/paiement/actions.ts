@@ -6,6 +6,6 @@ import { clearCartCookie } from "@/lib/cart";
 
 /** Vide le panier une fois la commande payée (sans redirection). */
 export async function clearCartAfterPaymentAction(): Promise<void> {
-  clearCartCookie();
+  await clearCartCookie();
   revalidatePath("/", "layout");
 }
