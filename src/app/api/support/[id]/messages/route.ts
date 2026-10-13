@@ -24,8 +24,10 @@ const messageSchema = z.object({
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
+
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json(
@@ -34,7 +36,7 @@ export async function POST(
     );
   }
 
-  if (!/^[a-z0-9]{1,40}$/i.test(params.id)) {
+  if (!/^[a-z0-9]{1,40}$/i.test(id)) {
     return NextResponse.json({ error: "Conversation introuvable." }, { status: 404 });
   }
 
@@ -59,7 +61,7 @@ export async function POST(
   const isStaff = user.role === "ADMIN";
 
   const thread = await prisma.supportThread.findUnique({
-    where: { id: params.id },
+    where: { id },
     select: { id: true, userId: true, status: true, assignedToId: true },
   });
 
@@ -131,4 +133,4 @@ export async function POST(
   }
 
   return NextResponse.json({ ok: true }, { status: 201 });
-        }
+}
