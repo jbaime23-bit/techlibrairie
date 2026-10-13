@@ -41,8 +41,10 @@ const ERRORS: Record<string, string> = {
 export default async function AdminTauxPage({
   searchParams,
 }: {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const sp = await searchParams;
+
   await requireAdmin("/admin/taux");
 
   const [history, eurRate, usdRate] = await Promise.all([
@@ -53,8 +55,8 @@ export default async function AdminTauxPage({
 
   const rates = { EUR: eurRate, USD: usdRate };
 
-  const messageKey = firstParam(searchParams.message);
-  const errorKey = firstParam(searchParams.erreur);
+  const messageKey = firstParam(sp.message);
+  const errorKey = firstParam(sp.erreur);
   const message = messageKey ? MESSAGES[messageKey] : undefined;
   const error = errorKey ? ERRORS[errorKey] : undefined;
 
@@ -184,4 +186,4 @@ export default async function AdminTauxPage({
       </section>
     </div>
   );
-            }
+}
