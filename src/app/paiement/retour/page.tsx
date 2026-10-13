@@ -32,11 +32,11 @@ function loadOrder(orderId: string, buyerId: string) {
 export default async function RetourPaiementPage({
   searchParams,
 }: {
-  searchParams: { commande?: string | string[] };
+  searchParams: Promise<{ commande?: string | string[] }>;
 }) {
-  const rawOrderId = Array.isArray(searchParams.commande)
-    ? searchParams.commande[0]
-    : searchParams.commande;
+  const sp = await searchParams;
+
+  const rawOrderId = Array.isArray(sp.commande) ? sp.commande[0] : sp.commande;
 
   if (!rawOrderId || !/^[a-z0-9]{1,40}$/i.test(rawOrderId)) {
     notFound();
@@ -159,4 +159,4 @@ export default async function RetourPaiementPage({
       </div>
     </div>
   );
-}
+  }
