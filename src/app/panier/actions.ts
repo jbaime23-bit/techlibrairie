@@ -59,7 +59,7 @@ export async function addToCartAction(formData: FormData): Promise<void> {
     }
   }
 
-  const ids = getCartIds();
+  const ids = await getCartIds();
 
   if (!ids.includes(product.id)) {
     if (ids.length >= MAX_CART_ITEMS) {
@@ -76,7 +76,7 @@ export async function addToCartAction(formData: FormData): Promise<void> {
       }
     }
 
-    writeCartIds([...ids, product.id]);
+    await writeCartIds([...ids, product.id]);
   }
 
   revalidatePath("/", "layout");
@@ -87,11 +87,11 @@ export async function removeFromCartAction(formData: FormData): Promise<void> {
   const productId = formData.get("productId");
 
   if (typeof productId === "string" && productId.length > 0) {
-    const remaining = getCartIds().filter((id) => id !== productId);
+    const remaining = (await getCartIds()).filter((id) => id !== productId);
     if (remaining.length === 0) {
-      clearCartCookie();
+      await clearCartCookie();
     } else {
-      writeCartIds(remaining);
+      await writeCartIds(remaining);
     }
   }
 
@@ -100,7 +100,7 @@ export async function removeFromCartAction(formData: FormData): Promise<void> {
 }
 
 export async function clearCartAction(): Promise<void> {
-  clearCartCookie();
+  await clearCartCookie();
   revalidatePath("/", "layout");
   redirect("/panier");
-}
+        }
