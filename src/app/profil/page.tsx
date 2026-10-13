@@ -41,8 +41,10 @@ const ERRORS: Record<string, string> = {
 export default async function ProfilPage({
   searchParams,
 }: {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const sp = await searchParams;
+
   const sessionUser = await requireUser("/profil");
 
   const account = await prisma.user.findUnique({
@@ -57,8 +59,8 @@ export default async function ProfilPage({
     },
   });
 
-  const messageKey = firstParam(searchParams.message);
-  const errorKey = firstParam(searchParams.erreur);
+  const messageKey = firstParam(sp.message);
+  const errorKey = firstParam(sp.erreur);
   const message = messageKey ? MESSAGES[messageKey] : undefined;
   const error = errorKey ? ERRORS[errorKey] : undefined;
 
@@ -222,4 +224,4 @@ export default async function ProfilPage({
       </div>
     </div>
   );
-    }
+}
