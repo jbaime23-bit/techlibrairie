@@ -106,17 +106,20 @@ export default async function AdminCommandeDetailPage({
   params,
   searchParams,
 }: {
-  params: { id: string };
-  searchParams: Record<string, string | string[] | undefined>;
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  if (!/^[a-z0-9]{1,40}$/i.test(params.id)) {
+  const { id } = await params;
+  const sp = await searchParams;
+
+  if (!/^[a-z0-9]{1,40}$/i.test(id)) {
     notFound();
   }
 
-  await requireAdmin(`/admin/commandes/${params.id}`);
+  await requireAdmin(`/admin/commandes/${id}`);
 
   const order = await prisma.order.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
       buyer: { select: { name: true, email: true } },
       items: {
@@ -159,8 +162,8 @@ export default async function AdminCommandeDetailPage({
     }
   }
 
-  const messageKey = firstParam(searchParams.message);
-  const errorKey = firstParam(searchParams.erreur);
+  const messageKey = firstParam(sp.message);
+  const errorKey = firstParam(sp.erreur);
   const message = messageKey ? MESSAGES[messageKey] : undefined;
   const error = errorKey ? ERRORS[errorKey] : undefined;
 
