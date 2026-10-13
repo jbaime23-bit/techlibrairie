@@ -20,8 +20,10 @@ const ERRORS: Record<string, string> = {
 export default async function VendeurProfilPage({
   searchParams,
 }: {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const sp = await searchParams;
+
   const context = await loadSellerPage("/vendeur/profil");
 
   if (context.status !== "ok") {
@@ -30,8 +32,8 @@ export default async function VendeurProfilPage({
 
   const { seller } = context;
 
-  const message = firstParam(searchParams.message);
-  const errorKey = firstParam(searchParams.erreur);
+  const message = firstParam(sp.message);
+  const errorKey = firstParam(sp.erreur);
   const error = errorKey ? ERRORS[errorKey] : undefined;
 
   return (
