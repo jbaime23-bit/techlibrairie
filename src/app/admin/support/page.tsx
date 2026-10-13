@@ -36,11 +36,13 @@ const FILTERS: { value: Filter; label: string }[] = [
 export default async function AdminSupportPage({
   searchParams,
 }: {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const sp = await searchParams;
+
   await requireAdmin("/admin/support");
 
-  const rawFilter = firstParam(searchParams.statut);
+  const rawFilter = firstParam(sp.statut);
   const filter: Filter =
     FILTERS.find((option) => option.value === rawFilter)?.value ?? "OPEN";
 
@@ -52,7 +54,7 @@ export default async function AdminSupportPage({
 
   const total = await prisma.supportThread.count({ where });
   const totalPages = Math.max(1, Math.ceil(total / ADMIN_PAGE_SIZE));
-  const page = Math.min(parsePage(searchParams.page), totalPages);
+  const page = Math.min(parsePage(sp.page), totalPages);
 
   const threads = await prisma.supportThread.findMany({
     where,
@@ -167,4 +169,4 @@ export default async function AdminSupportPage({
       />
     </div>
   );
-                                                   }
+      }
