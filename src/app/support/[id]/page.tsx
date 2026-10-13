@@ -48,15 +48,17 @@ function loadThread(threadId: string, userId: string) {
 export default async function ConversationPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  if (!/^[a-z0-9]{1,40}$/i.test(params.id)) {
+  const { id } = await params;
+
+  if (!/^[a-z0-9]{1,40}$/i.test(id)) {
     notFound();
   }
 
-  const user = await requireSupportUser(`/support/${params.id}`);
+  const user = await requireSupportUser(`/support/${id}`);
 
-  let thread = await loadThread(params.id, user.id);
+  let thread = await loadThread(id, user.id);
   if (!thread) {
     notFound();
   }
@@ -64,7 +66,7 @@ export default async function ConversationPage({
   // Au retour du paiement, on vérifie auprès de CinetPay (utile si la notification tarde).
   if (thread.status === "AWAITING_PAYMENT" && thread.payments.length > 0) {
     await syncThreadPayments(thread.id);
-    thread = await loadThread(params.id, user.id);
+    thread = await loadThread(id, user.id);
     if (!thread) {
       notFound();
     }
@@ -191,4 +193,4 @@ export default async function ConversationPage({
       </div>
     </div>
   );
-}
+      }
