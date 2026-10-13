@@ -13,18 +13,21 @@ export const metadata: Metadata = {
 export default async function ConnexionPage({
   searchParams,
 }: {
-  searchParams: { callbackUrl?: string | string[]; message?: string | string[] };
+  searchParams: Promise<{
+    callbackUrl?: string | string[];
+    message?: string | string[];
+  }>;
 }) {
-  const callbackUrl = safeCallbackUrl(searchParams.callbackUrl);
+  const sp = await searchParams;
+
+  const callbackUrl = safeCallbackUrl(sp.callbackUrl);
   const user = await getCurrentUser();
 
   if (user) {
     redirect(callbackUrl);
   }
 
-  const message = Array.isArray(searchParams.message)
-    ? searchParams.message[0]
-    : searchParams.message;
+  const message = Array.isArray(sp.message) ? sp.message[0] : sp.message;
 
   return (
     <div className="container-page py-12">
