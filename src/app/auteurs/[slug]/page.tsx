@@ -23,9 +23,10 @@ const getSeller = cache(async (slug: string) => {
 export async function generateMetadata({
   params,
 }: {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
-  const seller = await getSeller(params.slug);
+  const { slug } = await params;
+  const seller = await getSeller(slug);
 
   if (!seller) {
     return { title: "Auteur introuvable" };
@@ -42,9 +43,10 @@ export async function generateMetadata({
 export default async function AuteurPage({
   params,
 }: {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }) {
-  const seller = await getSeller(params.slug);
+  const { slug } = await params;
+  const seller = await getSeller(slug);
 
   if (!seller) {
     notFound();
@@ -110,4 +112,4 @@ export default async function AuteurPage({
       </section>
     </div>
   );
-    }
+      }
