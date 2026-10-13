@@ -8,16 +8,17 @@ export const dynamic = "force-dynamic";
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const home = new URL("/", request.url);
 
-  if (!/^[a-z0-9]{1,40}$/i.test(params.id)) {
+  if (!/^[a-z0-9]{1,40}$/i.test(id)) {
     return NextResponse.redirect(home, 302);
   }
 
   const ad = await prisma.adSpace.findFirst({
-    where: { id: params.id, isActive: true, kind: "LOCAL_BANNER" },
+    where: { id, isActive: true, kind: "LOCAL_BANNER" },
     select: { id: true, targetUrl: true },
   });
 
