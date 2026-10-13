@@ -7,12 +7,14 @@ export const dynamic = "force-dynamic";
 
 export async function POST(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  if (/^[a-z0-9]{1,40}$/i.test(params.id)) {
+  const { id } = await params;
+
+  if (/^[a-z0-9]{1,40}$/i.test(id)) {
     await prisma.adSpace
       .updateMany({
-        where: { id: params.id, isActive: true },
+        where: { id, isActive: true },
         data: { impressions: { increment: 1 } },
       })
       .catch(() => undefined);
