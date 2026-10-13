@@ -14,11 +14,11 @@ export const dynamic = "force-dynamic";
 export default async function ReinitialiserMotDePassePage({
   searchParams,
 }: {
-  searchParams: { token?: string | string[] };
+  searchParams: Promise<{ token?: string | string[] }>;
 }) {
-  const rawToken = Array.isArray(searchParams.token)
-    ? searchParams.token[0]
-    : searchParams.token;
+  const sp = await searchParams;
+
+  const rawToken = Array.isArray(sp.token) ? sp.token[0] : sp.token;
 
   // Le lien est seulement vérifié ici : il n'est consommé qu'à l'enregistrement du mot de passe.
   const valid = rawToken ? await findValidToken("reset", rawToken) : null;
