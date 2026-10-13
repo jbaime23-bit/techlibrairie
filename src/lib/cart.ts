@@ -35,13 +35,15 @@ function parseIds(raw: string | undefined): string[] {
 }
 
 /** Identifiants des produits du panier (lecture du cookie). */
-export function getCartIds(): string[] {
-  return parseIds(cookies().get(CART_COOKIE)?.value);
+export async function getCartIds(): Promise<string[]> {
+  const cookieStore = await cookies();
+  return parseIds(cookieStore.get(CART_COOKIE)?.value);
 }
 
 /** Écrit le panier. À appeler uniquement depuis une Server Action ou une route API. */
-export function writeCartIds(ids: string[]): void {
-  cookies().set(CART_COOKIE, JSON.stringify(ids.slice(0, MAX_CART_ITEMS)), {
+export async function writeCartIds(ids: string[]): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.set(CART_COOKIE, JSON.stringify(ids.slice(0, MAX_CART_ITEMS)), {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
@@ -51,8 +53,9 @@ export function writeCartIds(ids: string[]): void {
 }
 
 /** Vide le panier. À appeler uniquement depuis une Server Action ou une route API. */
-export function clearCartCookie(): void {
-  cookies().delete(CART_COOKIE);
+export async function clearCartCookie(): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.delete(CART_COOKIE);
 }
 
 export interface CartItem {
@@ -76,7 +79,7 @@ export interface Cart {
  * (et dont le vendeur est actif) sont conservés.
  */
 export async function loadCart(): Promise<Cart> {
-  const ids = getCartIds();
+  const ids = await getCartIds();
 
   if (ids.length === 0) {
     return { items: [], currency: null, totalAmount: 0 };
@@ -117,4 +120,4 @@ export async function loadCart(): Promise<Cart> {
   );
 
   return { items: sameCurrencyItems, currency, totalAmount };
-  }
+      }
