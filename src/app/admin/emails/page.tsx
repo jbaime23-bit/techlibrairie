@@ -23,17 +23,19 @@ const EVENTS: { event: string; to: string }[] = [
 export default async function AdminEmailsPage({
   searchParams,
 }: {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const sp = await searchParams;
+
   const admin = await requireAdmin("/admin/emails");
 
   const configured = isEmailConfigured();
   const appUrl = getEmailAppUrl();
   const from = process.env.EMAIL_FROM ?? "";
 
-  const message = firstParam(searchParams.message);
-  const error = firstParam(searchParams.erreur);
-  const detail = firstParam(searchParams.detail);
+  const message = firstParam(sp.message);
+  const error = firstParam(sp.erreur);
+  const detail = firstParam(sp.detail);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -126,4 +128,4 @@ export default async function AdminEmailsPage({
       </section>
     </div>
   );
-            }
+}
