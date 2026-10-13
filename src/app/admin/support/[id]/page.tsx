@@ -24,16 +24,18 @@ export const dynamic = "force-dynamic";
 export default async function AdminConversationPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  if (!/^[a-z0-9]{1,40}$/i.test(params.id)) {
+  const { id } = await params;
+
+  if (!/^[a-z0-9]{1,40}$/i.test(id)) {
     notFound();
   }
 
-  await requireAdmin(`/admin/support/${params.id}`);
+  await requireAdmin(`/admin/support/${id}`);
 
   const thread = await prisma.supportThread.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
       user: { select: { name: true, email: true, phone: true, role: true } },
       assignedTo: { select: { name: true } },
@@ -164,4 +166,4 @@ export default async function AdminConversationPage({
       )}
     </div>
   );
-}
+          }
