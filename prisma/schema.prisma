@@ -389,3 +389,16 @@ model DownloadToken {
   expiresAt   DateTime
   createdAt   DateTime @default(now())
 
+model DownloadToken {
+  id          String   @id @default(cuid())
+  orderItemId String
+  token       String   @unique
+  usesCount   Int      @default(0)
+  maxUses     Int      @default(2)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@index([orderItemId])
+}
