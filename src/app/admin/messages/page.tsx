@@ -38,11 +38,13 @@ const STATUSES: ContactStatus[] = ["NEW", "READ", "ANSWERED", "ARCHIVED"];
 export default async function AdminMessagesPage({
   searchParams,
 }: {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const sp = await searchParams;
+
   await requireAdmin("/admin/messages");
 
-  const rawStatus = firstParam(searchParams.statut);
+  const rawStatus = firstParam(sp.statut);
   const status = STATUSES.find((value) => value === rawStatus);
 
   // Par défaut : tous les messages sauf les archivés.
@@ -52,7 +54,7 @@ export default async function AdminMessagesPage({
 
   const total = await prisma.contactMessage.count({ where });
   const totalPages = Math.max(1, Math.ceil(total / ADMIN_PAGE_SIZE));
-  const page = Math.min(parsePage(searchParams.page), totalPages);
+  const page = Math.min(parsePage(sp.page), totalPages);
 
   const messages = await prisma.contactMessage.findMany({
     where,
@@ -167,4 +169,4 @@ export default async function AdminMessagesPage({
       />
     </div>
   );
-}
+    }
