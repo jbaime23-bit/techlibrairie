@@ -36,12 +36,14 @@ const STATUSES: ProductStatus[] = ["PUBLISHED", "UNPUBLISHED", "SUSPENDED"];
 export default async function AdminProduitsPage({
   searchParams,
 }: {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const sp = await searchParams;
+
   await requireAdmin("/admin/produits");
 
-  const q = (firstParam(searchParams.q) ?? "").trim().slice(0, 100);
-  const rawStatus = firstParam(searchParams.statut);
+  const q = (firstParam(sp.q) ?? "").trim().slice(0, 100);
+  const rawStatus = firstParam(sp.statut);
   const status = STATUSES.find((value) => value === rawStatus);
 
   const where: Prisma.ProductWhereInput = {
@@ -58,7 +60,7 @@ export default async function AdminProduitsPage({
 
   const total = await prisma.product.count({ where });
   const totalPages = Math.max(1, Math.ceil(total / ADMIN_PAGE_SIZE));
-  const page = Math.min(parsePage(searchParams.page), totalPages);
+  const page = Math.min(parsePage(sp.page), totalPages);
 
   const products = await prisma.product.findMany({
     where,
@@ -196,4 +198,4 @@ export default async function AdminProduitsPage({
       />
     </div>
   );
-}
+                  }
