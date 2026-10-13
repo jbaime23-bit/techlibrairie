@@ -11,6 +11,15 @@ import { slugWithSuffix } from "@/lib/utils";
 import { createAccountToken } from "@/lib/account-tokens";
 import { sendVerificationEmail } from "@/lib/account-emails";
 import { isEmailConfigured } from "@/lib/email";
+import {
+  hashClientIp,
+  isLoginThrottled,
+  recordLoginFailure,
+} from "@/lib/login-throttle";
+
+// Marqueur utilisé dans la table des tentatives pour limiter les inscriptions
+// (il ne peut pas coïncider avec une vraie adresse email, qui contient toujours un @).
+const REGISTRATION_THROTTLE_KEY = "inscription";
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -32,6 +41,23 @@ export async function POST(request: Request) {
   }
 
   const data = parsed.data;
+
+  // Limitation des inscriptions : protège aussi le quota d'emails du site.
+  const ipHash = hashClientIp(request.headers.get("x-forwarded-for"));
+
+  if (await isLoginThrottled(REGISTRATION_THROTTLE_KEY, ipHash)) {
+    return NextResponse.json(
+      {
+        error:
+          "Trop d'inscriptions depuis votre connexion. Veuillez réessayer dans 15 minutes.",
+      },
+      { status: 429 }
+    );
+  }
+
+  // Chaque tentative d'inscription valide est comptée, qu'elle réussisse ou non.
+  await recordLoginFailure(REGISTRATION_THROTTLE_KEY, ipHash);
+
   const emailTakenResponse = NextResponse.json(
     {
       error: "Un compte existe déjà avec cette adresse email.",
