@@ -40,9 +40,10 @@ const getPublishedProduct = cache(async (slug: string) => {
 export async function generateMetadata({
   params,
 }: {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
-  const product = await getPublishedProduct(params.slug);
+  const { slug } = await params;
+  const product = await getPublishedProduct(slug);
 
   if (!product) {
     return { title: "Ouvrage introuvable" };
@@ -76,10 +77,13 @@ export default async function ProductPage({
   params,
   searchParams,
 }: {
-  params: { slug: string };
-  searchParams: { erreur?: string | string[] };
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ erreur?: string | string[] }>;
 }) {
-  const product = await getPublishedProduct(params.slug);
+  const { slug } = await params;
+  const query = await searchParams;
+
+  const product = await getPublishedProduct(slug);
 
   if (!product) {
     notFound();
@@ -87,11 +91,9 @@ export default async function ProductPage({
 
   const user = await getCurrentUser();
   const isAuthor = user !== null && user.id === product.seller.userId;
-  const inCart = getCartIds().includes(product.id);
+  const inCart = (await getCartIds()).includes(product.id);
 
-  const errorKey = Array.isArray(searchParams.erreur)
-    ? searchParams.erreur[0]
-    : searchParams.erreur;
+  const errorKey = Array.isArray(query.erreur) ? query.erreur[0] : query.erreur;
   const errorMessage = errorKey ? ERROR_MESSAGES[errorKey] : undefined;
 
   const moreFromSeller = await prisma.product.findMany({
@@ -239,4 +241,4 @@ export default async function ProductPage({
       )}
     </div>
   );
-                                           }
+            }
