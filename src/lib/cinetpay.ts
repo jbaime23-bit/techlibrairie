@@ -4,6 +4,8 @@
 
 const CINETPAY_BASE_URL = "https://api-checkout.cinetpay.com/v2";
 const REQUEST_TIMEOUT_MS = 20_000;
+// CinetPay peut rejeter (erreur 429) un appel qui n'envoie pas d'en-tête User-Agent.
+const USER_AGENT = "TechLibrairie/1.0";
 
 function getCredentials(): { apikey: string; siteId: string } {
   const apikey = process.env.CINETPAY_API_KEY;
@@ -49,7 +51,10 @@ export async function initCinetPayPayment(
 
   const response = await fetch(`${CINETPAY_BASE_URL}/payment`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "User-Agent": USER_AGENT,
+    },
     body: JSON.stringify({
       apikey,
       site_id: siteId,
@@ -81,7 +86,7 @@ export async function initCinetPayPayment(
         ? root.description
         : typeof root.message === "string"
           ? root.message
-          : "réponse inattendue";
+          : `réponse inattendue (HTTP ${response.status})`;
     throw new Error(`CinetPay a refusé l'initialisation : ${reason}`);
   }
 
@@ -112,7 +117,10 @@ export async function checkCinetPayPayment(
 
   const response = await fetch(`${CINETPAY_BASE_URL}/payment/check`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "User-Agent": USER_AGENT,
+    },
     body: JSON.stringify({
       apikey,
       site_id: siteId,
@@ -149,4 +157,4 @@ export async function checkCinetPayPayment(
       typeof data.payment_method === "string" ? data.payment_method : null,
     operatorId: typeof data.operator_id === "string" ? data.operator_id : null,
   };
-                                     }
+      }
