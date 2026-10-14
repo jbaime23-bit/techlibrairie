@@ -1,150 +1,41 @@
-// prisma/schema.prisma
-// TechLibrairie - Schéma de base de données (PostgreSQL / Neon)
-// La connexion est lue uniquement depuis la variable d'environnement DATABASE_URL.
-
-generator client {
-  provider = "prisma-client-js"
-}
-
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-// ---------------------------------------------------------------------------
-// ENUMS
-// ---------------------------------------------------------------------------
+generator client {
+  provider = "prisma-client-js"
+}
 
 enum Role {
+  USER
   BUYER
   SELLER
   ADMIN
 }
 
-enum SellerStatus {
-  ACTIVE
-  SUSPENDED
+enum TokenType {
+  VERIFICATION
+  PASSWORD_RESET
+  DOWNLOAD
 }
-
-enum ProductStatus {
-  PUBLISHED
-  UNPUBLISHED
-  SUSPENDED
-}
-
-enum OrderStatus {
-  PENDING
-  PAID
-  FAILED
-  CANCELED
-  REFUNDED
-}
-
-enum PaymentProvider {
-  STRIPE
-  CINETPAY
-}
-
-enum PaymentMethod {
-  CARD
-  MOBILE_MONEY
-  ORANGE_MONEY
-  MOOV_MONEY
-}
-
-enum PaymentStatus {
-  PENDING
-  SUCCEEDED
-  FAILED
-  CANCELED
-  REFUNDED
-}
-
-enum PayoutStatus {
-  PENDING
-  PROCESSING
-  PAID
-  FAILED
-}
-
-enum Currency {
-  XOF
-  EUR
-  USD
-}
-
-enum SupportCategory {
-  GENERAL
-  TECHNICAL
-  PAYMENT
-  SELLER_ACCOUNT
-  OTHER
-}
-
-enum ThreadStatus {
-  AWAITING_PAYMENT
-  OPEN
-  ANSWERED
-  CLOSED
-}
-
-enum ContactStatus {
-  NEW
-  READ
-  ANSWERED
-  ARCHIVED
-}
-
-enum AdPlacement {
-  HOME_TOP
-  HOME_MIDDLE
-  HOME_BOTTOM
-  CATALOGUE_TOP
-  CATALOGUE_SIDEBAR
-  BOOK_PAGE
-  SELLER_DASHBOARD
-  DOWNLOAD_CONFIRMATION
-  FOOTER_TOP
-}
-
-enum AdKind {
-  LOCAL_BANNER
-  ADSTERRA_BANNER
-  ADSTERRA_NATIVE
-  ADSTERRA_SCRIPT
-  ADSTERRA_DIRECT_LINK
-  ADSTERRA_POPUNDER
-}
-
-// ---------------------------------------------------------------------------
-// UTILISATEURS & AUTHENTIFICATION (compatible Auth.js)
-// ---------------------------------------------------------------------------
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  emailVerified DateTime?
-  passwordHash  String?
-  // Date du dernier changement de mot de passe : les sessions ouvertes avant cette date sont refusées
-  passwordChangedAt DateTime?
-  image         String?
-  phone         String?
-  role          Role      @default(BUYER)
-  isActive      Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  accounts        Account[]
-  sessions        Session[]
-  sellerProfile   SellerProfile?
-  orders          Order[]
-  supportThreads  SupportThread[] @relation("ThreadOwner")
-  assignedThreads SupportThread[] @relation("ThreadAssignee")
-  sentMessages    Message[]       @relation("MessageSender")
-  contactMessages ContactMessage[]
-
-  @@index([role])
+  id             String          @id @default(cuid())
+  name           String?
+  email          String          @unique
+  emailVerified  DateTime?
+  image          String?
+  passwordHash   String?
+  phone          String?
+  role           Role            @default(USER)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  accounts       Account[]
+  sessions       Session[]
+  sellerProfile  SellerProfile?
+  orders         Order[]
+  downloadTokens DownloadToken[]
 }
 
 model Account {
@@ -164,7 +55,6 @@ model Account {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
-  @@index([userId])
 }
 
 model Session {
@@ -172,218 +62,81 @@ model Session {
   sessionToken String   @unique
   userId       String
   expires      DateTime
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
-
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
-}
-
-// Échecs de connexion récents (limitation des tentatives, voir lib/login-throttle.ts)
-model LoginAttempt {
-  id        String   @id @default(cuid())
-  email     String
-  // Empreinte de l'adresse IP (jamais l'IP en clair)
-  ipHash    String?
-  createdAt DateTime @default(now())
-
-  @@index([email, createdAt])
-  @@index([ipHash, createdAt])
-}
-
-// ---------------------------------------------------------------------------
-// VENDEURS : auteurs et éditeurs (profil public du vendeur)
-// ---------------------------------------------------------------------------
 
 model SellerProfile {
-  id                   String       @id @default(cuid())
-  userId               String       @unique
-  displayName          String
-  slug                 String       @unique
-  bio                  String?      @db.Text
-  avatarUrl            String?
-  status               SellerStatus @default(ACTIVE)
-
-  // Taux de commission spécifique à ce vendeur (en points de base, 1000 = 10 %).
-  // Si null, le taux global de PlatformSetting s'applique.
-  commissionRateBps    Int?
-
-  // Coordonnées de versement des revenus (Orange Money, Moov Money, banque)
-  payoutMobileNumber   String?
-  payoutMobileOperator String?
-  payoutBankDetails    String?      @db.Text
-
-  createdAt            DateTime     @default(now())
-  updatedAt            DateTime     @updatedAt
-
-  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  products Product[]
-  items    OrderItem[]
-  payouts  Payout[]
-}
-
-// ---------------------------------------------------------------------------
-// CATALOGUE : catégories et livres / guides PDF (Product = "Book")
-// ---------------------------------------------------------------------------
-
-model Category {
   id          String   @id @default(cuid())
-  name        String   @unique
+  userId      String   @unique
+  displayName String
   slug        String   @unique
-  description String?
+  bio         String?
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   products Product[]
 }
 
 model Product {
-  id            String        @id @default(cuid())
-  sellerId      String
-  categoryId    String?
-  title         String
-  slug          String        @unique
-  description   String        @db.Text
-  language      String        @default("fr")
-  pageCount     Int?
+  id          String   @id @default(cuid())
+  sellerId    String
+  title       String
+  description String
+  price       Float
+  fileUrl     String
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  // Règle métier : les prix sont fixés en FCFA (XOF), sans taxe.
-  // XOF : francs entiers (multiples de 5 pour Mobile Money).
-  priceAmount   Int
-  currency      Currency      @default(XOF)
-
-  coverImageUrl String?
-
-  // Fichier PDF stocké en accès PRIVÉ. Jamais exposé publiquement.
-  pdfStorageKey String
-  pdfFileName   String
-  pdfSizeBytes  Int
-
-  // Publication automatique dès la soumission par le vendeur
-  status        ProductStatus @default(PUBLISHED)
-  publishedAt   DateTime      @default(now())
-
-  salesCount    Int           @default(0)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-
-  seller   SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-  category Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  items    OrderItem[]
-
-  @@index([sellerId])
-  @@index([categoryId])
-  @@index([status, publishedAt])
+  seller         SellerProfile   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  orderItems     OrderItem[]
+  downloadTokens DownloadToken[]
 }
 
-// ---------------------------------------------------------------------------
-// COMMANDES (aucune taxe sur les produits numériques)
-// ---------------------------------------------------------------------------
-
 model Order {
-  id          String      @id @default(cuid())
-  number      String      @unique
-  buyerId     String
-  buyerEmail  String
-  status      OrderStatus @default(PENDING)
+  id         String   @id @default(cuid())
+  userId     String
+  totalPrice Float
+  status     String   @default("PENDING") // PENDING, PAID, FAILED
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  // Total de référence = somme des lignes (en FCFA). Aucune taxe ajoutée.
-  totalAmount Int
-  currency    Currency
-
-  paidAt      DateTime?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-
-  buyer    User        @relation(fields: [buyerId], references: [id], onDelete: Restrict)
-  items    OrderItem[]
-  payments Payment[]
-
-  @@index([buyerId])
-  @@index([status])
-  @@index([createdAt])
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+  downloads  DownloadToken[]
 }
 
 model OrderItem {
-  id                String   @id @default(cuid())
-  orderId           String
-  productId         String
-  sellerId          String
+  id        String @id @default(cuid())
+  orderId   String
+  productId String
+  price     Float
 
-  // Instantané du produit au moment de l'achat
-  productTitle      String
-  unitAmount        Int
-  currency          Currency
-
-  // Répartition calculée automatiquement à la vente
-  commissionRateBps Int
-  commissionAmount  Int
-  sellerAmount      Int
-
-  createdAt         DateTime @default(now())
-
-  order     Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product   Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
-  seller    SellerProfile   @relation(fields: [sellerId], references: [id], onDelete: Restrict)
-  downloads DownloadToken[]
-
-  @@unique([orderId, productId])
-  @@index([sellerId])
-  @@index([productId])
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 }
-
-// ---------------------------------------------------------------------------
-// PAIEMENTS & REVERSEMENTS
-// ---------------------------------------------------------------------------
-
-model Payment {
-  id            String          @id @default(cuid())
-  orderId       String
-  provider      PaymentProvider
-  method        PaymentMethod
-  status        PaymentStatus   @default(PENDING)
-  amount        Int
-  currency      Currency        @default(XOF)
-  transactionId String?         @unique
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
-
-  @@index([orderId])
-}
-
-model Payout {
-  id            String       @id @default(cuid())
-  sellerId      String
-  amount        Int
-  currency      Currency     @default(XOF)
-  status        PayoutStatus @default(PENDING)
-  payoutMethod  String
-  transactionId String?      @unique
-  paidAt        DateTime?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-
-  seller SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Restrict)
-
-  @@index([sellerId])
-}
-
-// ---------------------------------------------------------------------------
-// JETONS DE TÉLÉCHARGEMENT SÉCURISÉS (Accès limité)
-// ---------------------------------------------------------------------------
 
 model DownloadToken {
-  id          String   @id @default(cuid())
-  orderItemId String
-  token       String   @unique
-  usesCount   Int      @default(0)
-  maxUses     Int      @default(2) // Limite stricte de 2 téléchargements par achat
-  expiresAt   DateTime
+  id        String   @id @default(cuid())
+  userId    String
+  orderId   String
+  productId String
+  token     String   @unique
+  usesCount Int      @default(0)
+  maxUses   Int      @default(2) // Limite de téléchargements
+  expiresAt DateTime
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model AccountToken {
+  id        String    @id @default(cuid())
+  email     String
+  token     String    @unique
+  type      TokenType
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+}
