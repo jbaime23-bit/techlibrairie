@@ -4,10 +4,8 @@
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
 
 export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -35,8 +33,9 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
         return;
       }
 
-      router.push(callbackUrl);
-      router.refresh();
+      // Rechargement complet : repart d'une page vierge (sans script publicitaire
+      // éventuellement resté actif) et applique les protections de la page cible.
+      window.location.assign(callbackUrl);
     } catch {
       setError(
         "Impossible de contacter le serveur. Vérifiez votre connexion et réessayez."
@@ -97,4 +96,4 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
       </button>
     </form>
   );
-        }
+}
