@@ -61,14 +61,25 @@ export default async function ConfidentialitePage() {
       <LegalSection title="Cookies et traceurs">
         <LegalList>
           <li>
-            <strong>Cookies nécessaires</strong> : cookie de session (connexion) et cookie de panier. Ils
-            sont indispensables au fonctionnement du site.
+            <strong>Cookies nécessaires</strong> : cookie de session (connexion), cookie de panier et cookie
+            mémorisant votre choix concernant les cookies publicitaires (conservé 6 mois). Ils sont
+            indispensables au fonctionnement du site et ne nécessitent pas de consentement.
           </li>
           <li>
-            <strong>Publicité</strong> : le site affiche des publicités, dont certaines proviennent de
-            régies tierces (notamment Adsterra). Ces régies peuvent déposer leurs propres cookies et
-            traceurs afin de mesurer et de personnaliser la publicité. Nous n&apos;avons pas de contrôle sur
-            ces traceurs ; consultez la politique de confidentialité de ces régies pour en savoir plus.
+            <strong>Publicité de partenaires tiers</strong> : le site affiche des publicités de régies
+            publicitaires tierces (notamment Adsterra), qui peuvent déposer leurs propres cookies et
+            traceurs afin de mesurer et de personnaliser la publicité. Ces publicités ne sont chargées
+            qu&apos;<strong>après votre accord</strong>, donné via le bandeau affiché à votre première
+            visite. Si vous refusez, elles ne sont pas chargées.
+          </li>
+          <li>
+            <strong>Bannières de annonceurs locaux</strong> : elles peuvent s&apos;afficher dans tous les cas ;
+            nous n&apos;y associons aucun cookie de suivi. Un clic vous mène vers le site de l&apos;annonceur, qui
+            applique sa propre politique.
+          </li>
+          <li>
+            Vous pouvez modifier votre choix à tout moment avec le lien « Gérer mes cookies » en bas de
+            chaque page.
           </li>
         </LegalList>
       </LegalSection>
@@ -77,6 +88,7 @@ export default async function ConfidentialitePage() {
         <LegalList>
           <li>Compte et historique de commandes : tant que le compte existe, puis pour la durée imposée par nos obligations légales et comptables.</li>
           <li>Panier : 30 jours au plus (cookie sur votre appareil).</li>
+          <li>Choix concernant les cookies publicitaires : 6 mois (cookie sur votre appareil).</li>
           <li>Conversations de support jamais payées : supprimées après 14 jours.</li>
           <li>Tentatives de connexion échouées : supprimées après 24 heures.</li>
           <li>Liens de téléchargement expirés : supprimés après 30 jours.</li>
@@ -87,8 +99,9 @@ export default async function ConfidentialitePage() {
         <p>
           Vos données ne sont jamais vendues. Elles sont traitées par des prestataires techniques qui
           interviennent pour notre compte : Vercel (hébergement et stockage), Neon (base de données), Stripe
-          et CinetPay (paiement), Resend (envoi des emails) et les régies publicitaires pour l&apos;affichage
-          des annonces. Ces prestataires peuvent traiter vos données dans des pays autres que le vôtre.
+          et CinetPay (paiement), Resend (envoi des emails) et, si vous l&apos;acceptez, les régies publicitaires
+          pour l&apos;affichage des annonces. Ces prestataires peuvent traiter vos données dans des pays autres
+          que le vôtre.
         </p>
       </LegalSection>
 
@@ -127,4 +140,4 @@ export default async function ConfidentialitePage() {
       </LegalSection>
     </LegalPage>
   );
-        }
+}
