@@ -98,7 +98,7 @@ model Order {
   id         String   @id @default(cuid())
   userId     String
   totalPrice Float
-  status     String   @default("PENDING") // PENDING, PAID, FAILED
+  status     String   @default("PENDING")
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -124,7 +124,7 @@ model DownloadToken {
   productId String
   token     String   @unique
   usesCount Int      @default(0)
-  maxUses   Int      @default(2) // Limite de téléchargements
+  maxUses   Int      @default(2)
   expiresAt DateTime
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
