@@ -44,9 +44,14 @@ export default async function PaiementPage() {
   const currency = cart.currency;
   const isXof = currency === "XOF";
 
+  // Le paiement par carte n'est proposé que si Stripe est entièrement configuré.
+  const stripeConfigured = Boolean(
+    process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET
+  );
+
   // Pour un panier en FCFA, la carte est proposée dans chaque devise dont le taux est valide.
   const cardOptions: CardOption[] = [];
-  if (isXof) {
+  if (isXof && stripeConfigured) {
     for (const code of FOREIGN_CURRENCIES) {
       const rate = await getCardRate(code);
       if (!rate) continue;
@@ -112,45 +117,58 @@ export default async function PaiementPage() {
                 />
               </div>
 
-              <hr className="border-slate-200" />
+              {stripeConfigured && (
+                <>
+                  <hr className="border-slate-200" />
 
-              <div className="space-y-4">
-                <p className="text-sm font-medium">Carte bancaire (Visa, Mastercard)</p>
+                  <div className="space-y-4">
+                    <p className="text-sm font-medium">Carte bancaire (Visa, Mastercard)</p>
 
-                {cardOptions.length === 0 ? (
-                  <p className="text-sm text-slate-600">
-                    Le paiement par carte n&apos;est pas disponible pour le
-                    moment. Utilisez le Mobile Money.
-                  </p>
-                ) : (
-                  cardOptions.map((option) => (
-                    <div key={option.currency} className="space-y-2">
-                      <CheckoutButton
-                        endpoint="/api/checkout/stripe"
-                        payload={{ currency: option.currency }}
-                        label={`Payer ${formatPrice(option.total, option.currency)} par carte`}
-                      />
-                      <p className="text-xs text-slate-500">
-                        Votre total en FCFA est converti en {CURRENCY_LABELS[option.currency]} :
-                        1 {option.currency} = {formatRateMicro(option.rate.effectiveRateMicro)}{" "}
-                        FCFA (marge de change incluse). Le montant débité est celui
-                        affiché ci-dessus.
+                    {cardOptions.length === 0 ? (
+                      <p className="text-sm text-slate-600">
+                        Le paiement par carte n&apos;est pas disponible pour le
+                        moment. Utilisez le Mobile Money.
                       </p>
-                    </div>
-                  ))
-                )}
-              </div>
+                    ) : (
+                      cardOptions.map((option) => (
+                        <div key={option.currency} className="space-y-2">
+                          <CheckoutButton
+                            endpoint="/api/checkout/stripe"
+                            payload={{ currency: option.currency }}
+                            label={`Payer ${formatPrice(option.total, option.currency)} par carte`}
+                          />
+                          <p className="text-xs text-slate-500">
+                            Votre total en FCFA est converti en {CURRENCY_LABELS[option.currency]} :
+                            1 {option.currency} = {formatRateMicro(option.rate.effectiveRateMicro)}{" "}
+                            FCFA (marge de change incluse). Le montant débité est celui
+                            affiché ci-dessus.
+                          </p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           ) : (
             <div className="mt-4 space-y-3">
-              <p className="text-sm text-slate-600">
-                Paiement sécurisé par carte bancaire (Visa, Mastercard) via
-                Stripe. Montant débité : {formatPrice(cart.totalAmount, currency)}.
-              </p>
-              <CheckoutButton
-                endpoint="/api/checkout/stripe"
-                label="Payer par carte bancaire"
-              />
+              {stripeConfigured ? (
+                <>
+                  <p className="text-sm text-slate-600">
+                    Paiement sécurisé par carte bancaire (Visa, Mastercard) via
+                    Stripe. Montant débité : {formatPrice(cart.totalAmount, currency)}.
+                  </p>
+                  <CheckoutButton
+                    endpoint="/api/checkout/stripe"
+                    label="Payer par carte bancaire"
+                  />
+                </>
+              ) : (
+                <p className="text-sm text-slate-600">
+                  Le paiement par carte bancaire n&apos;est pas disponible pour le
+                  moment.
+                </p>
+              )}
             </div>
           )}
 
@@ -162,4 +180,4 @@ export default async function PaiementPage() {
       </div>
     </div>
   );
-              }
+                                      }
