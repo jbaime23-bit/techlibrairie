@@ -1,13 +1,15 @@
 // src/components/publicite/AdSlot.tsx
 // Emplacement publicitaire : affiche les annonces actives de la table AdSpace
 // pour un emplacement donné. Ne fait jamais planter la page.
-// SÉCURITÉ : aucune publicité (donc aucun script tiers) n'est jamais affichée
-// à un administrateur connecté.
+// SÉCURITÉ : aucune publicité n'est jamais affichée à un administrateur connecté.
+// CONSENTEMENT : les publicités de régies tierces (Adsterra) ne sont chargées
+// qu'après un "Accepter" explicite ; les bannières locales ne sont pas concernées.
 
 import { unstable_cache } from "next/cache";
 import type { AdKind, AdPlacement } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { getConsent } from "@/lib/consent";
 import AdsterraBanner from "@/components/publicite/AdsterraBanner";
 import AdsterraNativeWidget from "@/components/publicite/AdsterraNativeWidget";
 import AdsterraScriptWidget from "@/components/publicite/AdsterraScriptWidget";
@@ -105,7 +107,12 @@ export default async function AdSlot({ placement }: { placement: AdPlacement }) 
     return null;
   }
 
-  if (ads.length === 0) return null;
+  // Sans consentement explicite, seules les bannières locales sont affichées.
+  const consent = await getConsent();
+  const visibleAds =
+    consent === "granted" ? ads : ads.filter((ad) => ad.kind === "LOCAL_BANNER");
 
-  return <div aria-label="Publicité">{ads.map((ad) => renderAd(ad))}</div>;
-  }
+  if (visibleAds.length === 0) return null;
+
+  return <div aria-label="Publicité">{visibleAds.map((ad) => renderAd(ad))}</div>;
+}
