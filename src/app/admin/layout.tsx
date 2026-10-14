@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/admin";
 
 const LINKS = [
   { href: "/admin", label: "Tableau de bord" },
+  { href: "/admin/sante", label: "Santé du site" },
   { href: "/admin/utilisateurs", label: "Utilisateurs" },
   { href: "/admin/vendeurs", label: "Vendeurs" },
   { href: "/admin/produits", label: "Produits" },
@@ -38,4 +39,4 @@ export default async function AdminLayout({
       {children}
     </div>
   );
-  }
+}
