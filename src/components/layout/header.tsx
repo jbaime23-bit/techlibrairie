@@ -37,9 +37,11 @@ export async function Header() {
               )}
 
               {user.role === "ADMIN" ? (
-                <Link href="/admin" className="text-slate-700 hover:text-brand-700">
+                // Lien classique (rechargement complet) : l'administration démarre
+                // sur une page vierge, avec sa protection CSP.
+                <a href="/admin" className="text-slate-700 hover:text-brand-700">
                   Administration
-                </Link>
+                </a>
               ) : (
                 <Link href="/support" className="text-slate-700 hover:text-brand-700">
                   Support
@@ -77,4 +79,4 @@ export async function Header() {
       )}
     </header>
   );
-        }
+            }
