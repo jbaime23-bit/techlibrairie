@@ -259,6 +259,25 @@ export function ProductForm({
           </div>
 
           <div>
+            <label htmlFor="price" className="label">
+              Prix de vente (FCFA)
+            </label>
+            <input
+              id="price"
+              name="price"
+              type="number"
+              required
+              value={values.price}
+              onChange={handleChange}
+              className="input"
+              disabled={busy}
+            />
+            <FieldError messages={fieldErrors.price} />
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
             <label htmlFor="language" className="label">
               Langue de l&apos;ouvrage
             </label>
@@ -278,33 +297,10 @@ export function ProductForm({
             </select>
             <FieldError messages={fieldErrors.language} />
           </div>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="price" className="label">
-              Prix de vente (en FCFA)
-            </label>
-            <input
-              id="price"
-              name="price"
-              type="number"
-              required
-              value={values.price}
-              onChange={handleChange}
-              className="input"
-              disabled={busy}
-              placeholder="Ex: 2500"
-            />
-            <p className="text-xs text-slate-500 mt-1">
-              Commission boutique ({commissionPercent}%) déduite automatiquement à la vente.
-            </p>
-            <FieldError messages={fieldErrors.price} />
-          </div>
 
           <div>
             <label htmlFor="pageCount" className="label">
-              Nombre de pages (facultatif)
+              Nombre de pages (optionnel)
             </label>
             <input
               id="pageCount"
@@ -312,3 +308,12 @@ export function ProductForm({
               type="number"
               value={values.pageCount}
               onChange={handleChange}
+              className="input"
+              disabled={busy}
+            />
+            <FieldError messages={fieldErrors.pageCount} />
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+               
