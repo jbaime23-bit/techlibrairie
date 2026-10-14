@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { buildWhatsAppLink, getContactInfo } from "@/lib/contact";
 import { ContactForm } from "@/components/layout/contact-form";
+import { CookieSettingsButton } from "@/components/legal/cookie-settings-button";
 
 export async function Footer() {
   const contact = await getContactInfo();
@@ -97,6 +98,7 @@ export async function Footer() {
             <Link href="/confidentialite" className="hover:text-brand-700">
               Confidentialité
             </Link>
+            <CookieSettingsButton />
           </nav>
         </div>
       </div>
