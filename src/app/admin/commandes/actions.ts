@@ -15,8 +15,8 @@ function readText(formData: FormData, name: string, max: number): string {
 /**
  * Rembourse une commande payée.
  * - Carte (Stripe) : remboursement automatique et intégral.
- * - Mobile Money (CinetPay) : remboursement manuel déjà effectué par l'administrateur ;
- *   la référence de la transaction est exigée.
+ * - CinetPay (Mobile Money ou carte) : remboursement manuel déjà effectué par
+ *   l'administrateur ; la référence de l'opération est exigée.
  */
 export async function refundOrderAction(formData: FormData): Promise<void> {
   const admin = await assertAdminAction();
@@ -83,7 +83,7 @@ export async function refundOrderAction(formData: FormData): Promise<void> {
     if (!/^[A-Za-z0-9 _./-]{3,100}$/.test(manualReference)) {
       redirect(`${back}?erreur=reference`);
     }
-    method = "manuel-mobile-money";
+    method = payment.method === "CARD" ? "manuel-cinetpay-carte" : "manuel-mobile-money";
     reference = manualReference;
   }
 
