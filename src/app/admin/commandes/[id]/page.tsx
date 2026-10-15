@@ -68,7 +68,7 @@ const ERRORS: Record<string, string> = {
   stripe:
     "Stripe a refusé le remboursement. Consultez le tableau de bord Stripe et les journaux Vercel.",
   reference:
-    "Référence invalide : saisissez la référence du remboursement Mobile Money (3 à 100 caractères : lettres, chiffres, espaces, tirets).",
+    "Référence invalide : saisissez la référence du remboursement (3 à 100 caractères : lettres, chiffres, espaces, tirets).",
 };
 
 interface RefundInfo {
@@ -100,6 +100,7 @@ const REFUND_METHOD_LABELS: Record<string, string> = {
   "stripe-dashboard": "Remboursement fait depuis le tableau de bord Stripe",
   "stripe-deja-rembourse": "Déjà remboursé dans Stripe",
   "manuel-mobile-money": "Remboursement manuel par Mobile Money",
+  "manuel-cinetpay-carte": "Remboursement manuel d'un paiement par carte (CinetPay)",
 };
 
 export default async function AdminCommandeDetailPage({
@@ -169,6 +170,8 @@ export default async function AdminCommandeDetailPage({
 
   const canRefund = order.status === "PAID" && Boolean(settledPayment);
   const isStripe = settledPayment?.provider === "STRIPE";
+  const isCinetPayCard =
+    settledPayment?.provider === "CINETPAY" && settledPayment.method === "CARD";
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -317,6 +320,31 @@ export default async function AdminCommandeDetailPage({
                 remboursé <strong>intégralement et automatiquement</strong> sur la carte de
                 l&apos;acheteur par Stripe.
               </p>
+            ) : isCinetPayCard ? (
+              <div className="space-y-3">
+                <p className="text-sm text-slate-700">
+                  Le paiement a été fait par <strong>carte bancaire via CinetPay</strong>. Le
+                  remboursement est <strong>manuel</strong> : faites-le avec CinetPay (depuis
+                  votre espace marchand ou en contactant leur support) pour{" "}
+                  {formatPrice(settledPayment.amount, settledPayment.currency)}, puis saisissez la
+                  référence de cette opération. Renseignez-vous auprès de CinetPay sur leurs
+                  conditions de remboursement des cartes avant de confirmer ici.
+                </p>
+                <div>
+                  <label htmlFor="reference" className="label">
+                    Référence du remboursement
+                  </label>
+                  <input
+                    id="reference"
+                    name="reference"
+                    type="text"
+                    required
+                    minLength={3}
+                    maxLength={100}
+                    className="input max-w-sm"
+                  />
+                </div>
+              </div>
             ) : (
               <div className="space-y-3">
                 <p className="text-sm text-slate-700">
@@ -375,4 +403,4 @@ export default async function AdminCommandeDetailPage({
       )}
     </div>
   );
-      }
+                                      }
