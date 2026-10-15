@@ -1,5 +1,7 @@
 // src/lib/auth.ts
 // Configuration de l'authentification (Auth.js / NextAuth) et gardes de rôle.
+// Les administrateurs ayant activé la double authentification doivent fournir un code
+// (ou un code de secours) après leur mot de passe.
 
 import { getServerSession, type NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
@@ -16,10 +18,18 @@ import {
   isLoginThrottled,
   recordLoginFailure,
 } from "@/lib/login-throttle";
+import {
+  TWO_FACTOR_INVALID_ERROR,
+  TWO_FACTOR_REQUIRED_ERROR,
+  disableTwoFactor,
+  verifySecondFactor,
+} from "@/lib/two-factor";
+import { recordAudit } from "@/lib/audit";
 
 const credentialsSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
   password: z.string().min(1).max(200),
+  totp: z.string().trim().max(32).optional(),
 });
 
 /** Hache un mot de passe (à utiliser à l'inscription). */
@@ -52,12 +62,13 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Mot de passe", type: "password" },
+        totp: { label: "Code de vérification", type: "text" },
       },
       async authorize(rawCredentials, req) {
         const parsed = credentialsSchema.safeParse(rawCredentials);
         if (!parsed.success) return null;
 
-        const { email, password } = parsed.data;
+        const { email, password, totp } = parsed.data;
 
         const forwarded = req?.headers?.["x-forwarded-for"];
         const ipHash = hashClientIp(typeof forwarded === "string" ? forwarded : undefined);
@@ -76,7 +87,60 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
+        // Deuxième facteur : seulement après un mot de passe correct (on ne révèle
+        // donc jamais qu'un compte est protégé à quelqu'un qui ne connaît pas le mot de passe).
+        if (user.role === "ADMIN" && user.totpEnabledAt && user.totpSecretEnc) {
+          const resetEmail = process.env.RESET_2FA_EMAIL?.trim().toLowerCase();
+
+          if (resetEmail && resetEmail === user.email.toLowerCase()) {
+            // Porte de secours : effacement de la double authentification de ce compte.
+            await disableTwoFactor(user.id);
+            await recordAudit({
+              adminId: user.id,
+              adminEmail: user.email,
+              action: "admin.2fa_reinitialisee_par_variable",
+              targetType: "utilisateur",
+              targetId: user.id,
+              ipHash,
+            });
+          } else {
+            if (!totp) {
+              throw new Error(TWO_FACTOR_REQUIRED_ERROR);
+            }
+
+            const second = await verifySecondFactor(user, totp);
+            if (!second.ok) {
+              await recordLoginFailure(email, ipHash);
+              await recordAudit({
+                adminId: user.id,
+                adminEmail: user.email,
+                action: "admin.connexion_code_refuse",
+                ipHash,
+              });
+              throw new Error(TWO_FACTOR_INVALID_ERROR);
+            }
+
+            if (second.usedRecoveryCode) {
+              await recordAudit({
+                adminId: user.id,
+                adminEmail: user.email,
+                action: "admin.code_de_secours_utilise",
+                ipHash,
+              });
+            }
+          }
+        }
+
         await clearLoginFailures(email);
+
+        if (user.role === "ADMIN") {
+          await recordAudit({
+            adminId: user.id,
+            adminEmail: user.email,
+            action: "admin.connexion",
+            ipHash,
+          });
+        }
 
         return {
           id: user.id,
@@ -145,6 +209,7 @@ export async function getCurrentUser() {
       isActive: true,
       emailVerified: true,
       passwordChangedAt: true,
+      totpEnabledAt: true,
     },
   });
 
@@ -176,4 +241,4 @@ export async function requireRole(allowed: Role[], callbackUrl: string = "/") {
     redirect("/?erreur=acces-refuse");
   }
   return user;
-      }
+          }
