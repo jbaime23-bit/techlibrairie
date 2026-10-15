@@ -1,9 +1,12 @@
 // src/app/admin/layout.tsx
+// La mise en page n'exige que le rôle administrateur : la double authentification
+// est exigée par chaque page (sauf /admin/securite, qui permet de l'activer).
 import Link from "next/link";
-import { requireAdmin } from "@/lib/admin";
+import { requireAdminForSetup } from "@/lib/admin";
 
 const LINKS = [
   { href: "/admin", label: "Tableau de bord" },
+  { href: "/admin/securite", label: "Sécurité du compte" },
   { href: "/admin/sante", label: "Santé du site" },
   { href: "/admin/utilisateurs", label: "Utilisateurs" },
   { href: "/admin/vendeurs", label: "Vendeurs" },
@@ -24,7 +27,7 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  await requireAdmin("/admin");
+  await requireAdminForSetup("/admin");
 
   return (
     <div className="container-page py-8">
