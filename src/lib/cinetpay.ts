@@ -1,5 +1,5 @@
 // src/lib/cinetpay.ts
-// Paiement par Mobile Money avec CinetPay (API Checkout v2).
+// Paiement avec CinetPay (API Checkout v2) : Mobile Money et cartes bancaires.
 // Le statut d'un paiement est TOUJOURS revérifié auprès de CinetPay.
 
 const CINETPAY_BASE_URL = "https://api-checkout.cinetpay.com/v2";
@@ -21,6 +21,25 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+export type CinetPayChannel = "MOBILE_MONEY" | "CREDIT_CARD";
+
+/** Informations du client exigées par CinetPay pour afficher le paiement par carte. */
+export interface CinetPayCustomer {
+  id: string;
+  name: string;
+  surname: string;
+  phoneNumber: string;
+  email: string;
+  address: string;
+  city: string;
+  // Code pays à 2 lettres (BF, CI, FR, US...)
+  country: string;
+  // Obligatoire seulement pour les États-Unis et le Canada
+  state?: string;
+  // 5 caractères au maximum
+  zipCode: string;
+}
+
 export interface CinetPayInitParams {
   transactionId: string;
   amount: number;
@@ -30,6 +49,10 @@ export interface CinetPayInitParams {
   appUrl: string;
   // Chemin de retour du client après paiement (par défaut : confirmation de commande)
   returnPath?: string;
+  // Canal du guichet (Mobile Money par défaut)
+  channels?: CinetPayChannel;
+  // Obligatoire pour le canal CREDIT_CARD
+  customer?: CinetPayCustomer;
 }
 
 export interface CinetPayInitResult {
@@ -38,7 +61,7 @@ export interface CinetPayInitResult {
 }
 
 /**
- * Initialise un paiement Mobile Money (XOF) et renvoie l'URL du guichet CinetPay.
+ * Initialise un paiement (XOF) et renvoie l'URL du guichet CinetPay.
  * Le montant doit être un multiple de 5.
  */
 export async function initCinetPayPayment(
@@ -46,8 +69,29 @@ export async function initCinetPayPayment(
 ): Promise<CinetPayInitResult> {
   const { apikey, siteId } = getCredentials();
 
+  const channels: CinetPayChannel = params.channels ?? "MOBILE_MONEY";
+
+  if (channels === "CREDIT_CARD" && !params.customer) {
+    throw new Error("Les informations du client sont obligatoires pour le paiement par carte.");
+  }
+
   const returnPath =
     params.returnPath ?? `/api/paiement/retour?commande=${params.orderId}`;
+
+  const customerFields = params.customer
+    ? {
+        customer_id: params.customer.id,
+        customer_name: params.customer.name,
+        customer_surname: params.customer.surname,
+        customer_phone_number: params.customer.phoneNumber,
+        customer_email: params.customer.email,
+        customer_address: params.customer.address,
+        customer_city: params.customer.city,
+        customer_country: params.customer.country,
+        customer_state: params.customer.state ?? params.customer.country,
+        customer_zip_code: params.customer.zipCode,
+      }
+    : {};
 
   const response = await fetch(`${CINETPAY_BASE_URL}/payment`, {
     method: "POST",
@@ -64,9 +108,10 @@ export async function initCinetPayPayment(
       description: params.description,
       notify_url: `${params.appUrl}/api/webhooks/cinetpay`,
       return_url: `${params.appUrl}${returnPath}`,
-      channels: "MOBILE_MONEY",
+      channels,
       lang: "fr",
       metadata: params.orderId,
+      ...customerFields,
     }),
     cache: "no-store",
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
@@ -157,4 +202,4 @@ export async function checkCinetPayPayment(
       typeof data.payment_method === "string" ? data.payment_method : null,
     operatorId: typeof data.operator_id === "string" ? data.operator_id : null,
   };
-      }
+    }
