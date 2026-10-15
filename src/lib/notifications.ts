@@ -172,7 +172,14 @@ export async function notifyOrderRefunded(
       ? formatPrice(payment.amount, payment.currency)
       : formatPrice(order.totalAmount, order.currency);
 
-    const isCard = method.startsWith("stripe");
+    const isStripeCard = method.startsWith("stripe");
+    const isCinetPayCard = method === "manuel-cinetpay-carte";
+
+    const refundParagraph = isStripeCard
+      ? "Le montant est remboursé sur votre carte bancaire. Selon votre banque, il peut apparaître avec un délai de plusieurs jours."
+      : isCinetPayCard
+        ? "Le remboursement de votre paiement par carte a été effectué par notre prestataire de paiement. Selon votre banque, il peut apparaître avec un délai de plusieurs jours."
+        : "Le remboursement a été envoyé sur votre compte Mobile Money.";
 
     await sendEmail({
       to: order.buyerEmail,
@@ -182,9 +189,7 @@ export async function notifyOrderRefunded(
         title: "Commande remboursée",
         paragraphs: [
           `Votre commande ${order.number} a été remboursée pour un montant de ${amountLabel}.`,
-          isCard
-            ? "Le montant est remboursé sur votre carte bancaire. Selon votre banque, il peut apparaître avec un délai de plusieurs jours."
-            : "Le remboursement a été envoyé sur votre compte Mobile Money.",
+          refundParagraph,
           "Les liens de téléchargement de cette commande ne sont plus valables.",
         ],
         items: order.items.map((item) => ({ label: item.productTitle })),
@@ -474,4 +479,4 @@ export async function notifyPayoutRejected(
   } catch (error) {
     console.error("Notification (versement refusé) impossible :", error);
   }
-              }
+      }
