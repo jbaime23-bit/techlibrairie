@@ -322,3 +322,4 @@ export function ProductForm({
               accept=".pdf"
               required
               onChange={handlePdfChange}
+        
