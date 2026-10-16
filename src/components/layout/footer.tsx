@@ -3,9 +3,11 @@ import Link from "next/link";
 import { buildWhatsAppLink, getContactInfo } from "@/lib/contact";
 import { ContactForm } from "@/components/layout/contact-form";
 import { CookieSettingsButton } from "@/components/legal/cookie-settings-button";
+import { getPaymentMethods, paymentSummary } from "@/lib/payment-methods";
 
 export async function Footer() {
   const contact = await getContactInfo();
+  const summary = paymentSummary(getPaymentMethods());
 
   return (
     <footer className="border-t border-slate-200 bg-white">
@@ -14,8 +16,7 @@ export async function Footer() {
           <p className="text-xl font-bold text-brand-700">TechLibrairie</p>
           <p className="mt-2 text-sm text-slate-600">
             La plateforme multi-vendeurs de livres et guides techniques au
-            format PDF. Paiement par Mobile Money ou carte bancaire,
-            téléchargement immédiat.
+            format PDF. {summary}, téléchargement immédiat.
           </p>
 
           <ul className="mt-4 space-y-1 text-sm">
@@ -104,4 +105,4 @@ export async function Footer() {
       </div>
     </footer>
   );
-}
+              }
