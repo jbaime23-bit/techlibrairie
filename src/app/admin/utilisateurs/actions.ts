@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { assertAdminAction } from "@/lib/admin";
+import { recordAdminAction } from "@/lib/audit";
 
 const BACK = "/admin/utilisateurs";
 
@@ -55,6 +56,17 @@ export async function setUserActiveAction(formData: FormData): Promise<void> {
         data: { status: "SUSPENDED" },
       });
     }
+  });
+
+  await recordAdminAction(admin, {
+    action: "utilisateur.statut_modifie",
+    targetType: "utilisateur",
+    targetId: target.id,
+    details: {
+      compte_actif: active,
+      role: target.role,
+      profil_vendeur_suspendu: !active && Boolean(target.sellerProfile),
+    },
   });
 
   revalidatePath(BACK);
