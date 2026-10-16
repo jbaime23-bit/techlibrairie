@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { assertAdminAction } from "@/lib/admin";
 import { notifyPayoutPaid, notifyPayoutRejected } from "@/lib/notifications";
+import { recordAdminAction } from "@/lib/audit";
 
 const BACK = "/admin/versements";
 
@@ -21,7 +22,7 @@ function readPayoutId(formData: FormData): string | null {
 
 /** Prend en charge une demande (en attente vers en cours de traitement). */
 export async function startPayoutAction(formData: FormData): Promise<void> {
-  await assertAdminAction();
+  const admin = await assertAdminAction();
 
   const payoutId = readPayoutId(formData);
   if (!payoutId) {
@@ -33,6 +34,14 @@ export async function startPayoutAction(formData: FormData): Promise<void> {
     data: { status: "PROCESSING" },
   });
 
+  if (result.count > 0) {
+    await recordAdminAction(admin, {
+      action: "versement.pris_en_charge",
+      targetType: "versement",
+      targetId: payoutId,
+    });
+  }
+
   revalidatePath(BACK);
   revalidatePath("/vendeur/revenus");
 
@@ -41,7 +50,7 @@ export async function startPayoutAction(formData: FormData): Promise<void> {
 
 /** Marque une demande comme versée, avec la référence de la transaction Mobile Money. */
 export async function markPayoutPaidAction(formData: FormData): Promise<void> {
-  await assertAdminAction();
+  const admin = await assertAdminAction();
 
   const payoutId = readPayoutId(formData);
   if (!payoutId) {
@@ -59,6 +68,12 @@ export async function markPayoutPaidAction(formData: FormData): Promise<void> {
   });
 
   if (result.count > 0) {
+    await recordAdminAction(admin, {
+      action: "versement.paye",
+      targetType: "versement",
+      targetId: payoutId,
+      details: { reference },
+    });
     await notifyPayoutPaid(payoutId);
   }
 
@@ -70,7 +85,7 @@ export async function markPayoutPaidAction(formData: FormData): Promise<void> {
 
 /** Refuse une demande (les fonds redeviennent disponibles pour le vendeur). */
 export async function rejectPayoutAction(formData: FormData): Promise<void> {
-  await assertAdminAction();
+  const admin = await assertAdminAction();
 
   const payoutId = readPayoutId(formData);
   if (!payoutId) {
@@ -100,6 +115,12 @@ export async function rejectPayoutAction(formData: FormData): Promise<void> {
   });
 
   if (result.count > 0) {
+    await recordAdminAction(admin, {
+      action: "versement.refuse",
+      targetType: "versement",
+      targetId: payout.id,
+      details: { motif: reason },
+    });
     await notifyPayoutRejected(payout.id, reason);
   }
 
@@ -107,4 +128,4 @@ export async function rejectPayoutAction(formData: FormData): Promise<void> {
   revalidatePath("/vendeur/revenus");
 
   redirect(result.count > 0 ? `${BACK}?message=refuse` : `${BACK}?erreur=etat`);
-  }
+      }
