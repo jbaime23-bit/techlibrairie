@@ -64,7 +64,8 @@ export default async function AdminManuelPage() {
             anciennes.
           </li>
           <li>
-            <strong>Messages de contact</strong> : répondez par email, puis marquez « Répondu ».
+            <strong>Messages de contact</strong> : répondez par email, puis marquez « Répondu ». Repérez
+            les demandes de suppression de compte (voir « Effacer un compte sur demande »).
           </li>
           <li>
             <strong>Versements</strong> : traitez les demandes en attente (procédure plus bas).
@@ -123,6 +124,13 @@ export default async function AdminManuelPage() {
               Sécurité du compte
             </Link>{" "}
             : vérifiez qu&apos;il vous reste au moins 3 codes de secours, sinon régénérez-les.
+          </li>
+          <li>
+            <Link href="/admin/administrateurs" className="font-semibold text-brand-700 hover:underline">
+              Administrateurs
+            </Link>{" "}
+            : la liste ne doit contenir que des personnes qui en ont encore besoin, toutes avec la
+            double authentification activée.
           </li>
           <li>
             <Link href="/admin/maintenance" className="font-semibold text-brand-700 hover:underline">
@@ -208,6 +216,49 @@ export default async function AdminManuelPage() {
             l&apos;enregistrement. Les statistiques de vues et de clics s&apos;affichent dans la liste.
           </p>
         </Incident>
+
+        <Incident title="Ajouter ou retirer un administrateur">
+          <Steps>
+            <li>
+              Ouvrez <Link href="/admin/administrateurs" className="font-semibold text-brand-700 hover:underline">Administrateurs</Link>.
+            </li>
+            <li>
+              Pour <strong>nommer</strong> : la personne doit déjà avoir un compte, actif, avec
+              l&apos;adresse email vérifiée. Saisissez son email, votre mot de passe et votre code à 6 chiffres.
+            </li>
+            <li>
+              Elle doit se déconnecter puis se reconnecter, puis activer la double authentification
+              (obligatoire) avant d&apos;accéder à l&apos;administration.
+            </li>
+            <li>
+              Pour <strong>retirer</strong> : le compte redevient vendeur ou acheteur, sa double
+              authentification est effacée et ses sessions sont coupées. Vous ne pouvez pas retirer le
+              dernier administrateur, ni vous-même.
+            </li>
+          </Steps>
+        </Incident>
+
+        <Incident title="Effacer un compte sur demande">
+          <Steps>
+            <li>
+              Vérifiez l&apos;identité du demandeur (réponse depuis l&apos;adresse du compte, ou demandez-lui de
+              le faire lui-même depuis Mon profil, Supprimer mon compte).
+            </li>
+            <li>
+              Pour un vendeur : réglez d&apos;abord ses versements (Versements). L&apos;effacement est refusé
+              s&apos;il reste de l&apos;argent à lui verser ou un versement en cours.
+            </li>
+            <li>
+              Ouvrez <Link href="/admin/effacement" className="font-semibold text-brand-700 hover:underline">Effacement d&apos;un compte</Link>,
+              saisissez l&apos;email, votre mot de passe et votre code, puis le mot EFFACER.
+            </li>
+            <li>
+              Les données personnelles sont effacées ; les commandes sont conservées sans lien avec une
+              adresse email. L&apos;opération est irréversible et figure dans le Journal. Répondez à la
+              personne pour confirmer.
+            </li>
+          </Steps>
+        </Incident>
       </Section>
 
       <Section title="En cas d'incident">
@@ -259,7 +310,11 @@ export default async function AdminManuelPage() {
               Demandez à la personne de réinitialiser son mot de passe depuis « Mot de passe oublié »,
               puis réactivez le compte.
             </li>
-            <li>S&apos;il s&apos;agit de votre compte administrateur : changez le mot de passe, régénérez les codes de secours et vérifiez le Journal.</li>
+            <li>
+              S&apos;il s&apos;agit d&apos;un autre administrateur : demandez à un administrateur de confiance de lui
+              retirer le rôle (page Administrateurs). S&apos;il s&apos;agit de votre compte : changez le mot de
+              passe, régénérez les codes de secours et vérifiez le Journal.
+            </li>
           </Steps>
         </Incident>
 
@@ -307,13 +362,14 @@ export default async function AdminManuelPage() {
       <Section title="Limites actuelles à connaître">
         <Bullets>
           <li>
-            Il n&apos;existe <strong>qu&apos;un seul compte administrateur</strong> (celui de l&apos;initialisation) :
-            l&apos;interface ne permet pas d&apos;en créer d&apos;autres.
+            Pour nommer un administrateur, l&apos;adresse email du compte doit être <strong>vérifiée</strong> :
+            cela suppose que l&apos;envoi d&apos;emails fonctionne.
           </li>
           <li>
-            Il n&apos;existe pas de fonction de <strong>suppression d&apos;un compte</strong> sur demande : le
-            compte peut être désactivé, mais son effacement complet demande une intervention directe
-            sur la base de données.
+            L&apos;effacement d&apos;un compte <strong>anonymise</strong> les données mais conserve les commandes
+            (numéros, montants, dates). Les sauvegardes Neon peuvent contenir d&apos;anciennes données
+            jusqu&apos;à leur expiration. La durée de conservation légale des pièces comptables est à
+            confirmer avec votre comptable.
           </li>
           <li>Les versements aux vendeurs et certains remboursements sont <strong>manuels</strong>.</li>
           <li>Le journal des actions ne couvre pas les actions automatiques du système.</li>
@@ -321,4 +377,4 @@ export default async function AdminManuelPage() {
       </Section>
     </div>
   );
-}
+          }
