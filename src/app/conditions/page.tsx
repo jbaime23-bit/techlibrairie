@@ -5,6 +5,11 @@ import { prisma } from "@/lib/prisma";
 import { getContactInfo } from "@/lib/contact";
 import { PAYOUT_HOLD_DAYS } from "@/lib/payouts";
 import { getLegalConfig, operatorName } from "@/lib/legal-config";
+import {
+  getPaymentMethods,
+  paymentMeansList,
+  refundMeansLabel,
+} from "@/lib/payment-methods";
 import { formatPrice } from "@/lib/utils";
 import LegalPage, { LegalList, LegalSection } from "@/components/legal/legal-page";
 
@@ -28,6 +33,8 @@ export default async function ConditionsPage() {
   const [settings, contact] = await Promise.all([loadSettings(), getContactInfo()]);
   const legal = getLegalConfig();
   const operator = operatorName(legal);
+  const methods = getPaymentMethods();
+  const meansList = paymentMeansList(methods);
 
   const linkHours = settings?.downloadLinkTtlHours ?? 72;
   const maxDownloads = settings?.downloadMaxAttempts ?? 5;
@@ -79,19 +86,29 @@ export default async function ConditionsPage() {
         <LegalList>
           <li>Les prix sont fixés en francs CFA (FCFA) et affichés toutes charges comprises.</li>
           <li>Aucune taxe supplémentaire n&apos;est ajoutée au prix affiché lors de la commande.</li>
-          <li>
-            Pour un paiement par carte bancaire, le montant en FCFA est converti en euros ou en dollars
-            au moment du paiement, avec un taux et une marge de conversion de {fxMarginPercent} % inclus.
-            Le montant exact débité est affiché avant la confirmation du paiement.
-          </li>
+          {methods.stripeCard && (
+            <li>
+              Pour un paiement par carte bancaire via Stripe, le montant en FCFA est converti en euros ou
+              en dollars au moment du paiement, avec un taux et une marge de conversion de {fxMarginPercent} %
+              inclus. Le montant exact débité est affiché avant la confirmation du paiement.
+            </li>
+          )}
+          {methods.cinetPayCard && (
+            <li>
+              Pour un paiement par carte bancaire via CinetPay, le montant est débité en FCFA. Si votre
+              carte est émise dans une autre devise, votre banque peut appliquer sa propre conversion et
+              ses propres frais, qui ne dépendent pas de TechLibrairie.
+            </li>
+          )}
         </LegalList>
       </LegalSection>
 
       <LegalSection title="5. Commande et paiement">
         <LegalList>
           <li>
-            Le paiement s&apos;effectue par Mobile Money (Orange Money, Moov Money) via le prestataire
-            CinetPay, ou par carte bancaire (Visa, Mastercard) via le prestataire Stripe.
+            {meansList.length > 0
+              ? `Le paiement s'effectue ${meansList.join(", ou ")}.`
+              : "Les moyens de paiement disponibles sont affichés au moment de la commande."}
           </li>
           <li>
             Nous ne recevons ni ne conservons jamais vos numéros de carte ni vos codes secrets : ils sont
@@ -143,8 +160,8 @@ export default async function ConditionsPage() {
           <li>achat en double ou erreur de paiement avérée.</li>
         </LegalList>
         <p>
-          Le remboursement est effectué par le même moyen que le paiement (carte, ou Mobile Money). Les
-          liens de téléchargement de la commande remboursée sont alors désactivés. Les délais
+          Le remboursement est effectué par le même moyen que le paiement ({refundMeansLabel(methods)}).
+          Les liens de téléchargement de la commande remboursée sont alors désactivés. Les délais
           d&apos;apparition du remboursement dépendent de votre banque ou de votre opérateur.
         </p>
       </LegalSection>
@@ -175,17 +192,19 @@ export default async function ConditionsPage() {
       <LegalSection title="10. Support payant">
         <p>
           Le support par conversation est un service payant, au tarif de {formatPrice(supportFee, "XOF")} par
-          conversation (tarif affiché avant tout paiement). Le message n&apos;est lu par l&apos;équipe qu&apos;après
-          paiement. Le tarif reste dû même si la réponse ne vous satisfait pas ; en l&apos;absence de toute
-          réponse de notre part, vous pouvez demander le remboursement de la conversation. Pour une simple
-          question sans suite, le formulaire de contact du pied de page reste gratuit.
+          conversation (tarif affiché avant tout paiement), payable par Mobile Money. Le message n&apos;est lu par
+          l&apos;équipe qu&apos;après paiement. Le tarif reste dû même si la réponse ne vous satisfait pas ; en
+          l&apos;absence de toute réponse de notre part, vous pouvez demander le remboursement de la
+          conversation. Pour une simple question sans suite, le formulaire de contact du pied de page reste
+          gratuit.
         </p>
       </LegalSection>
 
       <LegalSection title="11. Publicité">
         <p>
-          Le site affiche des publicités, y compris celles de partenaires tiers. TechLibrairie n&apos;est pas
-          responsable du contenu des sites vers lesquels ces publicités renvoient.
+          Le site affiche des publicités, y compris celles de partenaires tiers (affichées après votre
+          accord, voir la politique de confidentialité). TechLibrairie n&apos;est pas responsable du contenu des
+          sites vers lesquels ces publicités renvoient.
         </p>
       </LegalSection>
 
@@ -242,4 +261,4 @@ export default async function ConditionsPage() {
       </LegalSection>
     </LegalPage>
   );
-    }
+      }
