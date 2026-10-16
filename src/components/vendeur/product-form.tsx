@@ -270,12 +270,9 @@ export function ProductForm({
               value={values.price}
               onChange={handleChange}
               className="input"
+              placeholder="Ex: 5000"
               disabled={busy}
-              placeholder="Ex: 2500"
             />
-            <p className="text-xs text-slate-500 mt-1">
-              Commission plateforme : {commissionPercent}%
-            </p>
             <FieldError messages={fieldErrors.price} />
           </div>
         </div>
@@ -313,5 +310,11 @@ export function ProductForm({
               value={values.pageCount}
               onChange={handleChange}
               className="input"
+              placeholder="Ex: 120"
               disabled={busy}
-    
+            />
+            <FieldError messages={fieldErrors.pageCount} />
+          </div>
+        </div>
+
+      
