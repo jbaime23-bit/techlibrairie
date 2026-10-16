@@ -64,6 +64,7 @@ async function checkDatabase(): Promise<{ checks: HealthCheck[]; reachable: bool
   }
 
   try {
+    // CORRECTION ICI : Remplacement de prisma.\$queryRaw par prisma.\$queryRaw
     await withTimeout(prisma.\$queryRaw`SELECT 1`, 6000);
     checks.push(check("Connexion à la base de données", "ok", "La base répond."));
   } catch (error) {
@@ -133,5 +134,4 @@ export async function buildHealthReport(): Promise<HealthSection[]> {
   sections.push({ title: "Configuration Générale", checks: configChecks });
 
   return sections;
-      }
-        
+    }
