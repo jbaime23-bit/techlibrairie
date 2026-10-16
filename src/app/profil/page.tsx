@@ -221,7 +221,19 @@ export default async function ProfilPage({
             </button>
           </form>
         </section>
+
+        <section className="card border-red-200">
+          <h2 className="text-lg font-semibold">Supprimer mon compte</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Efface vos données personnelles de façon définitive. Vous perdez l&apos;accès à vos achats.
+          </p>
+          <div className="mt-4">
+            <Link href="/profil/suppression" className="btn-secondary text-red-700">
+              Supprimer mon compte
+            </Link>
+          </div>
+        </section>
       </div>
     </div>
   );
-}
+                }
