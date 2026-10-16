@@ -15,7 +15,7 @@ export const metadata: Metadata = {
     template: "%s | TechLibrairie",
   },
   description:
-    "La plateforme multi-vendeurs de livres et guides techniques au format PDF. Paiement par carte bancaire ou Mobile Money, téléchargement immédiat.",
+    "La plateforme multi-vendeurs de livres et guides techniques au format PDF. Paiement en ligne sécurisé, téléchargement immédiat.",
 };
 
 export default async function RootLayout({
