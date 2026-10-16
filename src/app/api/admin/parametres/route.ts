@@ -6,6 +6,7 @@ import { revalidateTag } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getAdminOrNull } from "@/lib/admin";
+import { recordAdminAction } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -115,6 +116,22 @@ export async function PUT(request: Request) {
       { status: 500 }
     );
   }
+
+  await recordAdminAction(admin, {
+    action: "parametres.modifies",
+    targetType: "parametres",
+    targetId: "global",
+    details: {
+      commission_defaut_pour_cent: values.defaultCommissionRateBps / 100,
+      marge_change_pour_cent: values.fxMarginBps / 100,
+      versement_minimum_fcfa: values.minPayoutAmountXof,
+      tarif_support_fcfa: values.supportFeeXof,
+      duree_lien_heures: values.downloadLinkTtlHours,
+      telechargements_max: values.downloadMaxAttempts,
+      email_de_contact_defini: values.contactEmail !== null,
+      whatsapp_defini: values.whatsappNumber !== null,
+    },
+  });
 
   revalidateTag("contact-info");
 
