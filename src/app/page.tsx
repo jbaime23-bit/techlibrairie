@@ -3,40 +3,25 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import AdSlot from "@/components/publicite/AdSlot";
 import { ProductCard, type ProductCardData } from "@/components/produits/product-card";
+import {
+  getPaymentMethods,
+  paymentFeature,
+  paymentSummary,
+} from "@/lib/payment-methods";
 
 export const dynamic = "force-dynamic";
 
 async function loadLatestProducts(): Promise<ProductCardData[]> {
   try {
-    if (!prisma || !prisma.product) {
-      console.error("Accueil : Le client Prisma n'est pas initialisé.");
-      return [];
-    }
-
-    // Requête alignée à 100% avec les colonnes de votre schema.prisma officiel
-    const products = await prisma.product.findMany({
-      where: { 
-        isPublished: true 
-      },
-      orderBy: { 
-        createdAt: "desc" 
-      },
+    return await prisma.product.findMany({
+      where: { status: "PUBLISHED", seller: { status: "ACTIVE" } },
+      orderBy: { publishedAt: "desc" },
       take: 4,
       include: {
-        seller: { 
-          select: { 
-            displayName: true 
-          } 
-        },
+        seller: { select: { displayName: true } },
+        category: { select: { name: true } },
       },
     });
-
-    // Adaptation légère pour correspondre au type attendu par votre composant ProductCard
-    return products.map(product => ({
-      ...product,
-      category: { name: "Technique" } // Valeur par défaut de secours
-    })) as unknown as ProductCardData[];
-
   } catch (error) {
     console.error("Accueil : lecture des ouvrages impossible :", error);
     return [];
@@ -51,6 +36,10 @@ export default async function HomePage({
   const { erreur } = await searchParams;
   const accessDenied = erreur === "acces-refuse";
   const latestProducts = await loadLatestProducts();
+
+  const methods = getPaymentMethods();
+  const summary = paymentSummary(methods);
+  const feature = paymentFeature(methods);
 
   return (
     <div className="container-page py-8">
@@ -68,8 +57,7 @@ export default async function HomePage({
         </h1>
         <p className="mt-4 text-lg text-slate-600">
           Achetez et téléchargez immédiatement des ressources écrites par des
-          auteurs et éditeurs passionnés. Paiement par Mobile Money ou carte
-          bancaire.
+          auteurs et éditeurs passionnés. {summary}.
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <Link href="/catalogue" className="btn-primary">
@@ -111,11 +99,8 @@ export default async function HomePage({
           </p>
         </div>
         <div className="card">
-          <h2 className="text-lg font-semibold">Orange Money, Moov Money, cartes</h2>
-          <p className="mt-2 text-sm text-slate-600">
-            Payez en Mobile Money pour l&apos;Afrique de l&apos;Ouest et le
-            Burkina Faso, ou par carte bancaire Visa et Mastercard.
-          </p>
+          <h2 className="text-lg font-semibold">{feature.title}</h2>
+          <p className="mt-2 text-sm text-slate-600">{feature.text}</p>
         </div>
         <div className="card">
           <h2 className="text-lg font-semibold">Publiez vos ouvrages</h2>
@@ -129,4 +114,4 @@ export default async function HomePage({
       <AdSlot placement="HOME_BOTTOM" />
     </div>
   );
-            }
+}
