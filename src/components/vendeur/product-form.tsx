@@ -24,7 +24,6 @@ function FieldError({ messages }: { messages?: string[] }) {
   return <p className="field-error">{messages[0]}</p>;
 }
 
-// Version locale (le module utils du serveur ne doit pas être chargé ici).
 function toSafeFileName(name: string): string {
   const base = name
     .replace(/\.[^/.]+$/, "")
@@ -62,9 +61,7 @@ export function ProductForm({
   const [step, setStep] = useState<Step>("idle");
   const [progress, setProgress] = useState(0);
 
-  // Mémorise le PDF déjà envoyé pour ne pas le renvoyer en cas de nouvel essai.
   const uploadedRef = useRef<{ file: File; pathname: string } | null>(null);
-
   const busy = step !== "idle";
 
   function handleChange(
@@ -87,7 +84,6 @@ export function ProductForm({
     setGlobalError(null);
     setFieldErrors({});
 
-    // Contrôles rapides côté navigateur (le serveur revérifie tout).
     const localErrors: FieldErrors = {};
 
     if (!pdfFile) {
@@ -124,7 +120,6 @@ export function ProductForm({
     }
 
     try {
-      // 1) Envoi direct du PDF vers le store privé.
       let pdfPathname: string;
 
       if (uploadedRef.current && uploadedRef.current.file === pdfFile) {
@@ -147,7 +142,6 @@ export function ProductForm({
         uploadedRef.current = { file: pdfFile, pathname: pdfPathname };
       }
 
-      // 2) Création du produit (publication automatique).
       setStep("saving");
 
       const formData = new FormData();
@@ -174,7 +168,6 @@ export function ProductForm({
       } | null;
 
       if (!response.ok) {
-        // Le PDF a été supprimé côté serveur s'il était invalide.
         if (response.status === 403 || response.status === 422) {
           if (data?.fieldErrors?.pdf) uploadedRef.current = null;
         }
@@ -317,4 +310,15 @@ export function ProductForm({
           </div>
         </div>
 
-      
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor="pdfFile" className="label">
+              Fichier de l&apos;ouvrage (PDF uniquement, max 50 Mo)
+            </label>
+            <input
+              id="pdfFile"
+              name="pdfFile"
+              type="file"
+              accept=".pdf"
+              required
+              onChange={handlePdfChange}
