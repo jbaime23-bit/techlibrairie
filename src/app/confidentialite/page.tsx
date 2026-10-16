@@ -2,6 +2,7 @@
 import type { Metadata } from "next";
 import { getContactInfo } from "@/lib/contact";
 import { getLegalConfig, operatorName } from "@/lib/legal-config";
+import { getPaymentMethods } from "@/lib/payment-methods";
 import LegalPage, { LegalList, LegalSection } from "@/components/legal/legal-page";
 
 export const metadata: Metadata = {
@@ -15,6 +16,12 @@ export const dynamic = "force-dynamic";
 export default async function ConfidentialitePage() {
   const contact = await getContactInfo();
   const legal = getLegalConfig();
+  const methods = getPaymentMethods();
+
+  const processorsText =
+    methods.processors.length > 0
+      ? methods.processors.join(" et ")
+      : "nos prestataires de paiement";
 
   return (
     <LegalPage title="Politique de confidentialité">
@@ -38,9 +45,17 @@ export default async function ConfidentialitePage() {
           </li>
           <li>
             <strong>Paiements</strong> : nous ne conservons aucun numéro de carte ni code secret. Les
-            prestataires de paiement (Stripe, CinetPay) nous transmettent seulement la confirmation du
+            prestataires de paiement ({processorsText}) nous transmettent seulement la confirmation du
             paiement et un identifiant de transaction.
           </li>
+          {methods.cinetPayCard && (
+            <li>
+              <strong>Paiement par carte via CinetPay</strong> : pour accepter votre carte, notre prestataire
+              exige votre nom, prénom, téléphone, adresse, ville, pays et code postal. Vous les saisissez sur
+              notre page de paiement ; ils sont transmis directement à CinetPay et{" "}
+              <strong>ne sont pas conservés</strong> par TechLibrairie.
+            </li>
+          )}
           <li>
             <strong>Vendeurs</strong> : nom public, présentation, coordonnées de versement (opérateur et
             numéro Mobile Money), historique des ventes et des versements. Finalité : publier votre page
@@ -73,7 +88,7 @@ export default async function ConfidentialitePage() {
             visite. Si vous refusez, elles ne sont pas chargées.
           </li>
           <li>
-            <strong>Bannières de annonceurs locaux</strong> : elles peuvent s&apos;afficher dans tous les cas ;
+            <strong>Bannières d&apos;annonceurs locaux</strong> : elles peuvent s&apos;afficher dans tous les cas ;
             nous n&apos;y associons aucun cookie de suivi. Un clic vous mène vers le site de l&apos;annonceur, qui
             applique sa propre politique.
           </li>
@@ -98,10 +113,12 @@ export default async function ConfidentialitePage() {
       <LegalSection title="Destinataires et prestataires">
         <p>
           Vos données ne sont jamais vendues. Elles sont traitées par des prestataires techniques qui
-          interviennent pour notre compte : Vercel (hébergement et stockage), Neon (base de données), Stripe
-          et CinetPay (paiement), Resend (envoi des emails) et, si vous l&apos;acceptez, les régies publicitaires
-          pour l&apos;affichage des annonces. Ces prestataires peuvent traiter vos données dans des pays autres
-          que le vôtre.
+          interviennent pour notre compte : Vercel (hébergement et stockage), Neon (base de données),{" "}
+          {methods.processors.length > 0
+            ? `${methods.processors.join(" et ")} (paiement), `
+            : "nos prestataires de paiement, "}
+          Resend (envoi des emails) et, si vous l&apos;acceptez, les régies publicitaires pour l&apos;affichage
+          des annonces. Ces prestataires peuvent traiter vos données dans des pays autres que le vôtre.
         </p>
       </LegalSection>
 
@@ -140,4 +157,4 @@ export default async function ConfidentialitePage() {
       </LegalSection>
     </LegalPage>
   );
-}
+      }
