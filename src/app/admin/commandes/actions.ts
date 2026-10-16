@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { assertAdminAction } from "@/lib/admin";
 import { markOrderRefunded, refundStripePayment } from "@/lib/refunds";
+import { recordAdminAction } from "@/lib/audit";
 
 function readText(formData: FormData, name: string, max: number): string {
   const value = formData.get(name);
@@ -87,7 +88,7 @@ export async function refundOrderAction(formData: FormData): Promise<void> {
     reference = manualReference;
   }
 
-  await markOrderRefunded({
+  const refunded = await markOrderRefunded({
     orderId: order.id,
     paymentId: payment.id,
     method,
@@ -95,6 +96,15 @@ export async function refundOrderAction(formData: FormData): Promise<void> {
     reference,
     adminId: admin.id,
   });
+
+  if (refunded) {
+    await recordAdminAction(admin, {
+      action: "commande.remboursee",
+      targetType: "commande",
+      targetId: order.id,
+      details: { mode: method, motif: reason, reference },
+    });
+  }
 
   revalidatePath("/admin/commandes");
   revalidatePath(back);
@@ -104,4 +114,4 @@ export async function refundOrderAction(formData: FormData): Promise<void> {
   revalidatePath("/acheteur/commandes");
 
   redirect(`${back}?message=rembourse`);
-}
+      }
