@@ -7,6 +7,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getAdminOrNull } from "@/lib/admin";
 import { deletePublicCover, uploadPublicCover } from "@/lib/storage";
+import { recordAdminAction } from "@/lib/audit";
 import {
   AD_KIND_VALUES,
   AD_PLACEMENT_VALUES,
@@ -181,7 +182,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    await prisma.adSpace.create({
+    const created = await prisma.adSpace.create({
       data: {
         name: data.name,
         placement: data.placement,
@@ -199,6 +200,18 @@ export async function POST(request: Request) {
         startsAt: isLocal && data.startsAt ? new Date(`${data.startsAt}T00:00:00.000Z`) : null,
         endsAt: isLocal && data.endsAt ? new Date(`${data.endsAt}T23:59:59.999Z`) : null,
       },
+      select: { id: true },
+    });
+
+    await recordAdminAction(admin, {
+      action: "publicite.creee",
+      targetType: "publicite",
+      targetId: created.id,
+      details: {
+        nom: data.name,
+        type: data.kind,
+        emplacement: data.placement,
+      },
     });
   } catch (error) {
     console.error("Erreur lors de la création de la publicité :", error);
@@ -215,4 +228,4 @@ export async function POST(request: Request) {
   revalidatePath("/admin/publicites");
 
   return NextResponse.json({ ok: true }, { status: 201 });
-        }
+    }
