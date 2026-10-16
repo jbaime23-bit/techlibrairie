@@ -6,6 +6,7 @@ import { requireAdminForSetup } from "@/lib/admin";
 
 const LINKS = [
   { href: "/admin", label: "Tableau de bord" },
+  { href: "/admin/manuel", label: "Manuel" },
   { href: "/admin/securite", label: "Sécurité du compte" },
   { href: "/admin/journal", label: "Journal" },
   { href: "/admin/sante", label: "Santé du site" },
