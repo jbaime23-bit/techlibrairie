@@ -6,10 +6,11 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { assertAdminAction } from "@/lib/admin";
 import { RATE_BOUNDS, isForeignCurrency } from "@/lib/fx";
+import { recordAdminAction } from "@/lib/audit";
 
 /** Enregistre un nouveau taux de change (le plus récent est utilisé pour les paiements). */
 export async function setExchangeRateAction(formData: FormData): Promise<void> {
-  await assertAdminAction();
+  const admin = await assertAdminAction();
 
   const rawCurrency = formData.get("currency");
   const rawRate = formData.get("rate");
@@ -35,7 +36,7 @@ export async function setExchangeRateAction(formData: FormData): Promise<void> {
     redirect(`/admin/taux?erreur=bornes-${rawCurrency}`);
   }
 
-  await prisma.exchangeRate.create({
+  const created = await prisma.exchangeRate.create({
     data: {
       currency: rawCurrency,
       xofPerUnit: rate.toFixed(6),
@@ -44,8 +45,15 @@ export async function setExchangeRateAction(formData: FormData): Promise<void> {
     },
   });
 
+  await recordAdminAction(admin, {
+    action: "taux.modifie",
+    targetType: "taux",
+    targetId: created.id,
+    details: { devise: rawCurrency, taux_fcfa_pour_1: rate },
+  });
+
   revalidatePath("/admin/taux");
   revalidatePath("/paiement");
 
   redirect(`/admin/taux?message=enregistre-${rawCurrency}`);
-        }
+}
