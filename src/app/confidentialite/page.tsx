@@ -1,5 +1,6 @@
 // src/app/confidentialite/page.tsx
 import type { Metadata } from "next";
+import Link from "next/link";
 import { getContactInfo } from "@/lib/contact";
 import { getLegalConfig, operatorName } from "@/lib/legal-config";
 import { getPaymentMethods } from "@/lib/payment-methods";
@@ -101,12 +102,21 @@ export default async function ConfidentialitePage() {
 
       <LegalSection title="Durées de conservation">
         <LegalList>
-          <li>Compte et historique de commandes : tant que le compte existe, puis pour la durée imposée par nos obligations légales et comptables.</li>
+          <li>Compte et historique de commandes : tant que le compte existe.</li>
+          <li>
+            Compte supprimé : vos données personnelles sont effacées ou anonymisées immédiatement. Les
+            commandes passées sont conservées de façon anonyme (numéros, montants, dates) pour la durée
+            imposée par nos obligations légales et comptables.
+          </li>
           <li>Panier : 30 jours au plus (cookie sur votre appareil).</li>
           <li>Choix concernant les cookies publicitaires : 6 mois (cookie sur votre appareil).</li>
           <li>Conversations de support jamais payées : supprimées après 14 jours.</li>
           <li>Tentatives de connexion échouées : supprimées après 24 heures.</li>
           <li>Liens de téléchargement expirés : supprimés après 30 jours.</li>
+          <li>
+            Sauvegardes techniques de la base de données : elles peuvent contenir d&apos;anciennes données
+            pendant une durée limitée avant d&apos;être renouvelées.
+          </li>
         </LegalList>
       </LegalSection>
 
@@ -125,19 +135,37 @@ export default async function ConfidentialitePage() {
       <LegalSection title="Vos droits">
         <p>
           Vous pouvez demander à accéder à vos données, à les faire corriger ou supprimer, et vous opposer à
-          certains traitements, dans les conditions prévues par la loi applicable. Vous pouvez corriger vos
-          informations depuis la page « Mon profil ». Pour toute autre demande, contactez-nous
-          {contact.email ? (
-            <>
-              {" "}
-              à{" "}
-              <a href={`mailto:${contact.email}`} className="font-semibold text-brand-700 hover:underline">
-                {contact.email}
-              </a>
-            </>
-          ) : null}{" "}
-          ou par le formulaire de contact. Vous pouvez également vous adresser à l&apos;autorité de
-          protection des données compétente de votre pays.
+          certains traitements, dans les conditions prévues par la loi applicable.
+        </p>
+        <LegalList>
+          <li>
+            <strong>Corriger</strong> vos informations : depuis la page « Mon profil ».
+          </li>
+          <li>
+            <strong>Supprimer votre compte</strong> : vous pouvez le faire vous-même et immédiatement
+            depuis{" "}
+            <Link href="/profil/suppression" className="font-semibold text-brand-700 hover:underline">
+              « Mon profil », « Supprimer mon compte »
+            </Link>
+            . Un vendeur doit d&apos;abord avoir reçu l&apos;argent qui lui est dû.
+          </li>
+          <li>
+            <strong>Toute autre demande</strong> (accès à vos données, opposition) : contactez-nous
+            {contact.email ? (
+              <>
+                {" "}
+                à{" "}
+                <a href={`mailto:${contact.email}`} className="font-semibold text-brand-700 hover:underline">
+                  {contact.email}
+                </a>
+              </>
+            ) : null}{" "}
+            ou par le formulaire de contact.
+          </li>
+        </LegalList>
+        <p>
+          Vous pouvez également vous adresser à l&apos;autorité de protection des données compétente de votre
+          pays.
         </p>
       </LegalSection>
 
@@ -157,4 +185,4 @@ export default async function ConfidentialitePage() {
       </LegalSection>
     </LegalPage>
   );
-      }
+              }
