@@ -271,7 +271,11 @@ export function ProductForm({
               onChange={handleChange}
               className="input"
               disabled={busy}
+              placeholder="Ex: 2500"
             />
+            <p className="text-xs text-slate-500 mt-1">
+              Commission plateforme : {commissionPercent}%
+            </p>
             <FieldError messages={fieldErrors.price} />
           </div>
         </div>
@@ -279,7 +283,7 @@ export function ProductForm({
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label htmlFor="language" className="label">
-              Langue de l&apos;ouvrage
+              Langue
             </label>
             <select
               id="language"
@@ -310,10 +314,4 @@ export function ProductForm({
               onChange={handleChange}
               className="input"
               disabled={busy}
-            />
-            <FieldError messages={fieldErrors.pageCount} />
-          </div>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-               
+    
