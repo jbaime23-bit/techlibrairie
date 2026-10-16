@@ -2,6 +2,7 @@
 import type { Metadata } from "next";
 import { getContactInfo } from "@/lib/contact";
 import { getLegalConfig, operatorName } from "@/lib/legal-config";
+import { getPaymentMethods } from "@/lib/payment-methods";
 import LegalPage, { LegalList, LegalSection } from "@/components/legal/legal-page";
 
 export const metadata: Metadata = {
@@ -14,6 +15,7 @@ export const dynamic = "force-dynamic";
 export default async function MentionsLegalesPage() {
   const contact = await getContactInfo();
   const legal = getLegalConfig();
+  const methods = getPaymentMethods();
 
   return (
     <LegalPage title="Mentions légales">
@@ -40,7 +42,19 @@ export default async function MentionsLegalesPage() {
         <LegalList>
           <li>Hébergement du site et stockage des fichiers : Vercel Inc. (États-Unis).</li>
           <li>Base de données : Neon (infrastructure hébergée par un prestataire de cloud).</li>
-          <li>Paiements par carte bancaire : Stripe. Paiements Mobile Money : CinetPay.</li>
+          {methods.processors.length > 0 && (
+            <li>
+              Paiements :{" "}
+              {[
+                methods.mobileMoney && "Mobile Money via CinetPay",
+                methods.cinetPayCard && "cartes bancaires via CinetPay",
+                methods.stripeCard && "cartes bancaires via Stripe",
+              ]
+                .filter(Boolean)
+                .join(", ")}
+              .
+            </li>
+          )}
           <li>Envoi des emails : Resend.</li>
         </LegalList>
       </LegalSection>
@@ -63,10 +77,10 @@ export default async function MentionsLegalesPage() {
       <LegalSection title="Publicité">
         <p>
           Le site affiche des publicités, dont certaines proviennent de régies publicitaires tierces
-          (notamment Adsterra). Ces régies peuvent utiliser leurs propres traceurs ; voir la politique de
-          confidentialité.
+          (notamment Adsterra), chargées uniquement après votre accord. Ces régies peuvent utiliser leurs
+          propres traceurs ; voir la politique de confidentialité.
         </p>
       </LegalSection>
     </LegalPage>
   );
-}
+      }
