@@ -1,16 +1,19 @@
 // src/lib/account-tokens.ts
-// Jetons à usage unique (réinitialisation du mot de passe, vérification de l'email).
+// Jetons à usage unique (réinitialisation du mot de passe, vérification de l'email,
+// confirmation d'un changement d'adresse).
 // Seule l'empreinte (SHA-256) du jeton est stockée en base, jamais le jeton lui-même.
-// Table utilisée : VerificationToken (identifier = "reset:email" ou "verify:email").
+// Table utilisée : VerificationToken (identifier = "reset:email", "verify:email"
+// ou "change:identifiantUtilisateur|nouvelEmail").
 
 import { createHash, randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
 
-export type TokenPurpose = "reset" | "verify";
+export type TokenPurpose = "reset" | "verify" | "change";
 
 const TTL_MS: Record<TokenPurpose, number> = {
   reset: 60 * 60 * 1000, // 1 heure
   verify: 24 * 60 * 60 * 1000, // 24 heures
+  change: 60 * 60 * 1000, // 1 heure
 };
 
 export function hashToken(rawToken: string): string {
@@ -73,7 +76,7 @@ export async function countOutstandingTokens(purpose: TokenPurpose): Promise<num
   });
 }
 
-/** Renvoie l'adresse associée à un jeton valide, ou null s'il est invalide ou expiré. */
+/** Renvoie l'adresse (ou la charge utile) associée à un jeton valide, ou null s'il est invalide ou expiré. */
 export async function findValidToken(
   purpose: TokenPurpose,
   rawToken: string
@@ -100,4 +103,31 @@ export async function deleteTokensFor(
   await prisma.verificationToken.deleteMany({
     where: { identifier: identifierFor(purpose, email) },
   });
-    }
+}
+
+// ---------------------------------------------------------------------------
+// Changement d'adresse email : la charge utile contient l'utilisateur ET la nouvelle adresse.
+// ---------------------------------------------------------------------------
+
+export function changePayload(userId: string, newEmail: string): string {
+  return `${userId}|${newEmail.trim().toLowerCase()}`;
+}
+
+export function parseChangePayload(
+  payload: string
+): { userId: string; newEmail: string } | null {
+  const index = payload.indexOf("|");
+  if (index <= 0 || index === payload.length - 1) return null;
+
+  return {
+    userId: payload.slice(0, index),
+    newEmail: payload.slice(index + 1),
+  };
+}
+
+/** Supprime toutes les demandes de changement d'adresse en cours pour un utilisateur. */
+export async function deleteChangeTokensForUser(userId: string): Promise<void> {
+  await prisma.verificationToken.deleteMany({
+    where: { identifier: { startsWith: `change:${userId}|` } },
+  });
+        }
