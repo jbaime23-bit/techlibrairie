@@ -222,6 +222,18 @@ export default async function ProfilPage({
           </form>
         </section>
 
+        <section className="card">
+          <h2 className="text-lg font-semibold">Mes données</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Téléchargez une copie de toutes les données que TechLibrairie conserve sur votre compte.
+          </p>
+          <div className="mt-4">
+            <Link href="/profil/donnees" className="btn-secondary">
+              Télécharger mes données
+            </Link>
+          </div>
+        </section>
+
         <section className="card border-red-200">
           <h2 className="text-lg font-semibold">Supprimer mon compte</h2>
           <p className="mt-1 text-sm text-slate-600">
@@ -236,4 +248,4 @@ export default async function ProfilPage({
       </div>
     </div>
   );
-                }
+          }
