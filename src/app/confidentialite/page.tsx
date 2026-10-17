@@ -139,6 +139,14 @@ export default async function ConfidentialitePage() {
         </p>
         <LegalList>
           <li>
+            <strong>Obtenir une copie de vos données</strong> : vous pouvez la télécharger vous-même
+            depuis{" "}
+            <Link href="/profil/donnees" className="font-semibold text-brand-700 hover:underline">
+              « Mon profil », « Télécharger mes données »
+            </Link>
+            .
+          </li>
+          <li>
             <strong>Corriger</strong> vos informations : depuis la page « Mon profil ».
           </li>
           <li>
@@ -150,7 +158,8 @@ export default async function ConfidentialitePage() {
             . Un vendeur doit d&apos;abord avoir reçu l&apos;argent qui lui est dû.
           </li>
           <li>
-            <strong>Toute autre demande</strong> (accès à vos données, opposition) : contactez-nous
+            <strong>Toute autre demande</strong> (opposition à un traitement, question sur vos données) :
+            contactez-nous
             {contact.email ? (
               <>
                 {" "}
@@ -185,4 +194,4 @@ export default async function ConfidentialitePage() {
       </LegalSection>
     </LegalPage>
   );
-              }
+    }
