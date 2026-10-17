@@ -53,6 +53,24 @@ export default async function SuppressionPage({
 
         {error && <div className="alert-error">{error}</div>}
 
+        <section className="card border-yellow-200 bg-yellow-50 text-sm text-yellow-900">
+          <p className="font-semibold">Avant de continuer</p>
+          <p className="mt-1">
+            Pensez à{" "}
+            <Link
+              href="/profil/donnees"
+              className="font-semibold underline"
+            >
+              télécharger une copie de vos données
+            </Link>{" "}
+            et à télécharger vos ouvrages achetés depuis{" "}
+            <Link href="/acheteur/commandes" className="font-semibold underline">
+              Mes commandes
+            </Link>
+            . Après la suppression, ils ne seront plus accessibles.
+          </p>
+        </section>
+
         <section className="card text-sm text-slate-700">
           <h2 className="text-lg font-semibold text-slate-900">Ce qui va se passer</h2>
           <ul className="mt-3 list-disc space-y-2 pl-5">
@@ -123,4 +141,4 @@ export default async function SuppressionPage({
       </div>
     </div>
   );
-            }
+}
