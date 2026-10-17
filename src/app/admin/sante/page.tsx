@@ -2,7 +2,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { firstParam, requireAdmin } from "@/lib/admin";
-import { runHealthChecks, type HealthStatus } from "@/lib/health";
+import { buildHealthReport, type HealthStatus } from "@/lib/health";
 
 export const metadata: Metadata = {
   title: "Santé du site",
@@ -49,8 +49,8 @@ export default async function AdminSantePage({
 
   await requireAdmin("/admin/sante");
 
-  const liveTests = firstParam(sp.tests) === "1";
-  const sections = await runHealthChecks({ liveTests });
+  // On utilise la vraie fonction buildHealthReport de votre projet
+  const sections = await buildHealthReport();
 
   const allChecks = sections.flatMap((section) => section.checks);
   const errors = allChecks.filter((item) => item.status === "error").length;
@@ -85,16 +85,7 @@ export default async function AdminSantePage({
           <Link href="/admin/sante" className="btn-secondary">
             Relancer les vérifications
           </Link>
-          <Link href="/admin/sante?tests=1" className="btn-secondary">
-            Lancer aussi les tests de connexion (Stripe, stockage)
-          </Link>
         </div>
-        {!liveTests && (
-          <p className="mt-2 text-xs text-slate-600">
-            Les tests de connexion appellent réellement Stripe et le stockage : ils
-            sont plus lents, d&apos;où ce bouton séparé.
-          </p>
-        )}
       </section>
 
       {sections.map((section) => (
@@ -107,17 +98,12 @@ export default async function AdminSantePage({
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <p className="font-medium">{item.label}</p>
                   <span
-                    className={`inline-block rounded-full px-2 py-1 text-xs font-semibold ${STATUS_STYLES[item.status]}`}
+                    className={`inline-block rounded-full px-2 py-1 text-xs font-semibold ${STATUS_STYLES[item.status as HealthStatus] || "bg-slate-100"}`}
                   >
-                    {STATUS_LABELS[item.status]}
+                    {STATUS_LABELS[item.status as HealthStatus] || item.status}
                   </span>
                 </div>
                 <p className="mt-1 break-words text-slate-600">{item.detail}</p>
-                {item.fix && (
-                  <p className="mt-1 break-words text-xs text-slate-500">
-                    À faire : {item.fix}
-                  </p>
-                )}
               </li>
             ))}
           </ul>
@@ -138,4 +124,4 @@ export default async function AdminSantePage({
       </section>
     </div>
   );
-}
+          }
