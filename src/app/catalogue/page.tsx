@@ -1,12 +1,13 @@
 // src/app/catalogue/page.tsx
 import React from "react";
 
-type SearchParams = { [key: string]: string | string[] | undefined };
+interface PageProps {
+  params: Promise<Record<string, string | string[] | undefined>>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
 
-export default async function CataloguePage(props: {
-  searchParams: Promise<SearchParams>;
-}) {
-  // Extraction asynchrone sécurisée pour Next.js 15
+export default async function CataloguePage(props: PageProps) {
+  // Extraction asynchrone pour Next.js 15
   const sp = await props.searchParams;
   const recherche = typeof sp?.q === "string" ? sp.q : "";
 
