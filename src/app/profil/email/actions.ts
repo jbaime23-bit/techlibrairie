@@ -71,9 +71,10 @@ export async function requestEmailChangeAction(formData: FormData) {
   }
 
   // 8. REDIRECTION DE SUCCÈS
-  // Si tout s'est bien passé, on redirige avec le message de confirmation
   redirect(`/profil/email?message=envoye&destinataire=${encodeURIComponent(newEmail)}`);
-}export async function confirmEmailChangeAction(token: string) {
+}
+
+export async function confirmEmailChangeAction(token: string) {
   // Ajoutez ici votre logique pour valider le jeton (token) en base de données
   // et mettre à jour l'adresse email de l'utilisateur.
 }
