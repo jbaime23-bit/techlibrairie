@@ -16,6 +16,9 @@ export default async function VendeurLayout({
         <Link href="/vendeur" className="btn-secondary">
           Tableau de bord
         </Link>
+        <Link href="/vendeur/statistiques" className="btn-secondary">
+          Statistiques
+        </Link>
         <Link href="/vendeur/produits" className="btn-secondary">
           Mes produits
         </Link>
