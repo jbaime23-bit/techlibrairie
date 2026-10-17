@@ -24,6 +24,8 @@ const ROLE_LABELS = {
 
 const MESSAGES: Record<string, string> = {
   "profil-modifie": "Vos informations ont été enregistrées.",
+  "email-modifie":
+    "Votre adresse email a été modifiée. Utilisez-la désormais pour vous connecter.",
 };
 
 const ERRORS: Record<string, string> = {
@@ -97,7 +99,13 @@ export default async function ProfilPage({
                   >
                     (non vérifiée : la vérifier)
                   </Link>
-                )}
+                )}{" "}
+                <Link
+                  href="/profil/email"
+                  className="font-semibold text-brand-700 hover:underline"
+                >
+                  Changer
+                </Link>
               </dd>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -248,4 +256,4 @@ export default async function ProfilPage({
       </div>
     </div>
   );
-          }
+              }
