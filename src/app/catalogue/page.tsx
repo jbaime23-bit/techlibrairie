@@ -1,14 +1,14 @@
 // src/app/catalogue/page.tsx
 import React from "react";
 
-export default async function CataloguePage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+type SearchParams = { [key: string]: string | string[] | undefined };
+
+export default async function CataloguePage(props: {
+  searchParams: Promise<SearchParams>;
 }) {
-  // On extrait les paramètres de façon asynchrone (Next.js 15 obligatoire)
-  const sp = await searchParams;
-  const recherche = typeof sp.q === "string" ? sp.q : "";
+  // Extraction asynchrone sécurisée pour Next.js 15
+  const sp = await props.searchParams;
+  const recherche = typeof sp?.q === "string" ? sp.q : "";
 
   return (
     <div className="container mx-auto py-8">
