@@ -11,6 +11,7 @@ export const ACTION_LABELS: Record<string, string> = {
   "admin.2fa_reinitialisee_par_variable": "Double authentification effacée (variable de secours)",
   "admin.promu": "Administrateur nommé",
   "admin.retrograde": "Administrateur retiré",
+  "admin.email_modifie": "Adresse email d'un administrateur modifiée",
   "commande.remboursee": "Commande remboursée",
   "versement.pris_en_charge": "Versement pris en charge",
   "versement.paye": "Versement marqué comme payé",
