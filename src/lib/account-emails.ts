@@ -1,6 +1,6 @@
 // src/lib/account-emails.ts
-// Emails liés au compte : réinitialisation du mot de passe, vérification de l'adresse
-// et alerte de sécurité après un changement de mot de passe.
+// Emails liés au compte : réinitialisation du mot de passe, vérification de l'adresse,
+// alerte après un changement de mot de passe, et changement d'adresse email.
 
 import {
   getEmailAppUrl,
@@ -13,6 +13,13 @@ const UNAVAILABLE: SendResult = {
   ok: false,
   error: "Envoi d'emails indisponible (configuration manquante).",
 };
+
+/** Masque une adresse pour l'afficher sans la révéler, ex. jean.dupont@exemple.com devient j***@exemple.com. */
+export function maskEmail(email: string): string {
+  const [local, domain] = email.split("@");
+  if (!local || !domain) return "***";
+  return `${local.charAt(0)}***@${domain}`;
+}
 
 /** Envoie le lien de réinitialisation du mot de passe (valable 1 heure). */
 export async function sendPasswordResetEmail(params: {
@@ -93,3 +100,78 @@ export async function sendPasswordChangedEmail(params: {
     },
   });
 }
+
+/** Lien de confirmation envoyé à la NOUVELLE adresse (valable 1 heure). */
+export async function sendEmailChangeConfirmationEmail(params: {
+  newEmail: string;
+  name: string | null;
+  token: string;
+}): Promise<SendResult> {
+  const appUrl = getEmailAppUrl();
+  if (!appUrl || !isEmailConfigured()) return UNAVAILABLE;
+
+  return sendEmail({
+    to: params.newEmail,
+    subject: "Confirmez votre nouvelle adresse email TechLibrairie",
+    content: {
+      title: "Confirmez votre nouvelle adresse email",
+      paragraphs: [
+        `Bonjour${params.name ? ` ${params.name}` : ""}, une demande de changement d'adresse email a été faite pour un compte TechLibrairie : cette adresse deviendrait l'adresse de connexion du compte.`,
+        "Pour confirmer, cliquez sur le bouton ci-dessous (vous devrez être connecté à votre compte). Ce lien est valable 1 heure et ne peut servir qu'une seule fois.",
+      ],
+      button: {
+        label: "Confirmer ma nouvelle adresse",
+        url: `${appUrl}/profil/email/confirmer?token=${params.token}`,
+      },
+      note: "Si vous n'êtes pas à l'origine de cette demande, ignorez cet email : rien ne sera modifié.",
+    },
+  });
+}
+
+/** Alerte envoyée à l'ANCIENNE adresse quand un changement est demandé. */
+export async function sendEmailChangeNoticeEmail(params: {
+  oldEmail: string;
+  name: string | null;
+  newEmail: string;
+}): Promise<SendResult> {
+  const appUrl = getEmailAppUrl();
+  if (!appUrl || !isEmailConfigured()) return UNAVAILABLE;
+
+  return sendEmail({
+    to: params.oldEmail,
+    subject: "Demande de changement d'adresse email sur votre compte TechLibrairie",
+    content: {
+      title: "Changement d'adresse email demandé",
+      paragraphs: [
+        `Bonjour${params.name ? ` ${params.name}` : ""}, quelqu'un a demandé de remplacer l'adresse email de votre compte TechLibrairie par ${maskEmail(params.newEmail)}.`,
+        "Le changement n'a lieu que si le lien envoyé à cette nouvelle adresse est confirmé dans l'heure. Si c'est vous, vous n'avez rien à faire.",
+      ],
+      button: {
+        label: "Ce n'est pas moi : réinitialiser mon mot de passe",
+        url: `${appUrl}/mot-de-passe-oublie`,
+      },
+      note: "Si vous n'êtes pas à l'origine de cette demande, changez immédiatement votre mot de passe et contactez le support.",
+    },
+  });
+}
+
+/** Confirmation envoyée à l'ANCIENNE adresse après le changement. */
+export async function sendEmailChangedEmail(params: {
+  oldEmail: string;
+  name: string | null;
+  newEmail: string;
+}): Promise<SendResult> {
+  if (!isEmailConfigured()) return UNAVAILABLE;
+
+  return sendEmail({
+    to: params.oldEmail,
+    subject: "L'adresse email de votre compte TechLibrairie a été modifiée",
+    content: {
+      title: "Adresse email modifiée",
+      paragraphs: [
+        `Bonjour${params.name ? ` ${params.name}` : ""}, l'adresse email de votre compte TechLibrairie est désormais ${maskEmail(params.newEmail)}. Vous ne recevrez plus de messages à cette ancienne adresse.`,
+      ],
+      note: "Si vous n'êtes pas à l'origine de ce changement, contactez immédiatement le support TechLibrairie.",
+    },
+  });
+      }
