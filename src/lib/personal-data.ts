@@ -24,7 +24,7 @@ export async function buildPersonalDataExport(
 
   if (!user) return null;
 
-  const [orders, threads, contacts, seller] = await Promise.all([
+  const [orders, threads, contacts, reviews, seller] = await Promise.all([
     prisma.order.findMany({
       where: { buyerId: userId },
       orderBy: { createdAt: "desc" },
@@ -70,6 +70,19 @@ export async function buildPersonalDataExport(
         phone: true,
         status: true,
         createdAt: true,
+      },
+    }),
+    prisma.review.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      take: MAX_ROWS,
+      select: {
+        rating: true,
+        comment: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        product: { select: { title: true } },
       },
     }),
     prisma.sellerProfile.findUnique({
@@ -162,6 +175,14 @@ export async function buildPersonalDataExport(
       telephone: contact.phone,
       statut: contact.status,
       envoye_le: contact.createdAt,
+    })),
+    avis: reviews.map((review) => ({
+      ouvrage: review.product.title,
+      note_sur_5: review.rating,
+      commentaire: review.comment,
+      statut: review.status === "PUBLISHED" ? "publié" : "masqué par la modération",
+      publie_le: review.createdAt,
+      modifie_le: review.updatedAt,
     })),
     profil_vendeur: seller
       ? {
