@@ -18,13 +18,14 @@ export async function buildPersonalDataExport(
       phone: true,
       role: true,
       emailVerified: true,
+      reminderEmails: true,
       createdAt: true,
     },
   });
 
   if (!user) return null;
 
-  const [orders, threads, contacts, reviews, seller] = await Promise.all([
+  const [orders, threads, contacts, reviews, favorites, seller] = await Promise.all([
     prisma.order.findMany({
       where: { buyerId: userId },
       orderBy: { createdAt: "desc" },
@@ -85,6 +86,15 @@ export async function buildPersonalDataExport(
         product: { select: { title: true } },
       },
     }),
+    prisma.favorite.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      take: MAX_ROWS,
+      select: {
+        createdAt: true,
+        product: { select: { title: true } },
+      },
+    }),
     prisma.sellerProfile.findUnique({
       where: { userId },
       include: {
@@ -132,6 +142,7 @@ export async function buildPersonalDataExport(
       telephone: user.phone,
       type_de_compte: user.role,
       email_verifie_le: user.emailVerified,
+      rappels_par_email_actives: user.reminderEmails,
       inscrit_le: user.createdAt,
     },
     commandes: orders.map((order) => ({
@@ -184,6 +195,10 @@ export async function buildPersonalDataExport(
       publie_le: review.createdAt,
       modifie_le: review.updatedAt,
     })),
+    favoris: favorites.map((favorite) => ({
+      ouvrage: favorite.product.title,
+      ajoute_le: favorite.createdAt,
+    })),
     profil_vendeur: seller
       ? {
           nom_public: seller.displayName,
@@ -217,4 +232,4 @@ export async function buildPersonalDataExport(
         }
       : null,
   };
-          }
+      }
