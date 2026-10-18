@@ -114,6 +114,9 @@ export async function eraseUserAccount(userId: string): Promise<ErasureResult> {
         },
       });
 
+      // Favoris.
+      await tx.favorite.deleteMany({ where: { userId: user.id } });
+
       // Avis publiés : supprimés, et la note des ouvrages concernés est recalculée.
       const reviewedProducts = await tx.review.findMany({
         where: { userId: user.id },
