@@ -79,7 +79,8 @@ export default async function SuppressionPage({
               Vous êtes déconnecté de tous vos appareils.
             </li>
             <li>
-              Vos messages de contact et le contenu de vos conversations avec le support sont supprimés.
+              Vos messages de contact, vos avis publiés sur des ouvrages et le contenu de vos
+              conversations avec le support sont supprimés.
             </li>
             <li>
               Vos commandes passées sont conservées de façon anonyme (numéros, montants, dates) pour
