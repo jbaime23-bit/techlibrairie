@@ -116,6 +116,11 @@ enum AdKind {
   ADSTERRA_POPUNDER
 }
 
+enum ReviewStatus {
+  PUBLISHED
+  HIDDEN
+}
+
 // ---------------------------------------------------------------------------
 // UTILISATEURS & AUTHENTIFICATION (compatible Auth.js)
 // ---------------------------------------------------------------------------
@@ -153,6 +158,7 @@ model User {
   assignedThreads SupportThread[] @relation("ThreadAssignee")
   sentMessages    Message[]       @relation("MessageSender")
   contactMessages ContactMessage[]
+  reviews         Review[]
 
   @@index([role])
 }
@@ -300,16 +306,43 @@ model Product {
   publishedAt   DateTime      @default(now())
 
   salesCount    Int           @default(0)
+
+  // Note moyenne et nombre d'avis publiés (recalculés à chaque changement d'avis)
+  ratingAverage Float         @default(0)
+  ratingCount   Int           @default(0)
+
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
   seller   SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
   category Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   items    OrderItem[]
+  reviews  Review[]
 
   @@index([sellerId])
   @@index([categoryId])
   @@index([status, publishedAt])
+}
+
+// Avis des acheteurs sur un ouvrage (un seul par acheteur et par ouvrage)
+model Review {
+  id        String       @id @default(cuid())
+  productId String
+  userId    String
+  // Note de 1 à 5
+  rating    Int
+  comment   String?      @db.Text
+  status    ReviewStatus @default(PUBLISHED)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, userId])
+  @@index([productId, status, createdAt])
+  @@index([userId])
+  @@index([status, createdAt])
 }
 
 // ---------------------------------------------------------------------------
