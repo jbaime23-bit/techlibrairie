@@ -45,6 +45,12 @@ export default async function ConfidentialitePage() {
             gérer les remboursements et nos obligations comptables.
           </li>
           <li>
+            <strong>Rappel de commande non terminée</strong> : si vous commencez une commande sans la
+            terminer, nous pouvons vous envoyer <strong>un seul email de rappel</strong> à l&apos;adresse de votre
+            compte, quelques heures plus tard. Vous pouvez le refuser à tout moment en décochant « Rappels par
+            email » dans « Mon profil ». Aucun autre message promotionnel n&apos;est envoyé.
+          </li>
+          <li>
             <strong>Paiements</strong> : nous ne conservons aucun numéro de carte ni code secret. Les
             prestataires de paiement ({processorsText}) nous transmettent seulement la confirmation du
             paiement et un identifiant de transaction.
@@ -62,6 +68,10 @@ export default async function ConfidentialitePage() {
             que vous rédigez sont <strong>publiés sur la page de l&apos;ouvrage</strong>, accompagnés de votre
             prénom et de l&apos;initiale de votre nom (jamais de votre adresse email). Vous pouvez les modifier ou
             les supprimer à tout moment ; ils sont supprimés avec votre compte.
+          </li>
+          <li>
+            <strong>Favoris</strong> : la liste des ouvrages que vous mettez de côté. Elle n&apos;est visible que
+            par vous et supprimée avec votre compte.
           </li>
           <li>
             <strong>Vendeurs</strong> : nom public, présentation, coordonnées de versement (opérateur et
@@ -110,12 +120,13 @@ export default async function ConfidentialitePage() {
         <LegalList>
           <li>Compte et historique de commandes : tant que le compte existe.</li>
           <li>
-            Compte supprimé : vos données personnelles sont effacées ou anonymisées immédiatement, avis
-            compris. Les commandes passées sont conservées de façon anonyme (numéros, montants, dates) pour
-            la durée imposée par nos obligations légales et comptables.
+            Compte supprimé : vos données personnelles sont effacées ou anonymisées immédiatement, avis et
+            favoris compris. Les commandes passées sont conservées de façon anonyme (numéros, montants,
+            dates) pour la durée imposée par nos obligations légales et comptables.
           </li>
           <li>Panier : 30 jours au plus (cookie sur votre appareil).</li>
           <li>Choix concernant les cookies publicitaires : 6 mois (cookie sur votre appareil).</li>
+          <li>Commandes jamais payées : annulées après 48 heures.</li>
           <li>Conversations de support jamais payées : supprimées après 14 jours.</li>
           <li>Tentatives de connexion échouées : supprimées après 24 heures.</li>
           <li>Liens de téléchargement expirés : supprimés après 30 jours.</li>
@@ -154,6 +165,10 @@ export default async function ConfidentialitePage() {
           </li>
           <li>
             <strong>Corriger</strong> vos informations : depuis la page « Mon profil ».
+          </li>
+          <li>
+            <strong>Refuser les rappels par email</strong> : décochez « Rappels par email » dans « Mon
+            profil ».
           </li>
           <li>
             <strong>Supprimer votre compte</strong> : vous pouvez le faire vous-même et immédiatement
@@ -200,4 +215,4 @@ export default async function ConfidentialitePage() {
       </LegalSection>
     </LegalPage>
   );
-}
+      }
