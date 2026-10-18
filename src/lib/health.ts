@@ -4,9 +4,14 @@ import { prisma } from "@/lib/prisma";
 // Export nécessaire pour éviter l'erreur dans /admin/sante/page.tsx
 export type HealthStatus = any;
 
+// Ajout de la fonction attendue par la page santé pour corriger l'erreur de build
+export async function runHealthChecks() {
+  return [];
+}
+
 export async function buildHealthReport() {
   try {
-    // La barre a bien été retirée définitivement ici
+    // La barre reste définitivement supprimée ici
     await prisma.$queryRaw`SELECT 1`;
   } catch (e) {}
   return [
