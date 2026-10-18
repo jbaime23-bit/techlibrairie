@@ -7,6 +7,7 @@ import { randomBytes } from "crypto";
 import type { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSellerBalanceXof } from "@/lib/payouts";
+import { recomputeProductRating } from "@/lib/reviews";
 import { sendEmail } from "@/lib/email";
 
 export const ERASED_EMAIL_DOMAIN = "efface.invalid";
@@ -113,6 +114,23 @@ export async function eraseUserAccount(userId: string): Promise<ErasureResult> {
         },
       });
 
+      // Avis publiés : supprimés, et la note des ouvrages concernés est recalculée.
+      const reviewedProducts = await tx.review.findMany({
+        where: { userId: user.id },
+        select: { productId: true },
+      });
+
+      if (reviewedProducts.length > 0) {
+        await tx.review.deleteMany({ where: { userId: user.id } });
+
+        const productIds = Array.from(
+          new Set(reviewedProducts.map((review) => review.productId))
+        );
+        for (const productId of productIds) {
+          await recomputeProductRating(productId, tx);
+        }
+      }
+
       // Support : les conversations jamais payées sont supprimées ; pour les autres,
       // le contenu des messages est supprimé et seule la trace du paiement est conservée.
       await tx.supportThread.deleteMany({
@@ -202,4 +220,4 @@ export async function eraseUserAccount(userId: string): Promise<ErasureResult> {
   });
 
   return { ok: true, role: outcome.outcome.role, ordersKept: outcome.outcome.ordersKept };
-          }
+            }
