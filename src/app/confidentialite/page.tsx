@@ -58,6 +58,12 @@ export default async function ConfidentialitePage() {
             </li>
           )}
           <li>
+            <strong>Avis</strong> : si vous donnez votre avis sur un ouvrage acheté, la note et le commentaire
+            que vous rédigez sont <strong>publiés sur la page de l&apos;ouvrage</strong>, accompagnés de votre
+            prénom et de l&apos;initiale de votre nom (jamais de votre adresse email). Vous pouvez les modifier ou
+            les supprimer à tout moment ; ils sont supprimés avec votre compte.
+          </li>
+          <li>
             <strong>Vendeurs</strong> : nom public, présentation, coordonnées de versement (opérateur et
             numéro Mobile Money), historique des ventes et des versements. Finalité : publier votre page
             auteur et vous verser vos revenus.
@@ -104,9 +110,9 @@ export default async function ConfidentialitePage() {
         <LegalList>
           <li>Compte et historique de commandes : tant que le compte existe.</li>
           <li>
-            Compte supprimé : vos données personnelles sont effacées ou anonymisées immédiatement. Les
-            commandes passées sont conservées de façon anonyme (numéros, montants, dates) pour la durée
-            imposée par nos obligations légales et comptables.
+            Compte supprimé : vos données personnelles sont effacées ou anonymisées immédiatement, avis
+            compris. Les commandes passées sont conservées de façon anonyme (numéros, montants, dates) pour
+            la durée imposée par nos obligations légales et comptables.
           </li>
           <li>Panier : 30 jours au plus (cookie sur votre appareil).</li>
           <li>Choix concernant les cookies publicitaires : 6 mois (cookie sur votre appareil).</li>
@@ -194,4 +200,4 @@ export default async function ConfidentialitePage() {
       </LegalSection>
     </LegalPage>
   );
-    }
+}
