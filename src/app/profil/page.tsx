@@ -8,6 +8,7 @@ import {
   changePasswordAction,
   updateProfileAction,
 } from "@/app/profil/actions";
+import { updateReminderPreferenceAction } from "@/app/profil/preferences/actions";
 import { formatDate } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -26,6 +27,7 @@ const MESSAGES: Record<string, string> = {
   "profil-modifie": "Vos informations ont été enregistrées.",
   "email-modifie":
     "Votre adresse email a été modifiée. Utilisez-la désormais pour vous connecter.",
+  preferences: "Vos préférences ont été enregistrées.",
 };
 
 const ERRORS: Record<string, string> = {
@@ -57,6 +59,7 @@ export default async function ProfilPage({
       phone: true,
       role: true,
       emailVerified: true,
+      reminderEmails: true,
       createdAt: true,
     },
   });
@@ -231,6 +234,30 @@ export default async function ProfilPage({
         </section>
 
         <section className="card">
+          <h2 className="text-lg font-semibold">Rappels par email</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Si vous commencez une commande sans la terminer, nous pouvons vous envoyer{" "}
+            <strong>un seul email de rappel</strong>, quelques heures plus tard. Aucun autre
+            message promotionnel n&apos;est envoyé.
+          </p>
+
+          <form action={updateReminderPreferenceAction} className="mt-4 space-y-3">
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="reminders"
+                defaultChecked={account.reminderEmails}
+                className="mt-1"
+              />
+              <span>Me rappeler par email une commande que je n&apos;ai pas terminée.</span>
+            </label>
+            <button type="submit" className="btn-secondary">
+              Enregistrer ce choix
+            </button>
+          </form>
+        </section>
+
+        <section className="card">
           <h2 className="text-lg font-semibold">Mes données</h2>
           <p className="mt-1 text-sm text-slate-600">
             Téléchargez une copie de toutes les données que TechLibrairie conserve sur votre compte.
@@ -256,4 +283,4 @@ export default async function ProfilPage({
       </div>
     </div>
   );
-              }
+          }
