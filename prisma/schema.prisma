@@ -137,6 +137,8 @@ model User {
   phone         String?
   role          Role      @default(BUYER)
   isActive      Boolean   @default(true)
+  // Rappel par email d'une commande non terminée (l'utilisateur peut le désactiver)
+  reminderEmails Boolean  @default(true)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -159,6 +161,7 @@ model User {
   sentMessages    Message[]       @relation("MessageSender")
   contactMessages ContactMessage[]
   reviews         Review[]
+  favorites       Favorite[]
 
   @@index([role])
 }
@@ -314,10 +317,11 @@ model Product {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  seller   SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-  category Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  items    OrderItem[]
-  reviews  Review[]
+  seller    SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  category  Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  items     OrderItem[]
+  reviews   Review[]
+  favorites Favorite[]
 
   @@index([sellerId])
   @@index([categoryId])
@@ -345,6 +349,21 @@ model Review {
   @@index([status, createdAt])
 }
 
+// Ouvrages mis de côté par un utilisateur (liste de favoris)
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId, createdAt])
+  @@index([productId])
+}
+
 // ---------------------------------------------------------------------------
 // COMMANDES (aucune taxe sur les produits numériques)
 // ---------------------------------------------------------------------------
@@ -361,6 +380,8 @@ model Order {
   currency    Currency
 
   paidAt      DateTime?
+  // Date d'envoi du rappel "commande non terminée" (un seul rappel par commande)
+  reminderSentAt DateTime?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
