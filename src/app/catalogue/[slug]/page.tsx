@@ -9,6 +9,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getCartIds } from "@/lib/cart";
 import { addToCartAction } from "@/app/panier/actions";
 import { deleteOwnReviewAction, saveReviewAction } from "@/app/avis/actions";
+import { FavoriteButton } from "@/components/produits/favorite-button";
 import { ProductCard } from "@/components/produits/product-card";
 import { RatingStars } from "@/components/produits/rating-stars";
 import { MAX_REVIEW_LENGTH, publicReviewerName } from "@/lib/reviews";
@@ -84,6 +85,16 @@ const REVIEW_ERRORS: Record<string, string> = {
   masque: "Votre avis a été masqué par la modération : il n'est plus modifiable.",
 };
 
+const FAVORITE_SUCCESS: Record<string, string> = {
+  ajoute: "Ouvrage ajouté à vos favoris.",
+  retire: "Ouvrage retiré de vos favoris.",
+};
+
+const FAVORITE_ERRORS: Record<string, string> = {
+  plein: "Vous avez atteint le maximum de 200 favoris.",
+  erreur: "Une erreur est survenue. Veuillez réessayer.",
+};
+
 const LANGUAGE_LABELS: Record<string, string> = {
   fr: "Français",
   en: "Anglais",
@@ -94,7 +105,11 @@ export default async function ProductPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ erreur?: string | string[]; avis?: string | string[] }>;
+  searchParams: Promise<{
+    erreur?: string | string[];
+    avis?: string | string[];
+    favori?: string | string[];
+  }>;
 }) {
   const { slug } = await params;
   const query = await searchParams;
@@ -116,46 +131,57 @@ export default async function ProductPage({
   const reviewSuccess = reviewKey ? REVIEW_SUCCESS[reviewKey] : undefined;
   const reviewError = reviewKey ? REVIEW_ERRORS[reviewKey] : undefined;
 
-  const [moreFromSeller, reviews, distribution, purchase, ownReview] = await Promise.all([
-    prisma.product.findMany({
-      where: {
-        sellerId: product.seller.id,
-        status: "PUBLISHED",
-        id: { not: product.id },
-      },
-      orderBy: { publishedAt: "desc" },
-      take: 4,
-      include: {
-        seller: { select: { displayName: true } },
-        category: { select: { name: true } },
-      },
-    }),
-    prisma.review.findMany({
-      where: { productId: product.id, status: "PUBLISHED" },
-      orderBy: { createdAt: "desc" },
-      take: 20,
-      include: { user: { select: { name: true } } },
-    }),
-    prisma.review.groupBy({
-      by: ["rating"],
-      where: { productId: product.id, status: "PUBLISHED" },
-      _count: { _all: true },
-    }),
-    user && !isAuthor
-      ? prisma.orderItem.findFirst({
-          where: {
-            productId: product.id,
-            order: { buyerId: user.id, status: "PAID" },
-          },
-          select: { id: true },
-        })
-      : Promise.resolve(null),
-    user
-      ? prisma.review.findUnique({
-          where: { productId_userId: { productId: product.id, userId: user.id } },
-        })
-      : Promise.resolve(null),
-  ]);
+  const favoriteKey = Array.isArray(query.favori) ? query.favori[0] : query.favori;
+  const favoriteSuccess = favoriteKey ? FAVORITE_SUCCESS[favoriteKey] : undefined;
+  const favoriteError = favoriteKey ? FAVORITE_ERRORS[favoriteKey] : undefined;
+
+  const [moreFromSeller, reviews, distribution, purchase, ownReview, favorite] =
+    await Promise.all([
+      prisma.product.findMany({
+        where: {
+          sellerId: product.seller.id,
+          status: "PUBLISHED",
+          id: { not: product.id },
+        },
+        orderBy: { publishedAt: "desc" },
+        take: 4,
+        include: {
+          seller: { select: { displayName: true } },
+          category: { select: { name: true } },
+        },
+      }),
+      prisma.review.findMany({
+        where: { productId: product.id, status: "PUBLISHED" },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        include: { user: { select: { name: true } } },
+      }),
+      prisma.review.groupBy({
+        by: ["rating"],
+        where: { productId: product.id, status: "PUBLISHED" },
+        _count: { _all: true },
+      }),
+      user && !isAuthor
+        ? prisma.orderItem.findFirst({
+            where: {
+              productId: product.id,
+              order: { buyerId: user.id, status: "PAID" },
+            },
+            select: { id: true },
+          })
+        : Promise.resolve(null),
+      user
+        ? prisma.review.findUnique({
+            where: { productId_userId: { productId: product.id, userId: user.id } },
+          })
+        : Promise.resolve(null),
+      user
+        ? prisma.favorite.findUnique({
+            where: { userId_productId: { userId: user.id, productId: product.id } },
+            select: { id: true },
+          })
+        : Promise.resolve(null),
+    ]);
 
   const countByRating = new Map(distribution.map((row) => [row.rating, row._count._all]));
   const canReview = Boolean(purchase) && !isAuthor;
@@ -180,6 +206,16 @@ export default async function ProductPage({
       </nav>
 
       {errorMessage && <div className="alert-error mb-6">{errorMessage}</div>}
+
+      {favoriteSuccess && (
+        <div className="mb-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+          {favoriteSuccess}{" "}
+          <Link href="/favoris" className="font-semibold underline">
+            Voir mes favoris
+          </Link>
+        </div>
+      )}
+      {favoriteError && <div className="alert-error mb-6">{favoriteError}</div>}
 
       <div className="grid gap-8 md:grid-cols-[320px_1fr]">
         <div className="flex aspect-[3/4] items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
@@ -225,7 +261,7 @@ export default async function ProductPage({
             Aucune taxe supplémentaire. Téléchargement immédiat après paiement.
           </p>
 
-          <div className="mt-6 max-w-sm">
+          <div className="mt-6 max-w-sm space-y-3">
             {isAuthor ? (
               <div className="alert-error">
                 Vous êtes l&apos;auteur de cet ouvrage.
@@ -242,6 +278,13 @@ export default async function ProductPage({
                 </button>
               </form>
             )}
+
+            <FavoriteButton
+              productId={product.id}
+              isFavorite={Boolean(favorite)}
+              from="produit"
+              fullWidth
+            />
           </div>
 
           <dl className="mt-8 grid max-w-md grid-cols-2 gap-x-4 gap-y-2 text-sm">
@@ -479,4 +522,4 @@ export default async function ProductPage({
       )}
     </div>
   );
-  }
+}
