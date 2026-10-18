@@ -154,7 +154,8 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async jwt({ token, user, trigger }) {
-      if (user) {
+      // Correction de type ici : validation stricte de l'existence de user.id
+      if (user && user.id) {
         token.id = user.id;
         token.role = user.role;
       }
@@ -241,4 +242,4 @@ export async function requireRole(allowed: Role[], callbackUrl: string = "/") {
     redirect("/?erreur=acces-refuse");
   }
   return user;
-          }
+  }
