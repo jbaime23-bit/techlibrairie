@@ -2,6 +2,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Currency } from "@prisma/client";
+import { RatingStars } from "@/components/produits/rating-stars";
 import { formatPrice } from "@/lib/utils";
 
 export interface ProductCardData {
@@ -13,9 +14,13 @@ export interface ProductCardData {
   coverImageUrl: string | null;
   seller: { displayName: string };
   category: { name: string } | null;
+  ratingAverage?: number;
+  ratingCount?: number;
 }
 
 export function ProductCard({ product }: { product: ProductCardData }) {
+  const ratingCount = product.ratingCount ?? 0;
+
   return (
     <Link
       href={`/catalogue/${product.slug}`}
@@ -45,10 +50,18 @@ export function ProductCard({ product }: { product: ProductCardData }) {
           {product.title}
         </h3>
         <p className="text-sm text-slate-500">{product.seller.displayName}</p>
+
+        {ratingCount > 0 && (
+          <p className="flex items-center gap-1 text-xs text-slate-500">
+            <RatingStars value={product.ratingAverage ?? 0} />
+            <span>({ratingCount})</span>
+          </p>
+        )}
+
         <p className="mt-auto pt-2 text-lg font-bold text-slate-900">
           {formatPrice(product.priceAmount, product.currency)}
         </p>
       </div>
     </Link>
   );
-            }
+    }
