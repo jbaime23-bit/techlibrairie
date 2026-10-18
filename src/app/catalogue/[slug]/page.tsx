@@ -8,7 +8,10 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { getCartIds } from "@/lib/cart";
 import { addToCartAction } from "@/app/panier/actions";
+import { deleteOwnReviewAction, saveReviewAction } from "@/app/avis/actions";
 import { ProductCard } from "@/components/produits/product-card";
+import { RatingStars } from "@/components/produits/rating-stars";
+import { MAX_REVIEW_LENGTH, publicReviewerName } from "@/lib/reviews";
 import { formatDate, formatFileSize, formatPrice } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -68,6 +71,19 @@ const ERROR_MESSAGES: Record<string, string> = {
     "Votre panier contient des ouvrages dans une autre devise. Finalisez ou videz votre panier avant d'ajouter cet ouvrage.",
 };
 
+const REVIEW_SUCCESS: Record<string, string> = {
+  enregistre: "Merci, votre avis a été enregistré.",
+  supprime: "Votre avis a été supprimé.",
+};
+
+const REVIEW_ERRORS: Record<string, string> = {
+  "non-acheteur": "Seuls les acheteurs de cet ouvrage peuvent donner leur avis.",
+  note: "Choisissez une note de 1 à 5 étoiles.",
+  commentaire: "Votre commentaire doit contenir au moins 5 caractères (ou rester vide).",
+  limite: "Trop d'avis enregistrés aujourd'hui. Réessayez demain.",
+  masque: "Votre avis a été masqué par la modération : il n'est plus modifiable.",
+};
+
 const LANGUAGE_LABELS: Record<string, string> = {
   fr: "Français",
   en: "Anglais",
@@ -78,7 +94,7 @@ export default async function ProductPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ erreur?: string | string[] }>;
+  searchParams: Promise<{ erreur?: string | string[]; avis?: string | string[] }>;
 }) {
   const { slug } = await params;
   const query = await searchParams;
@@ -96,19 +112,53 @@ export default async function ProductPage({
   const errorKey = Array.isArray(query.erreur) ? query.erreur[0] : query.erreur;
   const errorMessage = errorKey ? ERROR_MESSAGES[errorKey] : undefined;
 
-  const moreFromSeller = await prisma.product.findMany({
-    where: {
-      sellerId: product.seller.id,
-      status: "PUBLISHED",
-      id: { not: product.id },
-    },
-    orderBy: { publishedAt: "desc" },
-    take: 4,
-    include: {
-      seller: { select: { displayName: true } },
-      category: { select: { name: true } },
-    },
-  });
+  const reviewKey = Array.isArray(query.avis) ? query.avis[0] : query.avis;
+  const reviewSuccess = reviewKey ? REVIEW_SUCCESS[reviewKey] : undefined;
+  const reviewError = reviewKey ? REVIEW_ERRORS[reviewKey] : undefined;
+
+  const [moreFromSeller, reviews, distribution, purchase, ownReview] = await Promise.all([
+    prisma.product.findMany({
+      where: {
+        sellerId: product.seller.id,
+        status: "PUBLISHED",
+        id: { not: product.id },
+      },
+      orderBy: { publishedAt: "desc" },
+      take: 4,
+      include: {
+        seller: { select: { displayName: true } },
+        category: { select: { name: true } },
+      },
+    }),
+    prisma.review.findMany({
+      where: { productId: product.id, status: "PUBLISHED" },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      include: { user: { select: { name: true } } },
+    }),
+    prisma.review.groupBy({
+      by: ["rating"],
+      where: { productId: product.id, status: "PUBLISHED" },
+      _count: { _all: true },
+    }),
+    user && !isAuthor
+      ? prisma.orderItem.findFirst({
+          where: {
+            productId: product.id,
+            order: { buyerId: user.id, status: "PAID" },
+          },
+          select: { id: true },
+        })
+      : Promise.resolve(null),
+    user
+      ? prisma.review.findUnique({
+          where: { productId_userId: { productId: product.id, userId: user.id } },
+        })
+      : Promise.resolve(null),
+  ]);
+
+  const countByRating = new Map(distribution.map((row) => [row.rating, row._count._all]));
+  const canReview = Boolean(purchase) && !isAuthor;
 
   return (
     <div className="container-page py-8">
@@ -158,6 +208,15 @@ export default async function ProductPage({
               {product.seller.displayName}
             </Link>
           </p>
+
+          {product.ratingCount > 0 && (
+            <p className="mt-2 flex items-center gap-2 text-sm text-slate-600">
+              <RatingStars value={product.ratingAverage} />
+              <a href="#avis" className="hover:underline">
+                {product.ratingAverage.toFixed(1).replace(".", ",")} sur 5 ({product.ratingCount} avis)
+              </a>
+            </p>
+          )}
 
           <p className="mt-6 text-3xl font-bold">
             {formatPrice(product.priceAmount, product.currency)}
@@ -227,6 +286,185 @@ export default async function ProductPage({
         </div>
       </div>
 
+      <section id="avis" className="mt-14 scroll-mt-6">
+        <h2 className="text-xl font-bold">Avis des acheteurs</h2>
+
+        {reviewSuccess && (
+          <div className="mt-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+            {reviewSuccess}
+          </div>
+        )}
+        {reviewError && <div className="alert-error mt-4">{reviewError}</div>}
+
+        <div className="mt-4 grid gap-8 lg:grid-cols-[280px_1fr]">
+          <div>
+            {product.ratingCount > 0 ? (
+              <div className="card">
+                <p className="text-4xl font-bold">
+                  {product.ratingAverage.toFixed(1).replace(".", ",")}
+                  <span className="text-lg font-normal text-slate-500"> / 5</span>
+                </p>
+                <div className="mt-1">
+                  <RatingStars value={product.ratingAverage} large />
+                </div>
+                <p className="mt-1 text-sm text-slate-500">{product.ratingCount} avis</p>
+
+                <ul className="mt-4 space-y-1 text-xs text-slate-600">
+                  {[5, 4, 3, 2, 1].map((star) => {
+                    const count = countByRating.get(star) ?? 0;
+                    const percent =
+                      product.ratingCount > 0
+                        ? Math.round((count / product.ratingCount) * 100)
+                        : 0;
+
+                    return (
+                      <li key={star} className="flex items-center gap-2">
+                        <span className="w-6 shrink-0">{star} ★</span>
+                        <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-200">
+                          <span
+                            className="block h-full bg-amber-500"
+                            style={{ width: `${percent}%` }}
+                          />
+                        </span>
+                        <span className="w-6 shrink-0 text-right">{count}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : (
+              <div className="card text-sm text-slate-600">
+                Cet ouvrage n&apos;a pas encore d&apos;avis.
+              </div>
+            )}
+
+            <div className="mt-4">
+              {isAuthor ? (
+                <p className="text-sm text-slate-500">
+                  Vous ne pouvez pas noter votre propre ouvrage.
+                </p>
+              ) : !user ? (
+                <p className="text-sm text-slate-600">
+                  <Link
+                    href={`/connexion?callbackUrl=${encodeURIComponent(`/catalogue/${product.slug}`)}`}
+                    className="font-semibold text-brand-700 hover:underline"
+                  >
+                    Connectez-vous
+                  </Link>{" "}
+                  pour donner votre avis si vous avez acheté cet ouvrage.
+                </p>
+              ) : !canReview ? (
+                <p className="text-sm text-slate-600">
+                  Seuls les acheteurs de cet ouvrage peuvent donner leur avis.
+                </p>
+              ) : ownReview?.status === "HIDDEN" ? (
+                <p className="text-sm text-slate-600">
+                  Votre avis a été masqué par la modération.
+                </p>
+              ) : (
+                <div className="card">
+                  <h3 className="font-semibold">
+                    {ownReview ? "Modifier mon avis" : "Donner mon avis"}
+                  </h3>
+
+                  <form action={saveReviewAction} className="mt-3 space-y-3">
+                    <input type="hidden" name="productId" value={product.id} />
+
+                    <fieldset>
+                      <legend className="label">Votre note</legend>
+                      <div className="flex flex-wrap gap-3">
+                        {[5, 4, 3, 2, 1].map((star) => (
+                          <label key={star} className="flex items-center gap-1 text-sm">
+                            <input
+                              type="radio"
+                              name="rating"
+                              value={star}
+                              required
+                              defaultChecked={ownReview?.rating === star}
+                            />
+                            {star} ★
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+
+                    <div>
+                      <label htmlFor="review-comment" className="label">
+                        Votre commentaire (facultatif)
+                      </label>
+                      <textarea
+                        id="review-comment"
+                        name="comment"
+                        rows={4}
+                        maxLength={MAX_REVIEW_LENGTH}
+                        defaultValue={ownReview?.comment ?? ""}
+                        className="input"
+                      />
+                      <p className="mt-1 text-xs text-slate-500">
+                        Votre avis affichera votre prénom et l&apos;initiale de votre nom.
+                      </p>
+                    </div>
+
+                    <button type="submit" className="btn-primary">
+                      {ownReview ? "Enregistrer les modifications" : "Publier mon avis"}
+                    </button>
+                  </form>
+
+                  {ownReview && (
+                    <form action={deleteOwnReviewAction} className="mt-3">
+                      <input type="hidden" name="productId" value={product.id} />
+                      <button
+                        type="submit"
+                        className="text-sm text-red-700 hover:underline"
+                      >
+                        Supprimer mon avis
+                      </button>
+                    </form>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div>
+            {reviews.length === 0 ? (
+              <p className="text-sm text-slate-600">
+                Soyez le premier à donner votre avis après votre achat.
+              </p>
+            ) : (
+              <ul className="space-y-4">
+                {reviews.map((review) => (
+                  <li key={review.id} className="card">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <RatingStars value={review.rating} />
+                        <span className="text-sm font-semibold">
+                          {publicReviewerName(review.user.name)}
+                        </span>
+                      </div>
+                      <span className="text-xs text-slate-500">
+                        {formatDate(review.createdAt)}
+                      </span>
+                    </div>
+                    {review.comment && (
+                      <p className="mt-3 whitespace-pre-line break-words text-sm text-slate-700">
+                        {review.comment}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {product.ratingCount > reviews.length && (
+              <p className="mt-4 text-center text-xs text-slate-500">
+                Les {reviews.length} avis les plus récents sont affichés.
+              </p>
+            )}
+          </div>
+        </div>
+      </section>
+
       {moreFromSeller.length > 0 && (
         <section className="mt-16">
           <h2 className="text-xl font-bold">
@@ -241,4 +479,4 @@ export default async function ProductPage({
       )}
     </div>
   );
-            }
+  }
