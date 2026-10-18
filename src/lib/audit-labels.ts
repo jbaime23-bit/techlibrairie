@@ -19,6 +19,9 @@ export const ACTION_LABELS: Record<string, string> = {
   "vendeur.statut_modifie": "Statut d'un vendeur modifié",
   "vendeur.commission_modifiee": "Commission d'un vendeur modifiée",
   "produit.statut_modifie": "Statut d'un produit modifié",
+  "avis.masque": "Avis masqué",
+  "avis.rendu_visible": "Avis rendu visible",
+  "avis.supprime": "Avis supprimé",
   "utilisateur.statut_modifie": "Compte utilisateur activé ou désactivé",
   "utilisateur.efface": "Compte utilisateur effacé (anonymisé)",
   "publicite.creee": "Publicité créée",
@@ -40,7 +43,7 @@ export const AUDIT_CATEGORIES: { value: string; label: string; prefixes: string[
   { value: "securite", label: "Connexions et sécurité", prefixes: ["admin."] },
   { value: "commandes", label: "Commandes", prefixes: ["commande."] },
   { value: "versements", label: "Versements", prefixes: ["versement."] },
-  { value: "catalogue", label: "Vendeurs et produits", prefixes: ["vendeur.", "produit."] },
+  { value: "catalogue", label: "Vendeurs, produits et avis", prefixes: ["vendeur.", "produit.", "avis."] },
   { value: "utilisateurs", label: "Utilisateurs", prefixes: ["utilisateur."] },
   { value: "publicites", label: "Publicités", prefixes: ["publicite."] },
   {
