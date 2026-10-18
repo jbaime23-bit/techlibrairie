@@ -29,6 +29,13 @@ export default async function ConfirmerEmailPage({
   const payload = valid ? parseChangePayload(valid.email) : null;
   const usable = payload !== null && payload.userId === user.id;
 
+  // Correction de type : Extraction du jeton depuis l'objet FormData du formulaire
+  const handleConfirmAction = async (formData: FormData) => {
+    "use server";
+    const currentToken = formData.get("token") as string;
+    await confirmEmailChangeAction(currentToken);
+  };
+
   return (
     <div className="container-page py-12">
       <div className="mx-auto max-w-md">
@@ -52,7 +59,8 @@ export default async function ConfirmerEmailPage({
                 </div>
               </dl>
 
-              <form action={confirmEmailChangeAction}>
+              {/* Utilisation de la nouvelle action serveur intermédiaire */}
+              <form action={handleConfirmAction}>
                 <input type="hidden" name="token" value={token} />
                 <button type="submit" className="btn-primary w-full">
                   Confirmer le changement
@@ -80,4 +88,4 @@ export default async function ConfirmerEmailPage({
       </div>
     </div>
   );
-}
+              }
