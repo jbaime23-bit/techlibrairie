@@ -1,12 +1,16 @@
 // src/app/api/cron/rappels/route.ts
-// Appelée chaque jour par la tâche planifiée de Vercel (voir vercel.json).
+// Appelée chaque jour par la tâche planifiée de Vercel (voir vercel.json) :
+// - rappel des commandes non terminées ;
+// - envoi du rapport mensuel aux administrateurs, une fois par mois (sans effet les autres jours).
 // Protégée par CRON_SECRET : Vercel envoie automatiquement ce secret dans l'en-tête Authorization.
 
 import { createHash, timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 import { sendAbandonedOrderReminders } from "@/lib/reminders";
+import { sendMonthlyReportIfDue } from "@/lib/monthly-report";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 function secretsMatch(provided: string, expected: string): boolean {
   const a = createHash("sha256").update(provided).digest();
@@ -26,9 +30,26 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Accès refusé." }, { status: 401 });
   }
 
-  const report = await sendAbandonedOrderReminders();
+  let reminders: unknown;
+  try {
+    reminders = await sendAbandonedOrderReminders({ budgetMs: 5000 });
+  } catch (error) {
+    console.error("Rappels de commandes : échec :", error);
+    reminders = { erreur: "echec" };
+  }
 
-  console.log("Rappels de commandes terminés :", JSON.stringify(report));
+  let monthlyReport: unknown;
+  try {
+    monthlyReport = await sendMonthlyReportIfDue();
+  } catch (error) {
+    console.error("Rapport mensuel : échec :", error);
+    monthlyReport = { status: "echec" };
+  }
 
-  return NextResponse.json(report);
-    }
+  console.log(
+    "Tâche quotidienne terminée :",
+    JSON.stringify({ reminders, monthlyReport })
+  );
+
+  return NextResponse.json({ reminders, monthlyReport });
+}
