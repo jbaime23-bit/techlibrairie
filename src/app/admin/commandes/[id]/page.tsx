@@ -123,6 +123,7 @@ export default async function AdminCommandeDetailPage({
     where: { id },
     include: {
       buyer: { select: { name: true, email: true } },
+      promoCode: { select: { code: true } },
       items: {
         include: { seller: { select: { id: true, displayName: true } } },
       },
@@ -173,6 +174,10 @@ export default async function AdminCommandeDetailPage({
   const isCinetPayCard =
     settledPayment?.provider === "CINETPAY" && settledPayment.method === "CARD";
 
+  // Remise : le prix catalogue d'une ligne est inconnu pour les commandes antérieures aux codes promotionnels.
+  const hasDiscount = order.discountAmount > 0;
+  const catalogueTotal = order.totalAmount + order.discountAmount;
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
@@ -217,7 +222,10 @@ export default async function AdminCommandeDetailPage({
               <tr>
                 <th className="py-2 pr-4 font-medium">Ouvrage</th>
                 <th className="py-2 pr-4 font-medium">Vendeur</th>
-                <th className="py-2 pr-4 font-medium">Prix</th>
+                {hasDiscount && (
+                  <th className="py-2 pr-4 font-medium">Prix catalogue</th>
+                )}
+                <th className="py-2 pr-4 font-medium">{hasDiscount ? "Prix payé" : "Prix"}</th>
                 <th className="py-2 pr-4 font-medium">Commission</th>
                 <th className="py-2 font-medium">Part vendeur</th>
               </tr>
@@ -227,6 +235,14 @@ export default async function AdminCommandeDetailPage({
                 <tr key={item.id} className="border-b border-slate-100">
                   <td className="py-2 pr-4">{item.productTitle}</td>
                   <td className="py-2 pr-4">{item.seller.displayName}</td>
+                  {hasDiscount && (
+                    <td className="py-2 pr-4">
+                      {formatPrice(
+                        item.listAmount ?? item.unitAmount + item.discountAmount,
+                        item.currency
+                      )}
+                    </td>
+                  )}
                   <td className="py-2 pr-4">{formatPrice(item.unitAmount, item.currency)}</td>
                   <td className="py-2 pr-4">
                     {formatPrice(item.commissionAmount, item.currency)} (
@@ -238,9 +254,37 @@ export default async function AdminCommandeDetailPage({
             </tbody>
           </table>
         </div>
-        <p className="mt-3 text-right text-sm font-semibold">
-          Total : {formatPrice(order.totalAmount, order.currency)}
-        </p>
+
+        <dl className="mt-4 space-y-1 text-right text-sm">
+          {hasDiscount && (
+            <>
+              <div className="flex justify-end gap-4">
+                <dt className="text-slate-600">Total au prix catalogue</dt>
+                <dd>{formatPrice(catalogueTotal, order.currency)}</dd>
+              </div>
+              <div className="flex justify-end gap-4 text-green-700">
+                <dt>
+                  Code promotionnel{" "}
+                  {order.promoCode ? (
+                    <Link
+                      href="/admin/promotions"
+                      className="font-mono font-semibold hover:underline"
+                    >
+                      {order.promoCode.code}
+                    </Link>
+                  ) : (
+                    "(code supprimé)"
+                  )}
+                </dt>
+                <dd>- {formatPrice(order.discountAmount, order.currency)}</dd>
+              </div>
+            </>
+          )}
+          <div className="flex justify-end gap-4 font-semibold">
+            <dt>{hasDiscount ? "Total payé" : "Total"}</dt>
+            <dd>{formatPrice(order.totalAmount, order.currency)}</dd>
+          </div>
+        </dl>
       </section>
 
       <section className="card">
@@ -294,6 +338,14 @@ export default async function AdminCommandeDetailPage({
       {canRefund && settledPayment && (
         <section className="card border-red-200">
           <h2 className="text-lg font-semibold">Rembourser cette commande</h2>
+
+          {hasDiscount && (
+            <p className="mt-2 text-sm text-slate-600">
+              Cette commande a été payée avec un code promotionnel : le remboursement porte sur le
+              montant <strong>réellement payé</strong> ({formatPrice(order.totalAmount, order.currency)}),
+              pas sur le prix catalogue.
+            </p>
+          )}
 
           {warnings.length > 0 && (
             <div className="alert-error mt-3">
@@ -403,4 +455,4 @@ export default async function AdminCommandeDetailPage({
       )}
     </div>
   );
-                                      }
+        }
