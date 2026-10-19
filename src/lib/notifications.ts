@@ -51,6 +51,7 @@ export async function notifyOrderPaid(orderId: string): Promise<void> {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       include: {
+        promoCode: { select: { code: true } },
         items: {
           include: {
             downloads: { orderBy: { createdAt: "desc" }, take: 1 },
@@ -81,16 +82,27 @@ export async function notifyOrderPaid(orderId: string): Promise<void> {
       .map((item) => item.downloads[0])
       .find((download) => download !== undefined);
 
+    const buyerParagraphs = [
+      `Merci pour votre achat ! Votre paiement de ${formatPrice(order.totalAmount, order.currency)} est confirmé (commande ${order.number}).`,
+    ];
+
+    if (order.discountAmount > 0) {
+      buyerParagraphs.push(
+        `${order.promoCode ? `Code promotionnel ${order.promoCode.code}` : "Code promotionnel"} : une remise de ${formatPrice(order.discountAmount, order.currency)} a été appliquée (prix avant remise : ${formatPrice(order.totalAmount + order.discountAmount, order.currency)}). Les prix indiqués ci-dessous sont les prix après remise.`
+      );
+    }
+
+    buyerParagraphs.push(
+      "Cliquez sur le titre d'un ouvrage pour le télécharger. Vous devez être connecté à votre compte."
+    );
+
     await sendEmail({
       to: order.buyerEmail,
       subject: `Votre commande ${order.number} est confirmée`,
       idempotencyKey: `order-paid-${order.id}`,
       content: {
         title: "Paiement confirmé",
-        paragraphs: [
-          `Merci pour votre achat ! Votre paiement de ${formatPrice(order.totalAmount, order.currency)} est confirmé (commande ${order.number}).`,
-          "Cliquez sur le titre d'un ouvrage pour le télécharger. Vous devez être connecté à votre compte.",
-        ],
+        paragraphs: buyerParagraphs,
         items: buyerItems,
         button: { label: "Voir mes commandes", url: `${appUrl}/acheteur/commandes` },
         note: firstDownload
@@ -479,4 +491,4 @@ export async function notifyPayoutRejected(
   } catch (error) {
     console.error("Notification (versement refusé) impossible :", error);
   }
-      }
+                                                  }
