@@ -2,8 +2,12 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { getCurrentUser } from "@/lib/auth";
 import { loadCart } from "@/lib/cart";
+import { firstParam } from "@/lib/admin";
 import { clearCartAction, removeFromCartAction } from "@/app/panier/actions";
+import { applyPromoAction, removePromoAction } from "@/app/panier/promo-actions";
+import { isPromoFailure, previewPromo, promoFailureMessage } from "@/lib/promo";
 import { formatPrice } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -12,7 +16,13 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-export default async function PanierPage() {
+export default async function PanierPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = await searchParams;
+
   const cart = await loadCart();
 
   if (cart.items.length === 0 || !cart.currency) {
@@ -34,6 +44,23 @@ export default async function PanierPage() {
   }
 
   const currency = cart.currency;
+  const user = await getCurrentUser();
+  const preview = await previewPromo(cart, user?.id ?? null);
+
+  const payable = preview?.ok ? preview.finalTotal : cart.totalAmount;
+  const canUsePromo = currency === "XOF";
+
+  const flashKey = firstParam(sp.promo);
+  const minParam = Number.parseInt(firstParam(sp.min) ?? "", 10);
+  const flashSuccess =
+    flashKey === "applique"
+      ? "Code promotionnel appliqué."
+      : flashKey === "retire"
+        ? "Code promotionnel retiré."
+        : null;
+  const flashError = isPromoFailure(flashKey)
+    ? promoFailureMessage(flashKey, Number.isFinite(minParam) && minParam > 0 ? minParam : undefined)
+    : null;
 
   return (
     <div className="container-page py-8">
@@ -86,6 +113,13 @@ export default async function PanierPage() {
         <aside className="card h-fit">
           <h2 className="text-lg font-semibold">Récapitulatif</h2>
 
+          {flashSuccess && (
+            <div className="mt-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
+              {flashSuccess}
+            </div>
+          )}
+          {flashError && <div className="alert-error mt-3">{flashError}</div>}
+
           <dl className="mt-4 space-y-2 text-sm">
             <div className="flex justify-between">
               <dt className="text-slate-600">
@@ -93,17 +127,74 @@ export default async function PanierPage() {
               </dt>
               <dd>{formatPrice(cart.totalAmount, currency)}</dd>
             </div>
+
+            {preview?.ok && (
+              <div className="flex justify-between text-green-700">
+                <dt>Code {preview.code}</dt>
+                <dd>- {formatPrice(preview.discountTotal, currency)}</dd>
+              </div>
+            )}
+
             <div className="flex justify-between">
               <dt className="text-slate-600">Taxes</dt>
               <dd>Aucune</dd>
             </div>
             <div className="flex justify-between border-t border-slate-200 pt-2 text-base font-bold">
               <dt>Total</dt>
-              <dd>{formatPrice(cart.totalAmount, currency)}</dd>
+              <dd>{formatPrice(payable, currency)}</dd>
             </div>
           </dl>
 
-          <Link href="/paiement" className="btn-primary mt-6 w-full">
+          {preview?.ok && preview.capped && (
+            <p className="mt-2 text-xs text-slate-500">
+              La remise de ce code est plafonnée pour ce panier.
+            </p>
+          )}
+
+          {preview && !preview.ok && (
+            <div className="alert-error mt-3">
+              Le code {preview.code} ne peut pas être utilisé : {preview.message}
+            </div>
+          )}
+
+          {canUsePromo &&
+            (preview ? (
+              <form action={removePromoAction} className="mt-3">
+                <button
+                  type="submit"
+                  className="text-sm text-slate-600 hover:text-slate-800 hover:underline"
+                >
+                  Retirer le code {preview.code}
+                </button>
+              </form>
+            ) : (
+              <form action={applyPromoAction} className="mt-4 space-y-2">
+                <label htmlFor="promo-code" className="label">
+                  Code promotionnel
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    id="promo-code"
+                    name="code"
+                    type="text"
+                    autoComplete="off"
+                    autoCapitalize="characters"
+                    maxLength={30}
+                    required
+                    className="input"
+                  />
+                  <button type="submit" className="btn-secondary">
+                    Appliquer
+                  </button>
+                </div>
+              </form>
+            ))}
+
+          <Link
+            href="/paiement"
+            className={`btn-primary mt-6 w-full ${preview && !preview.ok ? "pointer-events-none opacity-50" : ""}`}
+            aria-disabled={preview !== null && !preview.ok}
+          >
             Procéder au paiement
           </Link>
 
@@ -119,4 +210,4 @@ export default async function PanierPage() {
       </div>
     </div>
   );
-}
+    }
