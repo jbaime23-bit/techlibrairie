@@ -5,11 +5,17 @@
 import type { Currency, Payment, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { loadCart } from "@/lib/cart";
-import { buildOrderLines, getDefaultCommissionRateBps } from "@/lib/commission";
+import {
+  buildOrderLines,
+  getDefaultCommissionRateBps,
+  type OrderLineData,
+  type OrderTotals,
+} from "@/lib/commission";
 import { generateDownloadToken, generateOrderNumber } from "@/lib/utils";
 import { checkCinetPayPayment } from "@/lib/cinetpay";
 import { getStripe } from "@/lib/stripe";
 import { notifyOrderPaid } from "@/lib/notifications";
+import { evaluatePromo, getPromoCode, promoFailureMessage } from "@/lib/promo";
 
 /** URL publique du site (obligatoire pour les retours et notifications de paiement). */
 export function getAppUrl(): string {
@@ -38,9 +44,13 @@ export interface CreatePendingOrderOptions {
   amountMultipleOf?: number;
 }
 
+// Ligne de commande finale : prix payé (unitAmount), prix catalogue et remise de la ligne.
+type FinalLine = OrderLineData & { listAmount: number; discountAmount: number };
+
 /**
  * Crée une commande en attente à partir du panier, avec la commission
  * figée sur chaque ligne. Tous les prix sont relus en base.
+ * Si l'acheteur a un code promotionnel, la remise est calculée ici (et revérifiée).
  */
 export async function createPendingOrder(options: CreatePendingOrderOptions) {
   const cart = await loadCart();
@@ -107,7 +117,7 @@ export async function createPendingOrder(options: CreatePendingOrderOptions) {
 
   const defaultRateBps = await getDefaultCommissionRateBps();
 
-  let totals;
+  let totals: OrderTotals;
   try {
     totals = buildOrderLines(
       ordered.map((product) => ({
@@ -126,10 +136,55 @@ export async function createPendingOrder(options: CreatePendingOrderOptions) {
     );
   }
 
-  if (
-    options.amountMultipleOf &&
-    totals.totalAmount % options.amountMultipleOf !== 0
-  ) {
+  // Code promotionnel éventuel : revérifié maintenant (il a pu expirer depuis le panier).
+  let finalLines: FinalLine[] = totals.lines.map((line) => ({
+    ...line,
+    listAmount: line.unitAmount,
+    discountAmount: 0,
+  }));
+  let promoCodeId: string | null = null;
+  let discountTotal = 0;
+
+  const promoCode = await getPromoCode();
+  if (promoCode) {
+    const evaluation = await evaluatePromo({
+      code: promoCode,
+      userId: options.userId,
+      currency: totals.currency,
+      lines: totals.lines.map((line) => ({
+        listAmount: line.unitAmount,
+        rateBps: line.commissionRateBps,
+      })),
+    });
+
+    if (!evaluation.ok) {
+      throw new CheckoutError(
+        `Code promotionnel ${promoCode} : ${promoFailureMessage(evaluation.reason, evaluation.minAmount)} Retirez-le de votre panier pour continuer.`,
+        409
+      );
+    }
+
+    const application = evaluation.application;
+    promoCodeId = application.promoId;
+    discountTotal = application.discountTotal;
+
+    finalLines = totals.lines.map((line, index) => {
+      const result = application.lines[index];
+      return {
+        ...line,
+        listAmount: result.listAmount,
+        discountAmount: result.discountAmount,
+        unitAmount: result.unitAmount,
+        commissionRateBps: result.commissionRateBps,
+        commissionAmount: result.commissionAmount,
+        sellerAmount: result.sellerAmount,
+      };
+    });
+  }
+
+  const totalAmount = finalLines.reduce((sum, line) => sum + line.unitAmount, 0);
+
+  if (options.amountMultipleOf && totalAmount % options.amountMultipleOf !== 0) {
     throw new CheckoutError(
       `Le montant total doit être un multiple de ${options.amountMultipleOf} pour ce moyen de paiement. Contactez le support.`
     );
@@ -141,15 +196,19 @@ export async function createPendingOrder(options: CreatePendingOrderOptions) {
       buyerId: options.userId,
       buyerEmail: options.email,
       status: "PENDING",
-      totalAmount: totals.totalAmount,
+      totalAmount,
       currency: totals.currency,
+      promoCodeId,
+      discountAmount: discountTotal,
       items: {
-        create: totals.lines.map((line) => ({
+        create: finalLines.map((line) => ({
           productId: line.productId,
           sellerId: line.sellerId,
           productTitle: line.productTitle,
           unitAmount: line.unitAmount,
           currency: line.currency,
+          listAmount: line.listAmount,
+          discountAmount: line.discountAmount,
           commissionRateBps: line.commissionRateBps,
           commissionAmount: line.commissionAmount,
           sellerAmount: line.sellerAmount,
@@ -159,7 +218,16 @@ export async function createPendingOrder(options: CreatePendingOrderOptions) {
     include: { items: true },
   });
 
-  return { order, totals };
+  return {
+    order,
+    totals: {
+      ...totals,
+      lines: finalLines,
+      totalAmount,
+      totalCommission: finalLines.reduce((sum, line) => sum + line.commissionAmount, 0),
+      totalSellerAmount: finalLines.reduce((sum, line) => sum + line.sellerAmount, 0),
+    },
+  };
 }
 
 /** Annule une commande restée en attente (échec de création du paiement). */
@@ -355,4 +423,4 @@ export async function syncOrderPayments(orderId: string): Promise<void> {
       console.error(`Vérification impossible du paiement ${payment.id} :`, error);
     }
   }
-}
+    }
