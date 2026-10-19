@@ -22,6 +22,9 @@ export const ACTION_LABELS: Record<string, string> = {
   "avis.masque": "Avis masqué",
   "avis.rendu_visible": "Avis rendu visible",
   "avis.supprime": "Avis supprimé",
+  "promo.cree": "Code promotionnel créé",
+  "promo.bascule": "Code promotionnel activé ou désactivé",
+  "promo.supprime": "Code promotionnel supprimé",
   "utilisateur.statut_modifie": "Compte utilisateur activé ou désactivé",
   "utilisateur.efface": "Compte utilisateur effacé (anonymisé)",
   "publicite.creee": "Publicité créée",
@@ -49,6 +52,6 @@ export const AUDIT_CATEGORIES: { value: string; label: string; prefixes: string[
   {
     value: "configuration",
     label: "Configuration",
-    prefixes: ["parametres.", "taux.", "maintenance.", "contact.", "export."],
+    prefixes: ["parametres.", "taux.", "maintenance.", "contact.", "export.", "promo."],
   },
 ];
