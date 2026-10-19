@@ -199,31 +199,36 @@ export async function getCurrentUser() {
   const session = await getSession();
   if (!session?.user?.id) return null;
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      image: true,
-      role: true,
-      isActive: true,
-      emailVerified: true,
-      passwordChangedAt: true,
-      totpEnabledAt: true,
-    },
-  });
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        image: true,
+        role: true,
+        isActive: true,
+        emailVerified: true,
+        passwordChangedAt: true,
+        totpEnabledAt: true,
+      },
+    });
 
-  if (!user || !user.isActive) return null;
+    if (!user || !user.isActive) return null;
 
-  if (user.passwordChangedAt) {
-    const changedAtSeconds = Math.floor(user.passwordChangedAt.getTime() / 1000);
-    if (session.issuedAt < changedAtSeconds) {
-      return null;
+    if (user.passwordChangedAt) {
+      const changedAtSeconds = Math.floor(user.passwordChangedAt.getTime() / 1000);
+      if (session.issuedAt < changedAtSeconds) {
+        return null;
+      }
     }
-  }
 
-  return user;
+    return user;
+  } catch (error) {
+    console.error("Erreur Prisma interceptée dans getCurrentUser:", error);
+    return null;
+  }
 }
 
 /** Exige un utilisateur connecté, sinon redirige vers la connexion. */
@@ -242,4 +247,4 @@ export async function requireRole(allowed: Role[], callbackUrl: string = "/") {
     redirect("/?erreur=acces-refuse");
   }
   return user;
-  }
+          }
