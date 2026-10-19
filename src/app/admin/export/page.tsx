@@ -24,7 +24,7 @@ const REPORTS = [
     value: "ventes",
     label: "Ventes et commissions",
     description:
-      "Une ligne par ouvrage vendu : date de paiement, commande, ouvrage, vendeur, prix, taux et montant de la commission de la boutique, part du vendeur, statut (payée ou remboursée).",
+      "Une ligne par ouvrage vendu : date de paiement, commande, ouvrage, vendeur, prix catalogue, remise, prix payé, code promotionnel utilisé, taux et montant de la commission de la boutique, part du vendeur, statut (payée ou remboursée).",
   },
   {
     value: "remboursements",
@@ -162,6 +162,16 @@ export default async function AdminExportPage({
             Faso). Les ventes sont placées à leur <strong>date de paiement</strong>.
           </li>
           <li>
+            Dans le rapport des ventes, <strong>« Prix payé » est la colonne à additionner</strong> :
+            c&apos;est l&apos;argent réellement encaissé, remise déduite. Le « Prix catalogue » et la
+            « Remise » servent à suivre vos promotions. Pour les ventes antérieures aux codes
+            promotionnels, le prix catalogue est égal au prix payé.
+          </li>
+          <li>
+            Le taux de commission indiqué est le taux <strong>effectif</strong> de la ligne : avec un
+            code « Boutique seule », il peut être inférieur au taux normal du vendeur.
+          </li>
+          <li>
             Le rapport des ventes contient aussi les commandes <strong>remboursées par la suite</strong>,
             avec le statut « Remboursée » : filtrez cette colonne avant de faire des totaux, ou
             utilisez le rapport des remboursements pour les déduire.
@@ -192,4 +202,4 @@ export default async function AdminExportPage({
       </section>
     </div>
   );
-}
+        }
