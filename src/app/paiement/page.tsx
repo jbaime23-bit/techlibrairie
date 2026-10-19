@@ -1,5 +1,6 @@
 // src/app/paiement/page.tsx
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { loadCart } from "@/lib/cart";
@@ -14,6 +15,7 @@ import {
   type CardRate,
   type ForeignCurrency,
 } from "@/lib/fx";
+import { previewPromo } from "@/lib/promo";
 import { formatPrice } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -34,7 +36,7 @@ const CURRENCY_LABELS: Record<ForeignCurrency, string> = {
 };
 
 export default async function PaiementPage() {
-  await requireUser("/paiement");
+  const user = await requireUser("/paiement");
 
   const cart = await loadCart();
 
@@ -44,6 +46,14 @@ export default async function PaiementPage() {
 
   const currency = cart.currency;
   const isXof = currency === "XOF";
+
+  // Code promotionnel éventuel : les montants à payer sont ceux après remise.
+  const preview = await previewPromo(cart, user.id);
+  const promoBlocked = preview !== null && !preview.ok;
+  const lineAmounts = preview?.ok
+    ? preview.finalLineAmounts
+    : cart.items.map((item) => item.priceAmount);
+  const payableTotal = preview?.ok ? preview.finalTotal : cart.totalAmount;
 
   // Le paiement par carte via Stripe n'est proposé que si Stripe est entièrement configuré.
   const stripeConfigured = Boolean(
@@ -55,15 +65,12 @@ export default async function PaiementPage() {
 
   // Pour un panier en FCFA, la carte Stripe est proposée dans chaque devise dont le taux est valide.
   const cardOptions: CardOption[] = [];
-  if (isXof && stripeConfigured) {
+  if (isXof && stripeConfigured && !promoBlocked) {
     for (const code of FOREIGN_CURRENCIES) {
       const rate = await getCardRate(code);
       if (!rate) continue;
 
-      const { total } = convertAmounts(
-        cart.items.map((item) => item.priceAmount),
-        rate
-      );
+      const { total } = convertAmounts(lineAmounts, rate);
       if (total >= MIN_CARD_CHARGE_MINOR) {
         cardOptions.push({ currency: code, rate, total });
       }
@@ -95,13 +102,19 @@ export default async function PaiementPage() {
           </ul>
 
           <dl className="mt-4 space-y-2 border-t border-slate-200 pt-4 text-sm">
+            {preview?.ok && (
+              <div className="flex justify-between text-green-700">
+                <dt>Code {preview.code}</dt>
+                <dd>- {formatPrice(preview.discountTotal, currency)}</dd>
+              </div>
+            )}
             <div className="flex justify-between">
               <dt className="text-slate-600">Taxes</dt>
               <dd>Aucune</dd>
             </div>
             <div className="flex justify-between text-base font-bold">
-              <dt>Total</dt>
-              <dd>{formatPrice(cart.totalAmount, currency)}</dd>
+              <dt>Total à payer</dt>
+              <dd>{formatPrice(payableTotal, currency)}</dd>
             </div>
           </dl>
         </section>
@@ -109,13 +122,22 @@ export default async function PaiementPage() {
         <aside className="card h-fit">
           <h2 className="text-lg font-semibold">Moyen de paiement</h2>
 
-          {isXof ? (
+          {promoBlocked && preview ? (
+            <div className="mt-4 space-y-3">
+              <div className="alert-error">
+                Le code {preview.code} ne peut pas être utilisé : {preview.message}
+              </div>
+              <Link href="/panier" className="btn-primary w-full">
+                Retour au panier pour le retirer
+              </Link>
+            </div>
+          ) : isXof ? (
             <div className="mt-4 space-y-6">
               <div className="space-y-3">
                 <p className="text-sm font-medium">Mobile Money (FCFA)</p>
                 <p className="text-sm text-slate-600">
                   Orange Money, Moov Money et autres opérateurs, via CinetPay.
-                  Montant débité : {formatPrice(cart.totalAmount, "XOF")}.
+                  Montant débité : {formatPrice(payableTotal, "XOF")}.
                 </p>
                 <CheckoutButton
                   endpoint="/api/checkout/cinetpay"
@@ -131,11 +153,11 @@ export default async function PaiementPage() {
                     <p className="text-sm font-medium">Carte bancaire (Visa, Mastercard)</p>
                     <p className="text-sm text-slate-600">
                       Paiement par carte via CinetPay. Montant débité :{" "}
-                      {formatPrice(cart.totalAmount, "XOF")} (votre banque peut
+                      {formatPrice(payableTotal, "XOF")} (votre banque peut
                       appliquer sa propre conversion si votre carte est dans une
                       autre devise).
                     </p>
-                    <CardBillingForm totalLabel={formatPrice(cart.totalAmount, "XOF")} />
+                    <CardBillingForm totalLabel={formatPrice(payableTotal, "XOF")} />
                   </div>
                 </>
               )}
@@ -205,4 +227,4 @@ export default async function PaiementPage() {
       </div>
     </div>
   );
-                  }
+            }
