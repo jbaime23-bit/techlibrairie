@@ -121,6 +121,22 @@ enum ReviewStatus {
   HIDDEN
 }
 
+// Type de remise d'un code promotionnel
+enum PromoType {
+  // Pourcentage du total du panier (value = 1 à 90)
+  PERCENT
+  // Montant fixe en FCFA (value = multiple de 5)
+  FIXED
+}
+
+// Qui supporte la remise d'un code promotionnel
+enum PromoBearer {
+  // Partagée entre la boutique et les vendeurs, proportionnellement
+  PROPORTIONAL
+  // Supportée par la boutique seule : le vendeur garde son gain normal
+  SHOP
+}
+
 // ---------------------------------------------------------------------------
 // UTILISATEURS & AUTHENTIFICATION (compatible Auth.js)
 // ---------------------------------------------------------------------------
@@ -364,6 +380,33 @@ model Favorite {
   @@index([productId])
 }
 
+// Codes promotionnels créés par l'administration (paniers en FCFA uniquement)
+model PromoCode {
+  id                String      @id @default(cuid())
+  // Code en MAJUSCULES, ex. BIENVENUE10
+  code              String      @unique
+  description       String?
+  type              PromoType
+  // PERCENT : 1 à 90 (%) ; FIXED : montant en FCFA (multiple de 5)
+  value             Int
+  bearer            PromoBearer @default(PROPORTIONAL)
+  // Montant minimum d'achat (FCFA, avant remise)
+  minOrderAmountXof Int         @default(0)
+  startsAt          DateTime?
+  endsAt            DateTime?
+  // Nombre total d'utilisations autorisées (null = illimité)
+  maxRedemptions    Int?
+  // Nombre d'utilisations par acheteur
+  maxPerUser        Int         @default(1)
+  isActive          Boolean     @default(true)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  orders Order[]
+
+  @@index([isActive, endsAt])
+}
+
 // ---------------------------------------------------------------------------
 // COMMANDES (aucune taxe sur les produits numériques)
 // ---------------------------------------------------------------------------
@@ -375,9 +418,13 @@ model Order {
   buyerEmail  String
   status      OrderStatus @default(PENDING)
 
-  // Total de référence = somme des lignes (en FCFA). Aucune taxe ajoutée.
+  // Montant réellement à payer = somme des lignes (en FCFA), remise comprise. Aucune taxe ajoutée.
   totalAmount Int
   currency    Currency
+
+  // Code promotionnel utilisé et remise totale accordée (FCFA)
+  promoCodeId    String?
+  discountAmount Int      @default(0)
 
   paidAt      DateTime?
   // Date d'envoi du rappel "commande non terminée" (un seul rappel par commande)
@@ -385,13 +432,15 @@ model Order {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  buyer    User        @relation(fields: [buyerId], references: [id], onDelete: Restrict)
-  items    OrderItem[]
-  payments Payment[]
+  buyer     User        @relation(fields: [buyerId], references: [id], onDelete: Restrict)
+  promoCode PromoCode?  @relation(fields: [promoCodeId], references: [id], onDelete: SetNull)
+  items     OrderItem[]
+  payments  Payment[]
 
   @@index([buyerId])
   @@index([status])
   @@index([createdAt])
+  @@index([promoCodeId])
 }
 
 model OrderItem {
@@ -400,10 +449,16 @@ model OrderItem {
   productId         String
   sellerId          String
 
-  // Instantané du produit au moment de l'achat
+  // Instantané du produit au moment de l'achat.
+  // unitAmount = prix réellement payé pour cette ligne (remise déduite).
   productTitle      String
   unitAmount        Int
   currency          Currency
+
+  // Prix catalogue avant remise (null pour les commandes antérieures aux codes promo)
+  // et remise appliquée à cette ligne
+  listAmount        Int?
+  discountAmount    Int      @default(0)
 
   // Répartition calculée automatiquement à la vente
   commissionRateBps Int
@@ -630,46 +685,3 @@ model AdSpace {
   // Contrat publicitaire (prix payé par l'annonceur, en FCFA)
   priceAmountXof  Int?
   startsAt        DateTime?
-  endsAt          DateTime?
-
-  // Statistiques
-  impressions     Int         @default(0)
-  clicks          Int         @default(0)
-
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
-
-  @@index([placement, isActive, priority])
-  @@index([endsAt])
-}
-
-// ---------------------------------------------------------------------------
-// PARAMÈTRES GLOBAUX DE LA PLATEFORME (une seule ligne, id = "global")
-// ---------------------------------------------------------------------------
-
-model PlatformSetting {
-  id                       String   @id @default("global")
-
-  // Commission par défaut en points de base (1000 = 10 %)
-  defaultCommissionRateBps Int      @default(1000)
-
-  // Téléchargement sécurisé
-  downloadLinkTtlHours     Int      @default(72)
-  downloadMaxAttempts      Int      @default(5)
-
-  // Montant minimal pour demander un versement (en XOF)
-  minPayoutAmountXof       Int      @default(5000)
-
-  // Marge appliquée lors de la conversion FCFA vers une devise étrangère
-  // (en points de base, 200 = 2 %), pour absorber les variations de change
-  fxMarginBps              Int      @default(200)
-
-  // Tarif par défaut d'une conversation de support (en FCFA)
-  supportFeeXof            Int      @default(1000)
-
-  // Coordonnées affichées dans le pied de page
-  contactEmail             String?
-  whatsappNumber           String?
-
-  updatedAt                DateTime @updatedAt
-}
