@@ -1,106 +1,77 @@
-// src/app/panier/actions.ts
+// src/app/panier/promo-actions.ts
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
+import { loadCart } from "@/lib/cart";
 import {
-  MAX_CART_ITEMS,
-  clearCartCookie,
-  getCartIds,
-  writeCartIds,
-} from "@/lib/cart";
+  clearPromoCode,
+  evaluatePromo,
+  loadLineInputs,
+  normalizePromoCode,
+  setPromoCode,
+} from "@/lib/promo";
+import {
+  hashClientIp,
+  isLoginThrottled,
+  recordLoginFailure,
+} from "@/lib/login-throttle";
 
-export async function addToCartAction(formData: FormData): Promise<void> {
-  const productId = formData.get("productId");
+/** Applique un code promotionnel au panier (après vérification). */
+export async function applyPromoAction(formData: FormData): Promise<void> {
+  const raw = formData.get("code");
+  const code = typeof raw === "string" ? normalizePromoCode(raw) : null;
 
-  if (typeof productId !== "string" || productId.length === 0) {
-    redirect("/catalogue");
+  if (!code) {
+    redirect("/panier?promo=format");
   }
 
-  const product = await prisma.product.findUnique({
-    where: { id: productId },
-    select: {
-      id: true,
-      slug: true,
-      currency: true,
-      status: true,
-      seller: { select: { status: true, userId: true } },
-    },
-  });
+  // Limitation des essais : empêche de deviner des codes par tâtonnement.
+  const ipHash = hashClientIp((await headers()).get("x-forwarded-for"));
+  const throttleKey = `promo:${ipHash ?? "inconnu"}`;
 
-  if (
-    !product ||
-    product.status !== "PUBLISHED" ||
-    product.seller.status !== "ACTIVE"
-  ) {
-    redirect("/catalogue?erreur=produit-indisponible");
+  if (await isLoginThrottled(throttleKey, ipHash)) {
+    redirect("/panier?promo=limite");
+  }
+
+  const cart = await loadCart();
+  if (cart.items.length === 0 || !cart.currency) {
+    redirect("/panier");
   }
 
   const user = await getCurrentUser();
+  const lines = await loadLineInputs(cart);
 
-  if (user) {
-    // Un vendeur ne peut pas acheter son propre ouvrage.
-    if (product.seller.userId === user.id) {
-      redirect(`/catalogue/${product.slug}?erreur=votre-ouvrage`);
+  const result = await evaluatePromo({
+    code,
+    userId: user?.id ?? null,
+    currency: cart.currency,
+    lines,
+  });
+
+  if (!result.ok) {
+    if (result.reason === "invalide") {
+      await recordLoginFailure(throttleKey, ipHash);
     }
 
-    // Un ouvrage déjà acheté ne peut pas être racheté.
-    const alreadyBought = await prisma.orderItem.findFirst({
-      where: {
-        productId: product.id,
-        order: { buyerId: user.id, status: "PAID" },
-      },
-      select: { id: true },
-    });
-    if (alreadyBought) {
-      redirect(`/catalogue/${product.slug}?erreur=deja-achete`);
-    }
+    const minimum = result.minAmount ? `&min=${result.minAmount}` : "";
+    redirect(`/panier?promo=${result.reason}${minimum}`);
   }
 
-  const ids = await getCartIds();
+  await setPromoCode(code);
 
-  if (!ids.includes(product.id)) {
-    if (ids.length >= MAX_CART_ITEMS) {
-      redirect(`/catalogue/${product.slug}?erreur=panier-plein`);
-    }
-
-    if (ids.length > 0) {
-      const existing = await prisma.product.findFirst({
-        where: { id: { in: ids }, status: "PUBLISHED" },
-        select: { currency: true },
-      });
-      if (existing && existing.currency !== product.currency) {
-        redirect(`/catalogue/${product.slug}?erreur=devise-differente`);
-      }
-    }
-
-    await writeCartIds([...ids, product.id]);
-  }
-
-  revalidatePath("/", "layout");
-  redirect("/panier");
+  revalidatePath("/panier");
+  revalidatePath("/paiement");
+  redirect("/panier?promo=applique");
 }
 
-export async function removeFromCartAction(formData: FormData): Promise<void> {
-  const productId = formData.get("productId");
+/** Retire le code promotionnel du panier. */
+export async function removePromoAction(): Promise<void> {
+  await clearPromoCode();
 
-  if (typeof productId === "string" && productId.length > 0) {
-    const remaining = (await getCartIds()).filter((id) => id !== productId);
-    if (remaining.length === 0) {
-      await clearCartCookie();
-    } else {
-      await writeCartIds(remaining);
-    }
-  }
-
-  revalidatePath("/", "layout");
-  redirect("/panier");
+  revalidatePath("/panier");
+  revalidatePath("/paiement");
+  redirect("/panier?promo=retire");
 }
-
-export async function clearCartAction(): Promise<void> {
-  await clearCartCookie();
-  revalidatePath("/", "layout");
-  redirect("/panier");
-        }
