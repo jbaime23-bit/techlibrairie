@@ -73,6 +73,7 @@ export default async function AdminCommandesPage({
           OR: [
             { number: { contains: q, mode: "insensitive" } },
             { buyerEmail: { contains: q, mode: "insensitive" } },
+            { promoCode: { code: { contains: q.toUpperCase() } } },
           ],
         }
       : {}),
@@ -88,6 +89,7 @@ export default async function AdminCommandesPage({
     skip: (page - 1) * ADMIN_PAGE_SIZE,
     take: ADMIN_PAGE_SIZE,
     include: {
+      promoCode: { select: { code: true } },
       payments: {
         select: { provider: true, method: true, status: true },
         orderBy: { createdAt: "desc" },
@@ -114,8 +116,8 @@ export default async function AdminCommandesPage({
           name="q"
           type="search"
           defaultValue={q}
-          placeholder="Numéro ou email de l'acheteur"
-          className="input max-w-xs"
+          placeholder="Numéro, email de l'acheteur ou code promotionnel"
+          className="input max-w-sm"
         />
         {status && <input type="hidden" name="statut" value={status} />}
         <button type="submit" className="btn-primary">
@@ -154,7 +156,7 @@ export default async function AdminCommandesPage({
               <tr>
                 <th className="px-4 py-3 font-medium">Commande</th>
                 <th className="px-4 py-3 font-medium">Ouvrages</th>
-                <th className="px-4 py-3 font-medium">Total</th>
+                <th className="px-4 py-3 font-medium">Total payé</th>
                 <th className="px-4 py-3 font-medium">Paiement</th>
                 <th className="px-4 py-3 font-medium">Statut</th>
               </tr>
@@ -184,8 +186,16 @@ export default async function AdminCommandesPage({
                         </p>
                       ))}
                     </td>
-                    <td className="px-4 py-3 font-semibold">
-                      {formatPrice(order.totalAmount, order.currency)}
+                    <td className="px-4 py-3">
+                      <p className="font-semibold">
+                        {formatPrice(order.totalAmount, order.currency)}
+                      </p>
+                      {order.discountAmount > 0 && (
+                        <p className="text-xs text-green-700">
+                          {order.promoCode ? `Code ${order.promoCode.code}` : "Code supprimé"} : -{" "}
+                          {formatPrice(order.discountAmount, order.currency)}
+                        </p>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-xs">
                       {payment
