@@ -2,6 +2,7 @@
 // Construction des rapports comptables (ventes, remboursements, versements, support).
 // Les ventes sont placées à leur date de paiement ; les remboursements à leur date de remboursement.
 // Aucune donnée personnelle d'acheteur (email, téléphone) n'est exportée.
+// "Prix payé" = argent réellement encaissé pour la ligne (remise déduite) : c'est la colonne à additionner.
 
 import type { OrderStatus, PaymentMethod, PaymentProvider } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -91,17 +92,31 @@ async function loadSalesItems(range: DateRange, sellerId?: string) {
     select: {
       productTitle: true,
       unitAmount: true,
+      listAmount: true,
+      discountAmount: true,
       currency: true,
       commissionRateBps: true,
       commissionAmount: true,
       sellerAmount: true,
-      order: { select: { number: true, status: true, paidAt: true } },
+      order: {
+        select: {
+          number: true,
+          status: true,
+          paidAt: true,
+          promoCode: { select: { code: true } },
+        },
+      },
       seller: { select: { displayName: true } },
     },
   });
 
   ensureWithinLimit(items.length);
   return items;
+}
+
+/** Prix catalogue d'une ligne (égal au prix payé pour les ventes antérieures aux codes promotionnels). */
+function catalogueAmount(item: { unitAmount: number; listAmount: number | null; discountAmount: number }): number {
+  return item.listAmount ?? item.unitAmount + item.discountAmount;
 }
 
 async function adminSales(range: DateRange): Promise<ExportTable> {
@@ -115,8 +130,11 @@ async function adminSales(range: DateRange): Promise<ExportTable> {
       "Ouvrage",
       "Vendeur",
       "Devise",
-      "Prix",
-      "Taux de commission (%)",
+      "Prix catalogue",
+      "Remise",
+      "Prix payé",
+      "Code promotionnel",
+      "Taux de commission effectif (%)",
       "Commission de la boutique",
       "Part du vendeur",
       "Statut",
@@ -127,7 +145,10 @@ async function adminSales(range: DateRange): Promise<ExportTable> {
       item.productTitle,
       item.seller.displayName,
       item.currency,
+      moneyCell(catalogueAmount(item), item.currency),
+      moneyCell(item.discountAmount, item.currency),
       moneyCell(item.unitAmount, item.currency),
+      item.order.promoCode?.code ?? null,
       percentCell(item.commissionRateBps),
       moneyCell(item.commissionAmount, item.currency),
       moneyCell(item.sellerAmount, item.currency),
@@ -146,8 +167,10 @@ async function sellerSales(range: DateRange, sellerId: string): Promise<ExportTa
       "Commande",
       "Ouvrage",
       "Devise",
-      "Prix",
-      "Taux de commission (%)",
+      "Prix catalogue",
+      "Remise",
+      "Prix payé",
+      "Taux de commission effectif (%)",
       "Commission de la boutique",
       "Vos gains",
       "Statut",
@@ -157,6 +180,8 @@ async function sellerSales(range: DateRange, sellerId: string): Promise<ExportTa
       item.order.number,
       item.productTitle,
       item.currency,
+      moneyCell(catalogueAmount(item), item.currency),
+      moneyCell(item.discountAmount, item.currency),
       moneyCell(item.unitAmount, item.currency),
       percentCell(item.commissionRateBps),
       moneyCell(item.commissionAmount, item.currency),
@@ -419,4 +444,4 @@ export function buildSellerReport(
   sellerId: string
 ): Promise<ExportTable> {
   return type === "ventes" ? sellerSales(range, sellerId) : sellerPayouts(range, sellerId);
-  }
+      }
