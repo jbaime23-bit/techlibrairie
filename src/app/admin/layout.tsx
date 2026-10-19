@@ -18,6 +18,7 @@ const LINKS = [
   { href: "/admin/vendeurs", label: "Vendeurs" },
   { href: "/admin/produits", label: "Produits" },
   { href: "/admin/avis", label: "Avis" },
+  { href: "/admin/promotions", label: "Promotions" },
   { href: "/admin/commandes", label: "Commandes" },
   { href: "/admin/versements", label: "Versements" },
   { href: "/admin/support", label: "Support" },
@@ -49,4 +50,4 @@ export default async function AdminLayout({
       {children}
     </div>
   );
-            }
+}
