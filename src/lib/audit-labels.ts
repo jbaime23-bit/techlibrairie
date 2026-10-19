@@ -36,6 +36,9 @@ export const ACTION_LABELS: Record<string, string> = {
   "maintenance.nettoyage": "Maintenance : nettoyage réel",
   "contact.statut_modifie": "Statut d'un message de contact modifié",
   "export.comptable": "Export comptable téléchargé",
+  "rapport.mensuel_envoye": "Rapport mensuel envoyé (automatique)",
+  "rapport.mensuel_vide": "Rapport mensuel ignoré (mois sans activité)",
+  "rapport.envoye_manuel": "Rapport mensuel envoyé à un administrateur",
 };
 
 export function actionLabel(code: string): string {
@@ -52,6 +55,6 @@ export const AUDIT_CATEGORIES: { value: string; label: string; prefixes: string[
   {
     value: "configuration",
     label: "Configuration",
-    prefixes: ["parametres.", "taux.", "maintenance.", "contact.", "export.", "promo."],
+    prefixes: ["parametres.", "taux.", "maintenance.", "contact.", "export.", "promo.", "rapport."],
   },
 ];
