@@ -297,10 +297,10 @@ model Product {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  seller     SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-  category   Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  orderItems OrderItem[]
-  reviews    Review[]
+  seller      SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  category    Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  orderItems  OrderItem[]
+  reviews     Review[]
   favoritedBy Favorite[]
 
   @@index([sellerId])
@@ -308,7 +308,7 @@ model Product {
 }
 
 // ---------------------------------------------------------------------------
-// PUBLICITÉS (Modèle corrigé et rattaché)
+// PUBLICITÉS
 // ---------------------------------------------------------------------------
 
 model Ad {
@@ -325,7 +325,7 @@ model Ad {
 }
 
 // ---------------------------------------------------------------------------
-// RESTE DES MODÈLES STRUCTURELS (Stubs de relations requis pour User/Seller)
+// COMMANDES ET LOGISTIQUE TRANSACTIONNELLE
 // ---------------------------------------------------------------------------
 
 model Order {
@@ -359,6 +359,10 @@ model Payout {
   seller SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
 }
 
+// ---------------------------------------------------------------------------
+// SUPPORT ET MESSAGERIE CLIENT
+// ---------------------------------------------------------------------------
+
 model SupportThread {
   id         String       @id @default(cuid())
   ownerId    String
@@ -372,9 +376,11 @@ model SupportThread {
 }
 
 model Message {
-  id       String @id @default(cuid())
-  threadId String
-  senderId String
+  id        String   @id @default(cuid())
+  threadId  String
+  senderId  String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
 
   thread SupportThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
   sender User          @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
@@ -383,21 +389,14 @@ model Message {
 model ContactMessage {
   id        String        @id @default(cuid())
   userId    String?
+  name      String?
+  email     String
+  subject   String?
+  message   String        @db.Text
   status    ContactStatus @default(NEW)
   createdAt DateTime      @default(now())
 
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 }
 
-model Review {
-  id        String       @id @default(cuid())
-  userId    String
-  productId String
-  status    ReviewStatus @default(PUBLISHED)
-  createdAt DateTime     @default(now())
-
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-}
-
-model Favorite {
+// ---------------------------------------------------------------------------
