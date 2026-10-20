@@ -1,6 +1,5 @@
 // prisma/schema.prisma
 // TechLibrairie - Schéma de base de données (PostgreSQL / Neon)
-// La connexion est lue uniquement depuis la variable d'environnement DATABASE_URL.
 
 generator client {
   provider = "prisma-client-js"
@@ -132,7 +131,7 @@ enum PromoBearer {
 }
 
 // ---------------------------------------------------------------------------
-// UTILISATEURS & AUTHENTIFICATION (compatible Auth.js)
+// UTILISATEURS & AUTHENTIFICATION
 // ---------------------------------------------------------------------------
 
 model User {
@@ -236,7 +235,7 @@ model AuditLog {
 }
 
 // ---------------------------------------------------------------------------
-// VENDEURS : auteurs et éditeurs (profil public du vendeur)
+// VENDEURS
 // ---------------------------------------------------------------------------
 
 model SellerProfile {
@@ -261,7 +260,7 @@ model SellerProfile {
 }
 
 // ---------------------------------------------------------------------------
-// CATALOGUE : catégories et livres / guides PDF (Product = "Book")
+// CATALOGUE
 // ---------------------------------------------------------------------------
 
 model Category {
@@ -397,3 +396,10 @@ model ContactMessage {
   email     String
   message   String        @db.Text
   status    ContactStatus @default(NEW)
+  createdAt DateTime      @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+// ---------------------------------------------------------------------------
+// AVIS ET FAVORIS
