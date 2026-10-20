@@ -2,14 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-@theme {
-  --color-brand-200: #e0f2fe;
-  --color-brand-300: #7dd3fc;
-  --color-brand-500: #0ea5e9;
-  --color-brand-600: #0284c7;
-  --color-brand-700: #0369a1;
-}
-
 @layer base {
   html {
     @apply antialiased;
@@ -60,4 +52,4 @@
   .card {
     @apply rounded-xl border border-slate-200 bg-white p-6 shadow-sm;
   }
-    }
+}
