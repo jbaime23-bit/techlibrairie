@@ -332,4 +332,4 @@ export default async function AdminRapportsPage({
       </section>
     </div>
   );
-}
+      }
