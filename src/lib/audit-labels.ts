@@ -39,6 +39,8 @@ export const ACTION_LABELS: Record<string, string> = {
   "rapport.mensuel_envoye": "Rapport mensuel envoyé (automatique)",
   "rapport.mensuel_vide": "Rapport mensuel ignoré (mois sans activité)",
   "rapport.envoye_manuel": "Rapport mensuel envoyé à un administrateur",
+  "alerte.envoyee": "Alertes envoyées par email (automatique)",
+  "alerte.envoyee_manuel": "Alertes envoyées à un administrateur",
 };
 
 export function actionLabel(code: string): string {
@@ -55,6 +57,15 @@ export const AUDIT_CATEGORIES: { value: string; label: string; prefixes: string[
   {
     value: "configuration",
     label: "Configuration",
-    prefixes: ["parametres.", "taux.", "maintenance.", "contact.", "export.", "promo.", "rapport."],
+    prefixes: [
+      "parametres.",
+      "taux.",
+      "maintenance.",
+      "contact.",
+      "export.",
+      "promo.",
+      "rapport.",
+      "alerte.",
+    ],
   },
 ];
