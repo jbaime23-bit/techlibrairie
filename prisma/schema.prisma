@@ -121,19 +121,13 @@ enum ReviewStatus {
   HIDDEN
 }
 
-// Type de remise d'un code promotionnel
 enum PromoType {
-  // Pourcentage du total du panier (value = 1 à 90)
   PERCENT
-  // Montant fixe en FCFA (value = multiple de 5)
   FIXED
 }
 
-// Qui supporte la remise d'un code promotionnel
 enum PromoBearer {
-  // Partagée entre la boutique et les vendeurs, proportionnellement
   PROPORTIONAL
-  // Supportée par la boutique seule : le vendeur garde son gain normal
   SHOP
 }
 
@@ -142,30 +136,24 @@ enum PromoBearer {
 // ---------------------------------------------------------------------------
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  emailVerified DateTime?
-  passwordHash  String?
-  // Date du dernier changement de mot de passe : les sessions ouvertes avant cette date sont refusées
-  passwordChangedAt DateTime?
-  image         String?
-  phone         String?
-  role          Role      @default(BUYER)
-  isActive      Boolean   @default(true)
-  // Rappel par email d'une commande non terminée (l'utilisateur peut le désactiver)
-  reminderEmails Boolean  @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                 String    @id @default(cuid())
+  name               String?
+  email              String    @unique
+  emailVerified      DateTime?
+  passwordHash       String?
+  passwordChangedAt  DateTime?
+  image              String?
+  phone              String?
+  role               Role      @default(BUYER)
+  isActive           Boolean   @default(true)
+  reminderEmails     Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
-  // Double authentification (administrateurs) : la clé est CHIFFRÉE, jamais en clair.
   totpSecretEnc      String?   @db.Text
-  // Clé générée mais pas encore confirmée par un premier code valide
   totpPendingEnc     String?   @db.Text
   totpEnabledAt      DateTime?
-  // Dernier créneau de 30 secondes accepté (empêche de réutiliser un même code)
   totpLastStep       Int?
-  // Empreintes (HMAC) des codes de secours encore utilisables
   totpRecoveryHashes String[]  @default([])
 
   accounts        Account[]
@@ -221,11 +209,9 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-// Échecs de connexion récents (limitation des tentatives, voir lib/login-throttle.ts)
 model LoginAttempt {
   id        String   @id @default(cuid())
   email     String
-  // Empreinte de l'adresse IP (jamais l'IP en clair)
   ipHash    String?
   createdAt DateTime @default(now())
 
@@ -233,18 +219,14 @@ model LoginAttempt {
   @@index([ipHash, createdAt])
 }
 
-// Journal des actions d'administration (aucune donnée secrète n'y est enregistrée).
-// Pas de relation avec User : l'adresse email est conservée telle quelle pour l'historique.
 model AuditLog {
   id         String   @id @default(cuid())
   adminId    String?
   adminEmail String
-  // Code d'action, ex. "commande.remboursee"
   action     String
   targetType String?
   targetId   String?
   details    Json?
-  // Empreinte de l'adresse IP (jamais l'IP en clair)
   ipHash     String?
   createdAt  DateTime @default(now())
 
@@ -265,16 +247,10 @@ model SellerProfile {
   bio                  String?      @db.Text
   avatarUrl            String?
   status               SellerStatus @default(ACTIVE)
-
-  // Taux de commission spécifique à ce vendeur (en points de base, 1000 = 10 %).
-  // Si null, le taux global de PlatformSetting s'applique.
   commissionRateBps    Int?
-
-  // Coordonnées de versement des revenus (Orange Money, Moov Money, banque)
   payoutMobileNumber   String?
   payoutMobileOperator String?
   payoutBankDetails    String?      @db.Text
-
   createdAt            DateTime     @default(now())
   updatedAt            DateTime     @updatedAt
 
@@ -307,382 +283,117 @@ model Product {
   description   String        @db.Text
   language      String        @default("fr")
   pageCount     Int?
-
-  // Règle métier : les prix sont fixés en FCFA (XOF), sans taxe.
-  // XOF : francs entiers (multiples de 5 pour Mobile Money).
   priceAmount   Int
   currency      Currency      @default(XOF)
-
   coverImageUrl String?
-
-  // Fichier PDF stocké en accès PRIVÉ. Jamais exposé publiquement.
   pdfStorageKey String
   pdfFileName   String
   pdfSizeBytes  Int
-
-  // Publication automatique dès la soumission par le vendeur
   status        ProductStatus @default(PUBLISHED)
   publishedAt   DateTime      @default(now())
-
   salesCount    Int           @default(0)
-
-  // Note moyenne et nombre d'avis publiés (recalculés à chaque changement d'avis)
   ratingAverage Float         @default(0)
   ratingCount   Int           @default(0)
-
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  seller    SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-  category  Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  items     OrderItem[]
-  reviews   Review[]
-  favorites Favorite[]
+  seller      SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  category    Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  orderItems  OrderItem[]
+  reviews     Review[]
+  favoritedBy Favorite[]
 
   @@index([sellerId])
   @@index([categoryId])
-  @@index([status, publishedAt])
-}
-
-// Avis des acheteurs sur un ouvrage (un seul par acheteur et par ouvrage)
-model Review {
-  id        String       @id @default(cuid())
-  productId String
-  userId    String
-  // Note de 1 à 5
-  rating    Int
-  comment   String?      @db.Text
-  status    ReviewStatus @default(PUBLISHED)
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
-
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([productId, userId])
-  @@index([productId, status, createdAt])
-  @@index([userId])
-  @@index([status, createdAt])
-}
-
-// Ouvrages mis de côté par un utilisateur (liste de favoris)
-model Favorite {
-  id        String   @id @default(cuid())
-  userId    String
-  productId String
-  createdAt DateTime @default(now())
-
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, productId])
-  @@index([userId, createdAt])
-  @@index([productId])
-}
-
-// Codes promotionnels créés par l'administration (paniers en FCFA uniquement)
-model PromoCode {
-  id                String      @id @default(cuid())
-  // Code en MAJUSCULES, ex. BIENVENUE10
-  code              String      @unique
-  description       String?
-  type              PromoType
-  // PERCENT : 1 à 90 (%) ; FIXED : montant en FCFA (multiple de 5)
-  value             Int
-  bearer            PromoBearer @default(PROPORTIONAL)
-  // Montant minimum d'achat (FCFA, avant remise)
-  minOrderAmountXof Int         @default(0)
-  startsAt          DateTime?
-  endsAt            DateTime?
-  // Nombre total d'utilisations autorisées (null = illimité)
-  maxRedemptions    Int?
-  // Nombre d'utilisations par acheteur
-  maxPerUser        Int         @default(1)
-  isActive          Boolean     @default(true)
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
-
-  orders Order[]
-
-  @@index([isActive, endsAt])
 }
 
 // ---------------------------------------------------------------------------
-// COMMANDES (aucune taxe sur les produits numériques)
+// PUBLICITÉS
+// ---------------------------------------------------------------------------
+
+model Ad {
+  id              String      @id @default(cuid())
+  placement       AdPlacement
+  kind            AdKind
+  isActive        Boolean     @default(true)
+  priority        Int         @default(0)
+  advertiserName  String?
+  advertiserEmail String?
+  advertiserPhone String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// COMMANDES ET LOGISTIQUE TRANSACTIONNELLE
 // ---------------------------------------------------------------------------
 
 model Order {
-  id          String      @id @default(cuid())
-  number      String      @unique
-  buyerId     String
-  buyerEmail  String
-  status      OrderStatus @default(PENDING)
+  id        String      @id @default(cuid())
+  userId    String
+  status    OrderStatus @default(PENDING)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
 
-  // Montant réellement à payer = somme des lignes (en FCFA), remise comprise. Aucune taxe ajoutée.
-  totalAmount Int
-  currency    Currency
-
-  // Code promotionnel utilisé et remise totale accordée (FCFA)
-  promoCodeId    String?
-  discountAmount Int      @default(0)
-
-  paidAt      DateTime?
-  // Date d'envoi du rappel "commande non terminée" (un seul rappel par commande)
-  reminderSentAt DateTime?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-
-  buyer     User        @relation(fields: [buyerId], references: [id], onDelete: Restrict)
-  promoCode PromoCode?  @relation(fields: [promoCodeId], references: [id], onDelete: SetNull)
-  items     OrderItem[]
-  payments  Payment[]
-
-  @@index([buyerId])
-  @@index([status])
-  @@index([createdAt])
-  @@index([promoCodeId])
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items OrderItem[]
 }
 
 model OrderItem {
-  id                String   @id @default(cuid())
-  orderId           String
-  productId         String
-  sellerId          String
+  id              String @id @default(cuid())
+  orderId         String
+  productId       String
+  sellerProfileId String
 
-  // Instantané du produit au moment de l'achat.
-  // unitAmount = prix réellement payé pour cette ligne (remise déduite).
-  productTitle      String
-  unitAmount        Int
-  currency          Currency
-
-  // Prix catalogue avant remise (null pour les commandes antérieures aux codes promo)
-  // et remise appliquée à cette ligne
-  listAmount        Int?
-  discountAmount    Int      @default(0)
-
-  // Répartition calculée automatiquement à la vente
-  commissionRateBps Int
-  commissionAmount  Int
-  sellerAmount      Int
-
-  createdAt         DateTime @default(now())
-
-  order     Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product   Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
-  seller    SellerProfile   @relation(fields: [sellerId], references: [id], onDelete: Restrict)
-  downloads DownloadToken[]
-
-  @@unique([orderId, productId])
-  @@index([sellerId])
-  @@index([productId])
+  order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product       Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sellerProfile SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
 }
 
 // ---------------------------------------------------------------------------
-// PAIEMENTS (CinetPay : Orange Money / Moov Money / cartes ; Stripe : cartes bancaires)
-// ---------------------------------------------------------------------------
-
-model Payment {
-  id                String          @id @default(cuid())
-  orderId           String
-  provider          PaymentProvider
-  method            PaymentMethod
-  status            PaymentStatus   @default(PENDING)
-
-  // Montant réellement débité, dans la devise du paiement
-  // (XOF pour le Mobile Money ; EUR/USD en centimes pour la carte convertie).
-  amount            Int
-  currency          Currency
-
-  // Conversion : montant de référence en FCFA et taux appliqué
-  // (nombre de FCFA pour 1 unité de la devise de paiement). Null si paiement en FCFA.
-  baseAmountXof     Int?
-  exchangeRate      Decimal?        @db.Decimal(18, 6)
-
-  // Identifiant de la transaction chez le prestataire
-  // (Stripe : session ; CinetPay : transaction_id)
-  providerReference String          @unique
-  providerPayload   Json?
-
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
-
-  @@index([orderId])
-  @@index([status])
-}
-
-// Taux de change pour convertir les prix en FCFA vers les devises internationales.
-// L'historique est conservé ; le taux actif le plus récent est utilisé.
-model ExchangeRate {
-  id          String   @id @default(cuid())
-  currency    Currency
-  // Nombre de FCFA pour 1 unité de la devise (ex. EUR : 655.957000)
-  xofPerUnit  Decimal  @db.Decimal(18, 6)
-  source      String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-
-  @@index([currency, isActive, createdAt])
-}
-
-// ---------------------------------------------------------------------------
-// TÉLÉCHARGEMENT SÉCURISÉ
-// ---------------------------------------------------------------------------
-
-model DownloadToken {
-  id            String    @id @default(cuid())
-  orderItemId   String
-  token         String    @unique
-  expiresAt     DateTime
-  maxDownloads  Int       @default(5)
-  downloadCount Int       @default(0)
-  lastUsedAt    DateTime?
-  createdAt     DateTime  @default(now())
-
-  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
-
-  @@index([orderItemId])
-  @@index([expiresAt])
-}
-
-// ---------------------------------------------------------------------------
-// VERSEMENTS AUX VENDEURS
+// TRANSACTIONS ET PAIEMENTS
 // ---------------------------------------------------------------------------
 
 model Payout {
-  id          String       @id @default(cuid())
-  sellerId    String
-  amount      Int
-  currency    Currency
-  status      PayoutStatus @default(PENDING)
-  method      String?
-  reference   String?
-  note        String?
-  requestedAt DateTime     @default(now())
-  paidAt      DateTime?
+  id              String       @id @default(cuid())
+  sellerProfileId String
+  status          PayoutStatus @default(PENDING)
+  createdAt       DateTime     @default(now())
 
-  seller SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Restrict)
-
-  @@index([sellerId])
-  @@index([status])
+  seller SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
 }
 
 // ---------------------------------------------------------------------------
-// MESSAGERIE MONÉTISÉE : support payant en FCFA avec la plateforme
+// SUPPORT ET MESSAGERIE CLIENT
 // ---------------------------------------------------------------------------
 
 model SupportThread {
-  id            String          @id @default(cuid())
-  number        String          @unique
-  userId        String
-  subject       String
-  category      SupportCategory @default(GENERAL)
-  status        ThreadStatus    @default(AWAITING_PAYMENT)
+  id         String          @id @default(cuid())
+  ownerId    String
+  assigneeId String?
+  status     ThreadStatus    @default(OPEN)
+  createdAt  DateTime        @default(now())
 
-  // Tarif du support en FCFA, figé à la création de la conversation
-  feeAmountXof  Int
-  paidAt        DateTime?
-
-  // Membre de l'équipe (administrateur) qui répond
-  assignedToId  String?
-
-  lastMessageAt DateTime        @default(now())
-  closedAt      DateTime?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-
-  user       User             @relation("ThreadOwner", fields: [userId], references: [id], onDelete: Cascade)
-  assignedTo User?            @relation("ThreadAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
-  messages   Message[]
-  payments   SupportPayment[]
-
-  @@index([userId])
-  @@index([assignedToId])
-  @@index([status, lastMessageAt])
+  owner    User      @relation("ThreadOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  assignee User?     @relation("ThreadAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  messages Message[]
 }
 
 model Message {
-  id        String    @id @default(cuid())
-  threadId  String
-  senderId  String
-  // true si le message vient de l'équipe de la plateforme
-  isStaff   Boolean   @default(false)
-  body      String    @db.Text
-  readAt    DateTime?
-  createdAt DateTime  @default(now())
+  id       String   @id @default(cuid())
+  threadId String
+  senderId String
+  content  String   @db.Text
+  sentAt   DateTime @default(now())
 
   thread SupportThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  sender User          @relation("MessageSender", fields: [senderId], references: [id], onDelete: Restrict)
-
-  @@index([threadId, createdAt])
-  @@index([senderId])
+  sender User          @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
 }
 
-// Paiement du support (mêmes passerelles que les commandes)
-model SupportPayment {
-  id                String          @id @default(cuid())
-  threadId          String
-  provider          PaymentProvider
-  method            PaymentMethod
-  status            PaymentStatus   @default(PENDING)
-  amount            Int
-  currency          Currency
-  baseAmountXof     Int
-  exchangeRate      Decimal?        @db.Decimal(18, 6)
-  providerReference String          @unique
-  providerPayload   Json?
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-
-  thread SupportThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
-
-  @@index([threadId])
-  @@index([status])
-}
-
-// Messages envoyés depuis le formulaire de contact du pied de page (gratuit, public)
 model ContactMessage {
   id        String        @id @default(cuid())
   userId    String?
   name      String
   email     String
-  phone     String?
-  subject   String
   message   String        @db.Text
   status    ContactStatus @default(NEW)
-  // Empreinte de l'adresse IP (jamais l'IP en clair) pour limiter le spam
-  ipHash    String?
-  createdAt DateTime      @default(now())
-
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  @@index([status, createdAt])
-  @@index([ipHash, createdAt])
-}
-
-// ---------------------------------------------------------------------------
-// ESPACES PUBLICITAIRES : bannières locales et emplacements Adsterra
-// ---------------------------------------------------------------------------
-
-model AdSpace {
-  id              String      @id @default(cuid())
-  name            String
-  placement       AdPlacement
-  kind            AdKind
-  isActive        Boolean     @default(true)
-  // Plus la valeur est élevée, plus l'annonce est prioritaire dans l'emplacement
-  priority        Int         @default(0)
-
-  // Bannière locale (entreprise tierce)
-  advertiserName  String?
-  advertiserEmail String?
-  advertiserPhone String?
-  imageUrl        String?
-  targetUrl       String?
-  altText         String?
-
-  // Contrat publicitaire (prix payé par l'annonceur, en FCFA)
-  priceAmountXof  Int?
-  startsAt        DateTime?
-  
