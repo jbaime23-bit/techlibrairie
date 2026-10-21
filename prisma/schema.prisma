@@ -682,7 +682,49 @@ model AdSpace {
   targetUrl       String?
   altText         String?
 
-  // Contrat publicitaire (prix payé par l'annonceur, en FCFA)
+    // Contrat publicitaire (prix payé par l'annonceur, en FCFA)
   priceAmountXof  Int?
   startsAt        DateTime?
-  
+  endsAt          DateTime?
+
+  // Statistiques
+  impressions     Int         @default(0)
+  clicks          Int         @default(0)
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([placement, isActive, priority])
+  @@index([endsAt])
+}
+
+// ---------------------------------------------------------------------------
+// PARAMÈTRES GLOBAUX DE LA PLATEFORME (une seule ligne, id = "global")
+// ---------------------------------------------------------------------------
+
+model PlatformSetting {
+  id                       String   @id @default("global")
+
+  // Commission par défaut en points de base (1000 = 10 %)
+  defaultCommissionRateBps Int      @default(1000)
+
+  // Téléchargement sécurisé
+  downloadLinkTtlHours     Int      @default(72)
+  downloadMaxAttempts      Int      @default(5)
+
+  // Montant minimal pour demander un versement (en XOF)
+  minPayoutAmountXof       Int      @default(5000)
+
+  // Marge appliquée lors de la conversion FCFA vers une devise étrangère
+  // (en points de base, 200 = 2 %), pour absorber les variations de change
+  fxMarginBps              Int      @default(200)
+
+  // Tarif par défaut d'une conversation de support (en FCFA)
+  supportFeeXof            Int      @default(1000)
+
+  // Coordonnées affichées dans le pied de page
+  contactEmail             String?
+  whatsappNumber           String?
+
+  updatedAt                DateTime @updatedAt
+}
