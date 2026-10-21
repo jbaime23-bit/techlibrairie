@@ -377,22 +377,28 @@ model Review {
   product    Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([userId, productId])
-  @@index([productId])
+  model Message {
+  id       String        @id @default(cuid())
+  threadId String
+  senderId String
+  content  String        @db.Text
+  sentAt   DateTime      @default(now())
+  thread   SupportThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender   User          @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
 }
 
-model Favorite {
-  id        String   @id @default(cuid())
-  userId    String
-  productId String
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, productId])
+model ContactMessage {
+  id        String        @id @default(cuid())
+  userId    String?
+  name      String
+  email     String
+  subject   String
+  message   String        @db.Text
+  status    ContactStatus @default(NEW)
+  createdAt DateTime      @default(now())
+  user      User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
 }
 
-model Payment {
-  id            String          @id @default(cuid())
   orderId       String          @unique
   provider      PaymentProvider
   method        PaymentMethod
