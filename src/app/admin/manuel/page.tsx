@@ -36,6 +36,14 @@ function Incident({ title, children }: { title: string; children: React.ReactNod
   );
 }
 
+function A({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link href={href} className="font-semibold text-brand-700 hover:underline">
+      {children}
+    </Link>
+  );
+}
+
 export default async function AdminManuelPage() {
   await requireAdmin("/admin/manuel");
 
@@ -44,20 +52,39 @@ export default async function AdminManuelPage() {
       <div>
         <h1 className="text-2xl font-bold">Manuel d&apos;exploitation</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Les gestes à faire chaque jour, chaque semaine et chaque mois, et la conduite à tenir en
-          cas de problème. Les pages citées se trouvent dans le menu de l&apos;administration.
+          Les gestes à faire chaque jour, chaque semaine et chaque mois, les procédures courantes et
+          la conduite à tenir en cas de problème. Les pages citées se trouvent dans le menu de
+          l&apos;administration.
         </p>
       </div>
+
+      <Section title="Ce qui tourne tout seul">
+        <Bullets>
+          <li>
+            <strong>Chaque nuit (3 h UTC)</strong> : la maintenance annule les commandes abandonnées
+            (après revérification du paiement) et supprime les données périmées.
+          </li>
+          <li>
+            <strong>Chaque jour (16 h UTC)</strong> : rappel unique des commandes non terminées,
+            envoi du rapport mensuel (une fois par mois, en début de mois) et envoi de l&apos;email
+            d&apos;alertes (seulement s&apos;il y a quelque chose à traiter).
+          </li>
+          <li>
+            Leur bon fonctionnement se contrôle sur la page <A href="/admin/sante">Santé du site</A>,
+            section « Tâches planifiées et alertes ».
+          </li>
+        </Bullets>
+      </Section>
 
       <Section title="Chaque jour (10 minutes)">
         <Steps>
           <li>
-            <strong>Tableau de bord</strong> : commandes payées, messages à traiter, demandes de
-            versement.
+            <strong>Tableau de bord</strong> et <A href="/admin/alertes">Alertes</A> : rien ne doit
+            traîner (versements, support, messages).
           </li>
           <li>
-            <strong>Commandes</strong> : filtre « En attente ». Une commande en attente depuis plus d&apos;une
-            heure est anormale : voir « Paiement validé mais pas de téléchargement » plus bas.
+            <strong>Commandes</strong> : filtre « En attente ». Une commande en attente depuis plus
+            d&apos;une heure est anormale : voir « Paiement validé mais pas de téléchargement » plus bas.
           </li>
           <li>
             <strong>Support</strong> (onglet « À traiter ») : répondez, en commençant par les plus
@@ -70,45 +97,52 @@ export default async function AdminManuelPage() {
           <li>
             <strong>Versements</strong> : traitez les demandes en attente (procédure plus bas).
           </li>
+          <li>
+            <A href="/admin/avis">Avis</A> : parcourez les nouveaux avis et masquez ceux qui sont
+            injurieux ou trompeurs.
+          </li>
         </Steps>
       </Section>
 
       <Section title="Chaque semaine (20 minutes)">
         <Steps>
           <li>
-            <Link href="/admin/sante" className="font-semibold text-brand-700 hover:underline">
-              Santé du site
-            </Link>{" "}
-            : aucune alerte rouge. Lancez aussi les tests de connexion.
+            <A href="/admin/sante">Santé du site</A> : aucune alerte rouge. Lancez aussi les tests de
+            connexion.
           </li>
           <li>
-            <Link href="/admin/journal" className="font-semibold text-brand-700 hover:underline">
-              Journal
-            </Link>{" "}
-            : repérez toute connexion ou action que vous ne reconnaissez pas (catégorie « Connexions
-            et sécurité »).
+            <A href="/admin/journal">Journal</A> : repérez toute connexion ou action que vous ne
+            reconnaissez pas (catégorie « Connexions et sécurité »).
           </li>
           <li>
             <strong>Rapprochement des paiements</strong> : comparez les ventes du tableau de bord avec
             les relevés CinetPay (et Stripe le cas échéant). Les totaux doivent correspondre.
           </li>
           <li>
-            <strong>Quotas</strong> : emails Resend (100 par jour en gratuit), espace Neon, factures Vercel.
+            <strong>Quotas</strong> : emails Resend (100 par jour en gratuit, non surveillés par le
+            site), espace Neon, factures Vercel.
           </li>
           <li>
             <strong>Journaux Vercel</strong> (menu Logs) : cherchez les erreurs répétées.
           </li>
           <li>
-            <Link href="/admin/taux" className="font-semibold text-brand-700 hover:underline">
-              Taux de change
-            </Link>{" "}
-            : si vous acceptez la carte via Stripe en dollars, vérifiez que le taux a moins de 60 jours.
+            <A href="/admin/promotions">Promotions</A> : désactivez les codes périmés ou qui ne servent
+            plus.
+          </li>
+          <li>
+            <A href="/admin/taux">Taux de change</A> : si vous acceptez la carte via Stripe en dollars,
+            vérifiez que le taux a moins de 60 jours.
           </li>
         </Steps>
       </Section>
 
       <Section title="Chaque mois (30 minutes)">
         <Steps>
+          <li>
+            <A href="/admin/rapports">Rapport mensuel</A> : vous le recevez par email en début de mois.
+            Lisez-le, puis téléchargez l&apos;<A href="/admin/export">export comptable</A> du mois écoulé
+            pour votre comptable (colonne « Prix payé » = argent réellement encaissé).
+          </li>
           <li>
             <strong>Abonnements</strong> : Vercel Pro, Neon, nom de domaine, Resend. Vérifiez que la
             carte de paiement (par exemple votre carte virtuelle) est alimentée : un abonnement
@@ -120,23 +154,16 @@ export default async function AdminManuelPage() {
             mises à jour (versions « ^ » du fichier package.json).
           </li>
           <li>
-            <Link href="/admin/securite" className="font-semibold text-brand-700 hover:underline">
-              Sécurité du compte
-            </Link>{" "}
-            : vérifiez qu&apos;il vous reste au moins 3 codes de secours, sinon régénérez-les.
+            <A href="/admin/securite">Sécurité du compte</A> : vérifiez qu&apos;il vous reste au moins 3
+            codes de secours, sinon régénérez-les.
           </li>
           <li>
-            <Link href="/admin/administrateurs" className="font-semibold text-brand-700 hover:underline">
-              Administrateurs
-            </Link>{" "}
-            : la liste ne doit contenir que des personnes qui en ont encore besoin, toutes avec la
-            double authentification activée.
+            <A href="/admin/administrateurs">Administrateurs</A> : la liste ne doit contenir que des
+            personnes qui en ont encore besoin, toutes avec la double authentification activée.
           </li>
           <li>
-            <Link href="/admin/maintenance" className="font-semibold text-brand-700 hover:underline">
-              Maintenance
-            </Link>{" "}
-            : lancez une analyse à blanc pour contrôler que rien d&apos;anormal ne s&apos;accumule.
+            <A href="/admin/maintenance">Maintenance</A> : lancez une analyse à blanc pour contrôler que
+            rien d&apos;anormal ne s&apos;accumule.
           </li>
           <li>
             <strong>Sauvegarde</strong> : vérifiez dans Neon la durée de restauration disponible et la
@@ -153,8 +180,7 @@ export default async function AdminManuelPage() {
         <Incident title="Traiter une demande de versement vendeur">
           <Steps>
             <li>
-              Ouvrez <Link href="/admin/versements" className="font-semibold text-brand-700 hover:underline">Versements</Link>{" "}
-              et cliquez sur « Prendre en charge ».
+              Ouvrez <A href="/admin/versements">Versements</A> et cliquez sur « Prendre en charge ».
             </li>
             <li>
               Dans votre application Orange Money ou Moov Money, envoyez le montant exact au numéro
@@ -179,21 +205,52 @@ export default async function AdminManuelPage() {
               effectuez-le d&apos;abord de votre côté, puis saisissez sa référence.
             </li>
             <li>
-              Les liens de téléchargement sont désactivés et les gains du vendeur retirés. L&apos;acheteur et
-              le vendeur sont prévenus par email.
+              Le remboursement porte sur le montant <strong>réellement payé</strong> : si un code
+              promotionnel a été utilisé, c&apos;est le prix après remise. Les liens de téléchargement sont
+              désactivés et les gains du vendeur retirés. L&apos;acheteur et le vendeur sont prévenus par
+              email.
             </li>
           </Steps>
+        </Incident>
+
+        <Incident title="Créer un code promotionnel">
+          <Steps>
+            <li>
+              Ouvrez <A href="/admin/promotions">Promotions</A>, « Créer un code » : le code (lettres,
+              chiffres, tirets), le type (pourcentage ou montant en FCFA), les limites (montant minimum,
+              dates, nombre d&apos;utilisations).
+            </li>
+            <li>
+              Choisissez <strong>qui supporte la remise</strong> : « Partagée » (la commission est
+              calculée sur le prix remisé : le vendeur gagne un peu moins) ou « Boutique seule » (le
+              vendeur garde son gain normal ; la remise est alors plafonnée à votre commission).
+            </li>
+            <li>
+              Testez-le avec un achat de test avant de le communiquer. Un code déjà utilisé ne se
+              supprime plus : désactivez-le.
+            </li>
+          </Steps>
+        </Incident>
+
+        <Incident title="Modérer un avis">
+          <Bullets>
+            <li>
+              <A href="/admin/avis">Avis</A> : « Masquer » retire l&apos;avis de la page publique (son
+              auteur ne peut plus le modifier) et recalcule la note ; « Supprimer » est définitif.
+            </li>
+            <li>Les avis sont publiés immédiatement : la modération se fait après coup.</li>
+          </Bullets>
         </Incident>
 
         <Incident title="Suspendre un ouvrage ou un vendeur (contenu illicite, plainte)">
           <Bullets>
             <li>
-              Un ouvrage : <Link href="/admin/produits" className="font-semibold text-brand-700 hover:underline">Produits</Link>,
-              bouton « Suspendre ». Il disparaît du catalogue et le vendeur ne peut pas le remettre en vente.
+              Un ouvrage : <A href="/admin/produits">Produits</A>, bouton « Suspendre ». Il disparaît du
+              catalogue et le vendeur ne peut pas le remettre en vente.
             </li>
             <li>
-              Un vendeur : <Link href="/admin/vendeurs" className="font-semibold text-brand-700 hover:underline">Vendeurs</Link>,
-              bouton « Suspendre » (tous ses ouvrages quittent le catalogue).
+              Un vendeur : <A href="/admin/vendeurs">Vendeurs</A>, bouton « Suspendre » (tous ses
+              ouvrages quittent le catalogue).
             </li>
             <li>Un compte entier : Utilisateurs, bouton « Désactiver » (sa session est coupée).</li>
             <li>Conservez la plainte reçue et notez la décision prise.</li>
@@ -217,10 +274,27 @@ export default async function AdminManuelPage() {
           </p>
         </Incident>
 
+        <Incident title="Préparer les chiffres pour le comptable">
+          <Steps>
+            <li>
+              Ouvrez <A href="/admin/export">Export comptable</A>, choisissez le mois et le rapport « Ventes
+              et commissions » (puis « Remboursements », « Versements » et « Support payant »).
+            </li>
+            <li>
+              Dans Excel, additionnez la colonne <strong>« Prix payé »</strong> après avoir filtré les
+              lignes « Remboursée » (ou déduisez le rapport des remboursements).
+            </li>
+            <li>
+              Pour une vue d&apos;ensemble, le <A href="/admin/rapports">rapport mensuel</A> résume le mois ;
+              il ne remplace pas l&apos;export.
+            </li>
+          </Steps>
+        </Incident>
+
         <Incident title="Ajouter ou retirer un administrateur">
           <Steps>
             <li>
-              Ouvrez <Link href="/admin/administrateurs" className="font-semibold text-brand-700 hover:underline">Administrateurs</Link>.
+              Ouvrez <A href="/admin/administrateurs">Administrateurs</A>.
             </li>
             <li>
               Pour <strong>nommer</strong> : la personne doit déjà avoir un compte, actif, avec
@@ -249,13 +323,13 @@ export default async function AdminManuelPage() {
               s&apos;il reste de l&apos;argent à lui verser ou un versement en cours.
             </li>
             <li>
-              Ouvrez <Link href="/admin/effacement" className="font-semibold text-brand-700 hover:underline">Effacement d&apos;un compte</Link>,
-              saisissez l&apos;email, votre mot de passe et votre code, puis le mot EFFACER.
+              Ouvrez <A href="/admin/effacement">Effacement d&apos;un compte</A>, saisissez l&apos;email, votre
+              mot de passe et votre code, puis le mot EFFACER.
             </li>
             <li>
-              Les données personnelles sont effacées ; les commandes sont conservées sans lien avec une
-              adresse email. L&apos;opération est irréversible et figure dans le Journal. Répondez à la
-              personne pour confirmer.
+              Les données personnelles sont effacées (avis et favoris compris) ; les commandes sont
+              conservées sans lien avec une adresse email. L&apos;opération est irréversible et figure
+              dans le Journal. Répondez à la personne pour confirmer.
             </li>
           </Steps>
         </Incident>
@@ -275,6 +349,17 @@ export default async function AdminManuelPage() {
           </Steps>
         </Incident>
 
+        <Incident title="Le site s'affiche sans design (texte brut)">
+          <Bullets>
+            <li>
+              Vérifiez que les fichiers <code>postcss.config.mjs</code> et <code>tailwind.config.ts</code>{" "}
+              sont à la racine du dépôt GitHub, et <code>globals.css</code> dans <code>src/app/</code>.
+            </li>
+            <li>Rechargez le site en navigation privée : l&apos;ancien CSS peut rester en mémoire.</li>
+            <li>Consultez les Build Logs du dernier déploiement dans Vercel.</li>
+          </Bullets>
+        </Incident>
+
         <Incident title="Paiement validé mais l'acheteur n'a pas son téléchargement">
           <Steps>
             <li>Trouvez la commande (Commandes, recherche par email ou numéro) et regardez son statut.</li>
@@ -290,6 +375,25 @@ export default async function AdminManuelPage() {
             <li>
               Si l&apos;acheteur n&apos;a pas reçu l&apos;email, il retrouve ses liens dans Mon espace, Mes
               commandes, et peut générer un nouveau lien.
+            </li>
+          </Steps>
+        </Incident>
+
+        <Incident title="Un client dit que son code promotionnel est refusé">
+          <Steps>
+            <li>
+              Ouvrez <A href="/admin/promotions">Promotions</A> et retrouvez le code : est-il actif, dans ses
+              dates, sous sa limite d&apos;utilisations ?
+            </li>
+            <li>
+              Causes fréquentes : montant minimum d&apos;achat non atteint, code déjà utilisé par ce
+              compte (1 fois par acheteur par défaut), ouvrages en euros ou en dollars (les codes ne
+              s&apos;appliquent qu&apos;au FCFA), ou règle « Boutique seule » dont la remise est plafonnée à la
+              commission du panier.
+            </li>
+            <li>
+              Trop d&apos;essais de codes inexistants bloquent la saisie 15 minutes depuis la même
+              connexion internet.
             </li>
           </Steps>
         </Incident>
@@ -324,57 +428,4 @@ export default async function AdminManuelPage() {
             <li>
               Sans code de secours : dans Vercel, ajoutez la variable RESET_2FA_EMAIL (votre email
               d&apos;administrateur), redéployez, connectez-vous avec le seul mot de passe, puis{" "}
-              <strong>supprimez la variable</strong> et réactivez la double authentification.
-            </li>
-          </Steps>
-        </Incident>
-
-        <Incident title="Une clé secrète a été divulguée (capture d'écran, dépôt public...)">
-          <Steps>
-            <li>Régénérez immédiatement la clé concernée chez son fournisseur (Stripe, CinetPay, Resend, jetons Vercel Blob).</li>
-            <li>Remplacez-la dans Vercel (Environment Variables) et redéployez.</li>
-            <li>
-              Pour NEXTAUTH_SECRET : le changer déconnecte tout le monde et rend la clé de double
-              authentification illisible (il faudra un code de secours ou RESET_2FA_EMAIL). À faire
-              seulement si ce secret a fuité.
-            </li>
-            <li>Ne copiez jamais de clé dans GitHub ni dans une conversation : seulement dans Vercel.</li>
-          </Steps>
-        </Incident>
-
-        <Incident title="Les emails ne partent plus">
-          <Bullets>
-            <li>Page Emails : envoyez un test, le message d&apos;erreur de Resend s&apos;affiche.</li>
-            <li>Quota dépassé (100 par jour en gratuit) : attendez le lendemain ou passez au plan payant. Les opérations (paiements, remboursements) continuent de fonctionner sans email.</li>
-            <li>Domaine non vérifié : revérifiez les enregistrements DNS dans Resend.</li>
-          </Bullets>
-        </Incident>
-
-        <Incident title="Une publicité perturbe une page ou ralentit le site">
-          <p>
-            Page Publicités : désactivez l&apos;emplacement concerné (effet en moins d&apos;une minute). Les
-            publicités ne s&apos;affichent jamais aux administrateurs : testez en navigation privée,
-            déconnecté.
-          </p>
-        </Incident>
-      </Section>
-
-      <Section title="Limites actuelles à connaître">
-        <Bullets>
-          <li>
-            Pour nommer un administrateur, l&apos;adresse email du compte doit être <strong>vérifiée</strong> :
-            cela suppose que l&apos;envoi d&apos;emails fonctionne.
-          </li>
-          <li>
-            L&apos;effacement d&apos;un compte <strong>anonymise</strong> les données mais conserve les commandes
-            (numéros, montants, dates). Les sauvegardes Neon peuvent contenir d&apos;anciennes données
-            jusqu&apos;à leur expiration. La durée de conservation légale des pièces comptables est à
-            confirmer avec votre comptable.
-          </li>
-          <li>Les versements aux vendeurs et certains remboursements sont <strong>manuels</strong>.</li>
-          <li>Le journal des actions ne couvre pas les actions automatiques du système.</li>
-        </Bullets>
-      </Section>
-    </div>
-  );
-          }
+              <strong>supprimez la variable</strong> et
