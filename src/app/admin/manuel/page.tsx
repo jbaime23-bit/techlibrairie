@@ -428,4 +428,125 @@ export default async function AdminManuelPage() {
             <li>
               Sans code de secours : dans Vercel, ajoutez la variable RESET_2FA_EMAIL (votre email
               d&apos;administrateur), redéployez, connectez-vous avec le seul mot de passe, puis{" "}
-              <strong>supprimez la variable</strong> et
+              <strong>supprimez la variable</strong> et réactivez la double authentification. La page
+              Santé vous signale cette variable tant qu&apos;elle existe.
+            </li>
+          </Steps>
+        </Incident>
+
+        <Incident title="Une clé secrète a été divulguée (capture d'écran, dépôt public...)">
+          <Steps>
+            <li>Régénérez immédiatement la clé concernée chez son fournisseur (Stripe, CinetPay, Resend, jetons Vercel Blob).</li>
+            <li>Remplacez-la dans Vercel (Environment Variables) et redéployez.</li>
+            <li>
+              Pour NEXTAUTH_SECRET : le changer déconnecte tout le monde et rend la clé de double
+              authentification illisible (il faudra un code de secours ou RESET_2FA_EMAIL). À faire
+              seulement si ce secret a fuité.
+            </li>
+            <li>Ne copiez jamais de clé dans GitHub ni dans une conversation : seulement dans Vercel.</li>
+          </Steps>
+        </Incident>
+
+        <Incident title="Les emails ne partent plus (ou vous ne recevez ni rapport ni alertes)">
+          <Bullets>
+            <li>Page Emails : envoyez un test, le message d&apos;erreur de Resend s&apos;affiche.</li>
+            <li>Quota dépassé (100 par jour en gratuit) : attendez le lendemain ou passez au plan payant. Les opérations (paiements, remboursements) continuent de fonctionner sans email.</li>
+            <li>Domaine non vérifié : revérifiez les enregistrements DNS dans Resend.</li>
+            <li>
+              Le rapport mensuel et les alertes sont envoyés par la tâche de 16 h : si elle ne tourne
+              pas, rien ne part (voir l&apos;incident suivant). Vous pouvez recevoir les deux à la demande
+              depuis <A href="/admin/rapports">Rapports mensuels</A> et <A href="/admin/alertes">Alertes</A>.
+            </li>
+          </Bullets>
+        </Incident>
+
+        <Incident title="Les tâches planifiées ne semblent pas tourner">
+          <Steps>
+            <li>
+              Ouvrez la page <A href="/admin/sante">Santé du site</A>, section « Tâches planifiées et
+              alertes » : la dernière exécution de chaque tâche doit dater de moins de 36 heures.
+            </li>
+            <li>
+              Dans Vercel, Settings, Cron Jobs : les deux tâches (3 h et 16 h) doivent être listées. Si
+              elles ne le sont pas, vérifiez que le fichier <code>vercel.json</code> est à la racine du
+              dépôt et redéployez.
+            </li>
+            <li>
+              Vérifiez que la variable <code>CRON_SECRET</code> existe dans Vercel (16 caractères au
+              minimum), puis consultez les journaux (Logs) de la tâche.
+            </li>
+          </Steps>
+        </Incident>
+
+        <Incident title="La base de données est presque pleine">
+          <Steps>
+            <li>
+              Vous recevez une alerte (page <A href="/admin/alertes">Alertes</A>) à 80 % puis à 95 % de la
+              limite supposée du plan gratuit (512 Mo).
+            </li>
+            <li>
+              Passez à un plan supérieur chez Neon, puis définissez la variable{" "}
+              <code>DB_STORAGE_LIMIT_MB</code> dans Vercel pour que les pourcentages restent justes.
+            </li>
+            <li>
+              Lancez une analyse à blanc dans <A href="/admin/maintenance">Maintenance</A> pour voir ce
+              qui peut être nettoyé.
+            </li>
+          </Steps>
+        </Incident>
+
+        <Incident title="Une publicité perturbe une page ou ralentit le site">
+          <p>
+            Page Publicités : désactivez l&apos;emplacement concerné (effet en moins d&apos;une minute). Les
+            publicités ne s&apos;affichent jamais aux administrateurs : testez en navigation privée,
+            déconnecté.
+          </p>
+        </Incident>
+      </Section>
+
+      <Section title="Variables d'environnement utiles à connaître">
+        <Bullets>
+          <li>
+            <code>CRON_SECRET</code> : indispensable aux tâches planifiées (maintenance, rappels, rapport
+            mensuel, alertes).
+          </li>
+          <li>
+            <code>CINETPAY_CARD_ENABLED=true</code> : active le paiement par carte via CinetPay.
+          </li>
+          <li>
+            <code>DB_STORAGE_LIMIT_MB</code> : espace de votre plan Neon, pour des alertes d&apos;espace justes.
+          </li>
+          <li>
+            <code>RESET_2FA_EMAIL</code> et <code>ADMIN_2FA_REQUIRED=false</code> : procédures de secours à
+            retirer dès que possible.
+          </li>
+        </Bullets>
+      </Section>
+
+      <Section title="Limites actuelles à connaître">
+        <Bullets>
+          <li>
+            Pour nommer un administrateur, l&apos;adresse email du compte doit être <strong>vérifiée</strong> :
+            cela suppose que l&apos;envoi d&apos;emails fonctionne.
+          </li>
+          <li>
+            L&apos;effacement d&apos;un compte <strong>anonymise</strong> les données mais conserve les commandes
+            (numéros, montants, dates). Les sauvegardes Neon peuvent contenir d&apos;anciennes données
+            jusqu&apos;à leur expiration. La durée de conservation légale des pièces comptables est à
+            confirmer avec votre comptable.
+          </li>
+          <li>Les versements aux vendeurs et certains remboursements sont <strong>manuels</strong>.</li>
+          <li>
+            Les alertes et le rapport mensuel arrivent au rythme de la tâche de 16 h : une urgence
+            survenue juste après n&apos;est signalée que le lendemain. Le quota d&apos;emails de Resend et les
+            paiements bloqués chez les prestataires ne sont pas surveillés par les alertes.
+          </li>
+          <li>
+            Le journal ne couvre pas les actions des acheteurs et des vendeurs, ni le détail des
+            actions automatiques du système (il note seulement leur passage).
+          </li>
+        </Bullets>
+      </Section>
+    </div>
+  );
+}
