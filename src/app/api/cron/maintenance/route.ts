@@ -5,6 +5,7 @@
 import { createHash, timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 import { runMaintenance } from "@/lib/maintenance";
+import { recordTaskRun } from "@/lib/task-heartbeat";
 
 export const dynamic = "force-dynamic";
 
@@ -30,5 +31,7 @@ export async function GET(request: Request) {
 
   console.log("Maintenance planifiée terminée :", JSON.stringify(report));
 
+  await recordTaskRun("maintenance", { duree_ms: report.durationMs });
+
   return NextResponse.json(report);
-      }
+}
