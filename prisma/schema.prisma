@@ -395,21 +395,21 @@ model Payment {
   id            String          @id @default(cuid())
   orderId       String          @unique
   provider      PaymentProvider
-  method        PaymentMethod    status        PaymentStatus   @default(PENDING)
-    amount        Int
-
-    currency      Currency        @default(XOF)
-    transactionId String?         @unique
-    createdAt     DateTime        @default(now())
-    updatedAt     DateTime        @updatedAt
-    order         Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  method        PaymentMethod
+  status        PaymentStatus   @default(PENDING)
+  amount        Int
+  currency      Currency        @default(XOF)
+  transactionId String?         @unique
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  order         Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
 model PromoCode {
   id          String       @id @default(cuid())
   code        String       @unique
   type        PromoType    @default(PERCENT)
-  value       Int          
+  value       Int
   bearer      PromoBearer  @default(SHOP)
   maxUses     Int?
   usesCount   Int          @default(0)
@@ -424,7 +424,7 @@ model OrderPromo {
   id          String    @id @default(cuid())
   orderId     String
   promoCodeId String
-  discounted  Int       
+  discounted  Int
   createdAt   DateTime  @default(now())
   order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
   promoCode   PromoCode @relation(fields: [promoCodeId], references: [id], onDelete: Cascade)
