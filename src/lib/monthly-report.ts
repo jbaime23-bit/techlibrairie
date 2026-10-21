@@ -1,4 +1,4 @@
- // src/lib/monthly-report.ts
+// src/lib/monthly-report.ts
 // Rapport mensuel d'activité : calcul, email aux administrateurs et envoi automatique.
 //
 // Règles de calcul (les mêmes que les statistiques) :
@@ -209,6 +209,11 @@ export async function buildMonthlyReport(
   const { start, end } = month;
   const before = monthBefore(month);
 
+  const paidItems: Prisma.OrderItemWhereInput = {
+    currency: "XOF",
+    order: { status: "PAID", paidAt: { gte: start, lt: end } },
+  };
+
   const [
     current,
     previous,
@@ -259,204 +264,383 @@ export async function buildMonthlyReport(
     prisma.supportPayment.aggregate({
       where: { status: "SUCCEEDED", updatedAt: { gte: start, lt: end } },
       _count: { _all: true },
-      _sum: { amount: true },
+      _sum: { baseAmountXof: true },
     }),
     prisma.user.count({ where: { role: "BUYER", createdAt: { gte: start, lt: end } } }),
     prisma.user.count({ where: { role: "SELLER", createdAt: { gte: start, lt: end } } }),
     prisma.product.count({ where: { createdAt: { gte: start, lt: end } } }),
     prisma.review.count({ where: { createdAt: { gte: start, lt: end } } }),
     prisma.orderItem.groupBy({
-      by: ["productTitle"],
-      where: { currency: "XOF", order: { status: "PAID", paidAt: { gte: start, lt: end } } },
-      _count: { _all: true },
+      by: ["productId"],
+      where: paidItems,
       _sum: { unitAmount: true },
-      orderBy: { _count: { _all: "desc" } },
+      _count: { _all: true },
+      orderBy: { _sum: { unitAmount: "desc" } },
       take: 5,
     }),
     prisma.orderItem.groupBy({
       by: ["sellerId"],
-      where: { currency: "XOF", order: { status: "PAID", paidAt: { gte: start, lt: end } } },
-      _count: { _all: true },
+      where: paidItems,
       _sum: { unitAmount: true, commissionAmount: true },
+      _count: { _all: true },
       orderBy: { _sum: { unitAmount: "desc" } },
       take: 5,
     }),
     prisma.order.groupBy({
-      by: ["promoCode"],
-      where: { status: "PAID", promoCode: { not: null }, paidAt: { gte: start, lt: end } },
+      by: ["promoCodeId"],
+      where: {
+        status: "PAID",
+        promoCodeId: { not: null },
+        paidAt: { gte: start, lt: end },
+      },
       _count: { _all: true },
       _sum: { discountAmount: true },
-      orderBy: { _count: { _all: "desc" } },
+      orderBy: { _sum: { discountAmount: "desc" } },
       take: 5,
     }),
   ]);
 
-  // Filtrer les remboursements effectifs sur la période demandée
+  const [products, sellers, promos] = await Promise.all([
+    productGroups.length
+      ? prisma.product.findMany({
+          where: { id: { in: productGroups.map((group) => group.productId) } },
+          select: { id: true, title: true },
+        })
+      : Promise.resolve([]),
+    sellerGroups.length
+      ? prisma.sellerProfile.findMany({
+          where: { id: { in: sellerGroups.map((group) => group.sellerId) } },
+          select: { id: true, displayName: true },
+        })
+      : Promise.resolve([]),
+    promoGroups.length
+      ? prisma.promoCode.findMany({
+          where: {
+            id: {
+              in: promoGroups
+                .map((group) => group.promoCodeId)
+                .filter((id): id is string => id !== null),
+            },
+          },
+          select: { id: true, code: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const titleById = new Map(products.map((product) => [product.id, product.title]));
+  const nameById = new Map(sellers.map((seller) => [seller.id, seller.displayName]));
+  const codeById = new Map(promos.map((promo) => [promo.id, promo.code]));
+
+  // Remboursements du mois (date de remboursement, pas date de la vente).
   let refundCount = 0;
   let refundAmountXof = 0;
   let refundOtherCurrency = 0;
+  for (const payment of refundedPayments) {
+    const date = refundDate(payment.providerPayload, payment.updatedAt);
+    if (date.getTime() < start.getTime() || date.getTime() >= end.getTime()) continue;
 
-  for (const p of refundedPayments) {
-    const d = refundDate(p.providerPayload, p.updatedAt);
-    if (d.getTime() >= start.getTime() && d.getTime() < end.getTime()) {
-      if (p.currency === "XOF") {
-        refundCount++;
-        refundAmountXof += p.amount;
-      } else {
-        refundOtherCurrency++;
-      }
+    refundCount += 1;
+    if (payment.currency === "XOF") {
+      refundAmountXof += payment.amount;
+    } else {
+      refundOtherCurrency += 1;
     }
   }
 
-  // Ventilation des types de paiements
-  let mobileMoney = 0;
-  let card = 0;
-  for (const g of methodGroups) {
-    // Ventilation des types de paiements
-  let mobileMoney = 0;
-  let card = 0;
-  for (const g of methodGroups) {
-    if (g.method === "MOBILE_MONEY") mobileMoney = g._count._all;
-    if (g.method === "CARD") card = g._count._all;
-  }
+  const cardPayments = methodGroups
+    .filter((group) => group.method === "CARD")
+    .reduce((sum, group) => sum + group._count._all, 0);
+  const allPayments = methodGroups.reduce((sum, group) => sum + group._count._all, 0);
 
-  // Vendeurs : Récupérer les noms correspondants aux IDs groupés
-  const sellerIds = sellerGroups.map((g) => g.sellerId).filter((id): id is string => !!id);
-  const sellersProfiles = await prisma.user.findMany({
-    where: { id: { in: sellerIds } },
-    select: { id: true, name: true },
-  });
-  const sellerNameMap = new Map(sellersProfiles.map((p) => [p.id, p.name || "Inconnu"]));
+  const owedNow = Math.max(
+    0,
+    (earnedAll._sum.sellerAmount ?? 0) - (payoutsCommitted._sum.amount ?? 0)
+  );
 
   return {
     month,
     isPartial: end.getTime() > now.getTime(),
     generatedAt: now,
-    totals: current,
-    previous,
+    totals: {
+      orders: current.orders,
+      items: current.items,
+      revenue: current.revenue,
+      commission: current.commission,
+      sellerShare: current.sellerShare,
+      discount: current.discount,
+    },
+    previous: {
+      orders: previous.orders,
+      items: previous.items,
+      revenue: previous.revenue,
+      commission: previous.commission,
+      sellerShare: previous.sellerShare,
+      discount: previous.discount,
+    },
     previousLabel: before.label,
     averageBasket: current.orders > 0 ? Math.round(current.revenue / current.orders) : 0,
     otherCurrencySales: current.otherCurrency,
-    paymentsByMethod: { mobileMoney, card },
-    refunds: { count: refundCount, amountXof: refundAmountXof, otherCurrency: refundOtherCurrency },
+    paymentsByMethod: { mobileMoney: allPayments - cardPayments, card: cardPayments },
+    refunds: {
+      count: refundCount,
+      amountXof: refundAmountXof,
+      otherCurrency: refundOtherCurrency,
+    },
     payouts: {
       paidCount: payoutsPaid._count._all,
       paidAmount: payoutsPaid._sum.amount ?? 0,
       requestedCount: payoutsRequested,
-      owedNow: (earnedAll._sum.sellerAmount ?? 0) - (payoutsCommitted._sum.amount ?? 0),
+      owedNow,
     },
     support: {
       count: supportPayments._count._all,
-      amount: supportPayments._sum.amount ?? 0,
+      amount: supportPayments._sum.baseAmountXof ?? 0,
     },
     newAccounts: { buyers: newBuyers, sellers: newSellers },
     newProducts,
     newReviews,
-    topProducts: productGroups.map((g) => ({
-      title: g.productTitle || "Sans titre",
-      sales: g._count._all,
-      revenue: g._sum.unitAmount ?? 0,
+    topProducts: productGroups.map((group) => ({
+      title: titleById.get(group.productId) ?? "Ouvrage",
+      sales: group._count._all,
+      revenue: group._sum.unitAmount ?? 0,
     })),
-    topSellers: sellerGroups.map((g) => ({
-      name: sellerNameMap.get(g.sellerId || "") || "Inconnu",
-      sales: g._count._all,
-      revenue: g._sum.unitAmount ?? 0,
-      commission: g._sum.commissionAmount ?? 0,
+    topSellers: sellerGroups.map((group) => ({
+      name: nameById.get(group.sellerId) ?? "Vendeur",
+      sales: group._count._all,
+      revenue: group._sum.unitAmount ?? 0,
+      commission: group._sum.commissionAmount ?? 0,
     })),
-    topPromos: promoGroups.map((g) => ({
-      code: g.promoCode || "",
-      uses: g._count._all,
-      discount: g._sum.discountAmount ?? 0,
-    })),
+    topPromos: promoGroups
+      .filter((group) => group.promoCodeId !== null)
+      .map((group) => ({
+        code: codeById.get(group.promoCodeId as string) ?? "(code supprimé)",
+        uses: group._count._all,
+        discount: group._sum.discountAmount ?? 0,
+      })),
   };
 }
 
+/** Évolution par rapport au mois précédent, ex. "+12 %" ; null si la comparaison n'a pas de sens. */
+export function variationLabel(current: number, previous: number): string | null {
+  if (previous <= 0) return current > 0 ? "nouveau" : null;
+
+  const percent = Math.round(((current - previous) / previous) * 100);
+  if (percent === 0) return "stable";
+  return `${percent > 0 ? "+" : ""}${percent} %`;
+}
+
+/** Vrai si le mois ne contient aucune activité à rapporter. */
+export function isReportEmpty(report: MonthlyReport): boolean {
+  return (
+    report.totals.orders === 0 &&
+    report.otherCurrencySales === 0 &&
+    report.refunds.count === 0 &&
+    report.payouts.paidCount === 0 &&
+    report.payouts.requestedCount === 0 &&
+    report.support.count === 0 &&
+    report.newAccounts.buyers === 0 &&
+    report.newAccounts.sellers === 0 &&
+    report.newProducts === 0 &&
+    report.newReviews === 0
+  );
+}
+
 // ---------------------------------------------------------------------------
-// Envoi automatique et notifications aux administrateurs
+// Email
 // ---------------------------------------------------------------------------
 
-export async function sendMonthlyReportEmail(report: MonthlyReport): Promise<SendResult> {
-  if (!isEmailConfigured()) {
-    return { success: false, error: "Configuration email manquante." };
+/** Envoie le rapport par email à une adresse. */
+export async function sendReportEmail(
+  report: MonthlyReport,
+  to: string,
+  idempotencyKey: string
+): Promise<SendResult> {
+  const appUrl = getEmailAppUrl();
+  if (!appUrl || !isEmailConfigured()) {
+    return { ok: false, error: "Envoi d'emails indisponible (configuration manquante)." };
+  }
+
+  const { totals, previous } = report;
+  const range = exportRange(report.month, report.generatedAt);
+
+  const commissionVariation = variationLabel(totals.commission, previous.commission);
+  const revenueVariation = variationLabel(totals.revenue, previous.revenue);
+
+  const items: EmailItem[] = [
+    {
+      label: "Commandes payées",
+      detail: `${totals.orders} commande${totals.orders > 1 ? "s" : ""}, ${totals.items} ouvrage${totals.items > 1 ? "s" : ""} vendu${totals.items > 1 ? "s" : ""}`,
+    },
+    {
+      label: "Chiffre d'affaires",
+      detail: `${formatPrice(totals.revenue, "XOF")}${revenueVariation ? ` (${revenueVariation} par rapport à ${report.previousLabel})` : ""}`,
+    },
+    {
+      label: "Commission de la boutique",
+      detail: `${formatPrice(totals.commission, "XOF")}${commissionVariation ? ` (${commissionVariation})` : ""}`,
+    },
+    { label: "Part des vendeurs", detail: formatPrice(totals.sellerShare, "XOF") },
+    { label: "Remises accordées (codes promotionnels)", detail: formatPrice(totals.discount, "XOF") },
+    { label: "Panier moyen", detail: formatPrice(report.averageBasket, "XOF") },
+    {
+      label: "Paiements reçus",
+      detail: `${report.paymentsByMethod.mobileMoney} par Mobile Money, ${report.paymentsByMethod.card} par carte`,
+    },
+    {
+      label: "Remboursements du mois",
+      detail: `${report.refunds.count} (${formatPrice(report.refunds.amountXof, "XOF")}${report.refunds.otherCurrency > 0 ? `, plus ${report.refunds.otherCurrency} en devise étrangère non totalisé${report.refunds.otherCurrency > 1 ? "s" : ""}` : ""})`,
+    },
+    {
+      label: "Support payant",
+      detail: `${report.support.count} conversation${report.support.count > 1 ? "s" : ""}, ${formatPrice(report.support.amount, "XOF")}`,
+    },
+    {
+      label: "Versements effectués aux vendeurs",
+      detail: `${report.payouts.paidCount} (${formatPrice(report.payouts.paidAmount, "XOF")})`,
+    },
+    {
+      label: "Reste dû aux vendeurs (au jour de l'envoi)",
+      detail: formatPrice(report.payouts.owedNow, "XOF"),
+    },
+    {
+      label: "Nouveaux comptes",
+      detail: `${report.newAccounts.buyers} acheteur${report.newAccounts.buyers > 1 ? "s" : ""}, ${report.newAccounts.sellers} vendeur${report.newAccounts.sellers > 1 ? "s" : ""}`,
+    },
+    {
+      label: "Ouvrages publiés et avis reçus",
+      detail: `${report.newProducts} ouvrage${report.newProducts > 1 ? "s" : ""}, ${report.newReviews} avis`,
+    },
+  ];
+
+  for (const [index, product] of report.topProducts.slice(0, 3).entries()) {
+    items.push({
+      label: `Meilleur ouvrage n°${index + 1} : ${product.title}`,
+      detail: `${product.sales} vente${product.sales > 1 ? "s" : ""}, ${formatPrice(product.revenue, "XOF")}`,
+    });
+  }
+
+  const paragraphs = [
+    `Voici le récapitulatif de l'activité de TechLibrairie pour ${report.month.label}.`,
+    "Les ventes comptent les commandes payées et non remboursées, à leur date de paiement, en FCFA (jours en heure UTC, équivalente à l'heure du Burkina Faso). Les remboursements sont comptés le mois où ils ont lieu.",
+  ];
+
+  if (report.isPartial) {
+    paragraphs.push("Ce mois n'est pas terminé : les chiffres sont provisoires.");
+  }
+  if (report.otherCurrencySales > 0) {
+    paragraphs.push(
+      `${report.otherCurrencySales} vente${report.otherCurrencySales > 1 ? "s" : ""} en devise étrangère ne ${report.otherCurrencySales > 1 ? "sont" : "est"} pas comptée${report.otherCurrencySales > 1 ? "s" : ""} dans les totaux en FCFA.`
+    );
+  }
+
+  return sendEmail({
+    to,
+    subject: `Rapport TechLibrairie : ${report.month.label}`,
+    idempotencyKey,
+    content: {
+      title: `Rapport de ${report.month.label}`,
+      paragraphs,
+      items,
+      button: {
+        label: "Voir le rapport complet",
+        url: `${appUrl}/admin/rapports?mois=${report.month.key}`,
+      },
+      note: `Export comptable de cette période : ${appUrl}/admin/export?du=${range.from}&au=${range.to}`,
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Envoi automatique
+// ---------------------------------------------------------------------------
+
+export type MonthlyReportStatus =
+  | "deja-traite"
+  | "envoye"
+  | "mois-vide"
+  | "email-indisponible"
+  | "aucun-destinataire"
+  | "echec";
+
+export interface MonthlyReportOutcome {
+  status: MonthlyReportStatus;
+  month: string;
+  sent: number;
+}
+
+const REPORT_ACTIONS = ["rapport.mensuel_envoye", "rapport.mensuel_vide"];
+
+/**
+ * Envoie le rapport du mois précédent aux administrateurs s'il n'a pas déjà été traité.
+ * Appelée chaque jour par la tâche planifiée : sans effet les autres jours.
+ */
+export async function sendMonthlyReportIfDue(
+  now: Date = new Date()
+): Promise<MonthlyReportOutcome> {
+  const month = previousMonth(now);
+
+  const alreadyDone = await prisma.auditLog.findFirst({
+    where: {
+      action: { in: REPORT_ACTIONS },
+      targetType: "rapport",
+      targetId: month.key,
+    },
+    select: { id: true },
+  });
+
+  if (alreadyDone) return { status: "deja-traite", month: month.key, sent: 0 };
+
+  if (!isEmailConfigured() || !getEmailAppUrl()) {
+    return { status: "email-indisponible", month: month.key, sent: 0 };
+  }
+
+  const report = await buildMonthlyReport(month, now);
+
+  if (isReportEmpty(report)) {
+    await recordAudit({
+      adminId: null,
+      adminEmail: "systeme",
+      action: "rapport.mensuel_vide",
+      targetType: "rapport",
+      targetId: month.key,
+    });
+    return { status: "mois-vide", month: month.key, sent: 0 };
   }
 
   const admins = await prisma.user.findMany({
-    where: { role: "ADMIN", status: "ACTIVE" },
+    where: { role: "ADMIN", isActive: true },
+    orderBy: { createdAt: "asc" },
     take: MAX_ADMIN_RECIPIENTS,
-    select: { email: true },
+    select: { id: true, email: true },
   });
 
-  if (admins.length === 0) {
-    return { success: false, error: "Aucun administrateur actif trouvé." };
+  if (admins.length === 0) return { status: "aucun-destinataire", month: month.key, sent: 0 };
+
+  let sent = 0;
+  for (const admin of admins) {
+    const result = await sendReportEmail(
+      report,
+      admin.email,
+      `monthly-report-${month.key}-${admin.id}`
+    );
+    if (result.ok) sent += 1;
   }
 
-  const appUrl = getEmailAppUrl();
-  const subject = `[Rapport Mensuel] ${report.month.label.toUpperCase()}`;
-  
-  const html = `
-    <h2>Rapport mensuel d'activité - ${report.month.label}</h2>
-    <p>Généré le : ${report.generatedAt.toLocaleDateString()}</p>
-    <hr />
-    <h3>Chiffres clés (XOF)</h3>
-    <ul>
-      <li><b>Commandes payées :</b> ${report.totals.orders} (Panier moyen : ${formatPrice(report.averageBasket)})</li>
-      <li><b>Revenu total :</b> ${formatPrice(report.totals.revenue)}</li>
-      <li><b>Commission plateforme :</b> ${formatPrice(report.totals.commission)}</li>
-      <li><b>Part vendeurs :</b> ${formatPrice(report.totals.sellerShare)}</li>
-      <li><b>Codes Promos appliqués :</b> ${formatPrice(report.totals.discount)}</li>
-    </ul>
-    <h3>Remboursements et Litiges</h3>
-    <ul>
-      <li><b>Remboursements XOF :</b> ${report.refunds.count} effectuant un total de ${formatPrice(report.refunds.amountXof)}</li>
-      <li><b>Support tickets résolus :</b> ${report.support.count} (${formatPrice(report.support.amount)})</li>
-    </ul>
-    <p><a href="${appUrl}/admin/reports/${report.month.key}">Cliquez ici pour voir le rapport détaillé sur la plateforme</a></p>
-  `;
+  // Si aucun email n'a pu partir, rien n'est consigné : nouvelle tentative le lendemain.
+  if (sent === 0) return { status: "echec", month: month.key, sent: 0 };
 
-  const recipients = admins.map((a) => a.email).filter((email): email is string => !!email);
-  
-  const emailItem: EmailItem = {
-    to: recipients,
-    subject,
-    html,
-  };
-
-  return sendEmail(emailItem);
-}
-
-/** Tâche automatisée : génère et envoie le rapport du mois précédent s'il n'a pas déjà été traité */
-export async function cronSendPreviousMonthReport(now: Date = new Date()): Promise<void> {
-  const targetMonth = previousMonth(now);
-
-  const existingAudit = await prisma.auditLog.findFirst({
-    where: {
-      action: { in: ["rapport.mensuel_envoye", "rapport.mensuel_vide"] },
-      target: targetMonth.key,
+  await recordAudit({
+    adminId: null,
+    adminEmail: "systeme",
+    action: "rapport.mensuel_envoye",
+    targetType: "rapport",
+    targetId: month.key,
+    details: {
+      destinataires: sent,
+      commandes: report.totals.orders,
+      chiffre_affaires_fcfa: report.totals.revenue,
     },
   });
 
-  if (existingAudit) return;
-
-  const report = await buildMonthlyReport(targetMonth, now);
-
-  if (report.totals.orders === 0 && report.refunds.count === 0) {
-    await recordAudit({
-      action: "rapport.mensuel_vide",
-      target: targetMonth.key,
-      details: { message: "Aucune activité enregistrée sur ce mois." },
-    });
-    return;
-  }
-
-  const result = await sendMonthlyReportEmail(report);
-
-  if (result.success) {
-    await recordAudit({
-      action: "rapport.mensuel_envoye",
-      target: targetMonth.key,
-      details: { recipientsCount: report.totals.orders },
-    });
-  } else {
-    throw new Error(`Échec de l'envoi automatique du rapport : ${result.error}`);
-  }
-    }
+  return { status: "envoye", month: month.key, sent };
+}
