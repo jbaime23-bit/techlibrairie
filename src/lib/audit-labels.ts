@@ -41,6 +41,8 @@ export const ACTION_LABELS: Record<string, string> = {
   "rapport.envoye_manuel": "Rapport mensuel envoyé à un administrateur",
   "alerte.envoyee": "Alertes envoyées par email (automatique)",
   "alerte.envoyee_manuel": "Alertes envoyées à un administrateur",
+  "systeme.maintenance": "Maintenance automatique exécutée (3 h)",
+  "systeme.tache_quotidienne": "Tâche quotidienne exécutée (16 h)",
 };
 
 export function actionLabel(code: string): string {
@@ -56,7 +58,7 @@ export const AUDIT_CATEGORIES: { value: string; label: string; prefixes: string[
   { value: "publicites", label: "Publicités", prefixes: ["publicite."] },
   {
     value: "configuration",
-    label: "Configuration",
+    label: "Configuration et tâches automatiques",
     prefixes: [
       "parametres.",
       "taux.",
@@ -66,6 +68,7 @@ export const AUDIT_CATEGORIES: { value: string; label: string; prefixes: string[
       "promo.",
       "rapport.",
       "alerte.",
+      "systeme.",
     ],
   },
 ];
