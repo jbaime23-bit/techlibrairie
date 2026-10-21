@@ -11,6 +11,7 @@ import { NextResponse } from "next/server";
 import { sendAbandonedOrderReminders } from "@/lib/reminders";
 import { sendMonthlyReportIfDue } from "@/lib/monthly-report";
 import { sendAdminAlertsIfDue } from "@/lib/admin-alerts";
+import { recordTaskRun } from "@/lib/task-heartbeat";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -19,6 +20,15 @@ function secretsMatch(provided: string, expected: string): boolean {
   const a = createHash("sha256").update(provided).digest();
   const b = createHash("sha256").update(expected).digest();
   return timingSafeEqual(a, b);
+}
+
+/** Extrait le champ "status" d'un résultat de traitement, pour le suivi. */
+function statusOf(value: unknown): string {
+  if (typeof value === "object" && value !== null && "status" in value) {
+    const status = (value as { status: unknown }).status;
+    if (typeof status === "string") return status;
+  }
+  return "inconnu";
 }
 
 export async function GET(request: Request) {
@@ -61,6 +71,11 @@ export async function GET(request: Request) {
     "Tâche quotidienne terminée :",
     JSON.stringify({ reminders, monthlyReport, alerts })
   );
+
+  await recordTaskRun("quotidienne", {
+    rapport_mensuel: statusOf(monthlyReport),
+    alertes: statusOf(alerts),
+  });
 
   return NextResponse.json({ reminders, monthlyReport, alerts });
 }
