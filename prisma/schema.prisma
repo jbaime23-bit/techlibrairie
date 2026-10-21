@@ -397,6 +397,7 @@ model Payment {
   provider      PaymentProvider
   method        PaymentMethod    status        PaymentStatus   @default(PENDING)
     amount        Int
+
     currency      Currency        @default(XOF)
     transactionId String?         @unique
     createdAt     DateTime        @default(now())
