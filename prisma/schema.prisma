@@ -397,9 +397,11 @@ model ContactMessage {
   status    ContactStatus @default(NEW)
   createdAt DateTime      @default(now())
   user      User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
-}
+} // <-- C'est votre ligne 400 actuelle
 
-  orderId       String          @unique
+model Payment {
+  id            String          @id @default(cuid())
+
   provider      PaymentProvider
   method        PaymentMethod
   status        PaymentStatus   @default(PENDING)
