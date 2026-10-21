@@ -1,4 +1,4 @@
-// src/lib/monthly-report.ts
+ // src/lib/monthly-report.ts
 // Rapport mensuel d'activité : calcul, email aux administrateurs et envoi automatique.
 //
 // Règles de calcul (les mêmes que les statistiques) :
@@ -312,3 +312,151 @@ export async function buildMonthlyReport(
   let mobileMoney = 0;
   let card = 0;
   for (const g of methodGroups) {
+    // Ventilation des types de paiements
+  let mobileMoney = 0;
+  let card = 0;
+  for (const g of methodGroups) {
+    if (g.method === "MOBILE_MONEY") mobileMoney = g._count._all;
+    if (g.method === "CARD") card = g._count._all;
+  }
+
+  // Vendeurs : Récupérer les noms correspondants aux IDs groupés
+  const sellerIds = sellerGroups.map((g) => g.sellerId).filter((id): id is string => !!id);
+  const sellersProfiles = await prisma.user.findMany({
+    where: { id: { in: sellerIds } },
+    select: { id: true, name: true },
+  });
+  const sellerNameMap = new Map(sellersProfiles.map((p) => [p.id, p.name || "Inconnu"]));
+
+  return {
+    month,
+    isPartial: end.getTime() > now.getTime(),
+    generatedAt: now,
+    totals: current,
+    previous,
+    previousLabel: before.label,
+    averageBasket: current.orders > 0 ? Math.round(current.revenue / current.orders) : 0,
+    otherCurrencySales: current.otherCurrency,
+    paymentsByMethod: { mobileMoney, card },
+    refunds: { count: refundCount, amountXof: refundAmountXof, otherCurrency: refundOtherCurrency },
+    payouts: {
+      paidCount: payoutsPaid._count._all,
+      paidAmount: payoutsPaid._sum.amount ?? 0,
+      requestedCount: payoutsRequested,
+      owedNow: (earnedAll._sum.sellerAmount ?? 0) - (payoutsCommitted._sum.amount ?? 0),
+    },
+    support: {
+      count: supportPayments._count._all,
+      amount: supportPayments._sum.amount ?? 0,
+    },
+    newAccounts: { buyers: newBuyers, sellers: newSellers },
+    newProducts,
+    newReviews,
+    topProducts: productGroups.map((g) => ({
+      title: g.productTitle || "Sans titre",
+      sales: g._count._all,
+      revenue: g._sum.unitAmount ?? 0,
+    })),
+    topSellers: sellerGroups.map((g) => ({
+      name: sellerNameMap.get(g.sellerId || "") || "Inconnu",
+      sales: g._count._all,
+      revenue: g._sum.unitAmount ?? 0,
+      commission: g._sum.commissionAmount ?? 0,
+    })),
+    topPromos: promoGroups.map((g) => ({
+      code: g.promoCode || "",
+      uses: g._count._all,
+      discount: g._sum.discountAmount ?? 0,
+    })),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Envoi automatique et notifications aux administrateurs
+// ---------------------------------------------------------------------------
+
+export async function sendMonthlyReportEmail(report: MonthlyReport): Promise<SendResult> {
+  if (!isEmailConfigured()) {
+    return { success: false, error: "Configuration email manquante." };
+  }
+
+  const admins = await prisma.user.findMany({
+    where: { role: "ADMIN", status: "ACTIVE" },
+    take: MAX_ADMIN_RECIPIENTS,
+    select: { email: true },
+  });
+
+  if (admins.length === 0) {
+    return { success: false, error: "Aucun administrateur actif trouvé." };
+  }
+
+  const appUrl = getEmailAppUrl();
+  const subject = `[Rapport Mensuel] ${report.month.label.toUpperCase()}`;
+  
+  const html = `
+    <h2>Rapport mensuel d'activité - ${report.month.label}</h2>
+    <p>Généré le : ${report.generatedAt.toLocaleDateString()}</p>
+    <hr />
+    <h3>Chiffres clés (XOF)</h3>
+    <ul>
+      <li><b>Commandes payées :</b> ${report.totals.orders} (Panier moyen : ${formatPrice(report.averageBasket)})</li>
+      <li><b>Revenu total :</b> ${formatPrice(report.totals.revenue)}</li>
+      <li><b>Commission plateforme :</b> ${formatPrice(report.totals.commission)}</li>
+      <li><b>Part vendeurs :</b> ${formatPrice(report.totals.sellerShare)}</li>
+      <li><b>Codes Promos appliqués :</b> ${formatPrice(report.totals.discount)}</li>
+    </ul>
+    <h3>Remboursements et Litiges</h3>
+    <ul>
+      <li><b>Remboursements XOF :</b> ${report.refunds.count} effectuant un total de ${formatPrice(report.refunds.amountXof)}</li>
+      <li><b>Support tickets résolus :</b> ${report.support.count} (${formatPrice(report.support.amount)})</li>
+    </ul>
+    <p><a href="${appUrl}/admin/reports/${report.month.key}">Cliquez ici pour voir le rapport détaillé sur la plateforme</a></p>
+  `;
+
+  const recipients = admins.map((a) => a.email).filter((email): email is string => !!email);
+  
+  const emailItem: EmailItem = {
+    to: recipients,
+    subject,
+    html,
+  };
+
+  return sendEmail(emailItem);
+}
+
+/** Tâche automatisée : génère et envoie le rapport du mois précédent s'il n'a pas déjà été traité */
+export async function cronSendPreviousMonthReport(now: Date = new Date()): Promise<void> {
+  const targetMonth = previousMonth(now);
+
+  const existingAudit = await prisma.auditLog.findFirst({
+    where: {
+      action: { in: ["rapport.mensuel_envoye", "rapport.mensuel_vide"] },
+      target: targetMonth.key,
+    },
+  });
+
+  if (existingAudit) return;
+
+  const report = await buildMonthlyReport(targetMonth, now);
+
+  if (report.totals.orders === 0 && report.refunds.count === 0) {
+    await recordAudit({
+      action: "rapport.mensuel_vide",
+      target: targetMonth.key,
+      details: { message: "Aucune activité enregistrée sur ce mois." },
+    });
+    return;
+  }
+
+  const result = await sendMonthlyReportEmail(report);
+
+  if (result.success) {
+    await recordAudit({
+      action: "rapport.mensuel_envoye",
+      target: targetMonth.key,
+      details: { recipientsCount: report.totals.orders },
+    });
+  } else {
+    throw new Error(`Échec de l'envoi automatique du rapport : ${result.error}`);
+  }
+    }
