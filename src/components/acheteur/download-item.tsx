@@ -1,20 +1,56 @@
-"use client";
+// src/components/acheteur/download-item.tsx
+import { regenerateDownloadLinkAction } from "@/app/acheteur/actions";
+import { formatDate } from "@/lib/utils";
 
-export default function DownloadItem({ item }: any) {
+export interface ActiveDownloadLink {
+  token: string;
+  expiresAt: Date;
+  remaining: number;
+}
+
+export function DownloadItem({
+  itemId,
+  title,
+  link,
+  returnTo,
+}: {
+  itemId: string;
+  title: string;
+  link: ActiveDownloadLink | null;
+  returnTo: string;
+}) {
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between p-4 border rounded-lg bg-gray-50 shadow-sm gap-4">
-      <div className="flex-1">
-        <h4 className="font-semibold text-gray-900">{item?.product?.title || "Ouvrage"}</h4>
-        <p className="text-sm text-gray-500">Par {item?.product?.seller?.displayName || "Vendeur"}</p>
+    <li
+      id={`item-${itemId}`}
+      className="flex flex-wrap items-center justify-between gap-3 py-4"
+    >
+      <div>
+        <p className="font-medium">{title}</p>
+        {link ? (
+          <p className="text-xs text-slate-500">
+            Lien valable jusqu&apos;au {formatDate(link.expiresAt)} · {link.remaining}{" "}
+            téléchargement(s) restant(s)
+          </p>
+        ) : (
+          <p className="text-xs text-slate-500">
+            Le lien de téléchargement a expiré ou a été utilisé au maximum.
+          </p>
+        )}
       </div>
-      {item?.product?.pdfStorageKey && (
-        <a
-          href={`/api/acheteur/download/${item.product.id}`}
-          className="inline-flex items-center justify-center bg-green-600 hover:bg-green-700 text-white font-medium px-4 py-2 rounded transition-colors text-sm w-full sm:w-auto"
-        >
-          📥 Télécharger le PDF
+
+      {link ? (
+        <a href={`/api/telechargement/${link.token}`} className="btn-primary">
+          Télécharger le PDF
         </a>
+      ) : (
+        <form action={regenerateDownloadLinkAction}>
+          <input type="hidden" name="orderItemId" value={itemId} />
+          <input type="hidden" name="returnTo" value={returnTo} />
+          <button type="submit" className="btn-secondary">
+            Générer un nouveau lien
+          </button>
+        </form>
       )}
-    </div>
+    </li>
   );
 }
