@@ -10,6 +10,7 @@ const LINKS = [
   { href: "/admin/statistiques", label: "Statistiques" },
   { href: "/admin/rapports", label: "Rapports mensuels" },
   { href: "/admin/export", label: "Export comptable" },
+  { href: "/admin/sauvegarde", label: "Sauvegarde" },
   { href: "/admin/manuel", label: "Manuel" },
   { href: "/admin/securite", label: "Sécurité du compte" },
   { href: "/admin/administrateurs", label: "Administrateurs" },
@@ -52,4 +53,4 @@ export default async function AdminLayout({
       {children}
     </div>
   );
-}
+  }
