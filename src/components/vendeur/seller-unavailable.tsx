@@ -10,7 +10,7 @@ const MESSAGES: Record<Reason, { title: string; text: string }> = {
   },
   "no-profile": {
     title: "Aucun profil vendeur",
-    text: "Ce compte n'a pas de profil vendeur. Pour vendre des PDF, créez un compte de type « Vendeur ».",
+    text: "Ce compte n'a pas encore de profil vendeur. Si vous êtes administrateur, activez votre profil vendeur pour déposer vos livres. Les autres utilisateurs doivent créer un compte de type « Vendeur ».",
   },
   suspended: {
     title: "Compte vendeur suspendu",
@@ -25,7 +25,12 @@ export function SellerUnavailable({ reason }: { reason: Reason }) {
     <div className="card mx-auto max-w-lg text-center">
       <h1 className="text-xl font-bold">{message.title}</h1>
       <p className="mt-2 text-sm text-slate-600">{message.text}</p>
-      <div className="mt-6">
+      <div className="mt-6 flex flex-wrap justify-center gap-3">
+        {reason === "no-profile" && (
+          <Link href="/vendeur/activer" className="btn-primary">
+            Activer mon profil vendeur
+          </Link>
+        )}
         <Link href="/" className="btn-secondary">
           Retour à l&apos;accueil
         </Link>
