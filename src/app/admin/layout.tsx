@@ -20,6 +20,7 @@ const LINKS = [
   { href: "/admin/effacement", label: "Effacement" },
   { href: "/admin/vendeurs", label: "Vendeurs" },
   { href: "/admin/produits", label: "Produits" },
+  { href: "/admin/gratuit", label: "PDF gratuits" },
   { href: "/admin/avis", label: "Avis" },
   { href: "/admin/promotions", label: "Promotions" },
   { href: "/admin/commandes", label: "Commandes" },
@@ -53,4 +54,4 @@ export default async function AdminLayout({
       {children}
     </div>
   );
-  }
+}
