@@ -11,7 +11,7 @@ export async function Header() {
 
   return (
     <header className="border-b border-slate-200 bg-white">
-      {/* Script Google AdSense intégré proprement */}
+      {/* Chargement du script Google sans toucher au reste */}
       <Script
         async
         src="https://googlesyndication.com"
@@ -50,8 +50,6 @@ export async function Header() {
               )}
 
               {user.role === "ADMIN" ? (
-                // Lien classique (rechargement complet) : l'administration démarre
-                // sur une page vierge, avec sa protection CSP.
                 <a href="/admin" className="text-slate-700 hover:text-brand-700">
                   Administration
                 </a>
@@ -78,6 +76,19 @@ export async function Header() {
             </>
           )}
         </nav>
+      </div>
+
+      {/* BLOC PUBLICITAIRE VISIBLE (Placé juste en bas de l'en-tête) */}
+      <div className="container-page py-2 text-center">
+        <ins className="adsbygoogle"
+             style={{ display: "block" }}
+             data-ad-client="ca-pub-3883537883013867"
+             data-ad-slot="auto"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+        <script>
+             (adsbygoogle = window.adsbygoogle || []).push({});
+        </script>
       </div>
 
       {user && !user.emailVerified && (
