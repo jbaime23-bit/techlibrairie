@@ -1,5 +1,6 @@
 // src/components/layout/header.tsx
 import Link from "next/link";
+import Script from "next/script";
 import { getCurrentUser } from "@/lib/auth";
 import { getCartIds } from "@/lib/cart";
 import { SignOutButton } from "@/components/layout/sign-out-button";
@@ -10,6 +11,14 @@ export async function Header() {
 
   return (
     <header className="border-b border-slate-200 bg-white">
+      {/* Script Google AdSense intégré proprement */}
+      <Script
+        async
+        src="https://googlesyndication.com"
+        crossorigin="anonymous"
+        strategy="afterInteractive"
+      />
+
       <div className="container-page flex flex-wrap items-center justify-between gap-3 py-4">
         <Link href="/" className="text-xl font-bold text-brand-700">
           TechLibrairie
