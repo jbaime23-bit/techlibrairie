@@ -344,6 +344,29 @@ model Product {
   @@index([status, publishedAt])
 }
 
+// Ressources gratuites : PDF publiés par l'administration, téléchargeables après une attente
+// de 30 secondes avec publicité (voir lib/free-resources.ts). Le PDF est stocké en accès PRIVÉ.
+model FreeResource {
+  id            String   @id @default(cuid())
+  title         String
+  slug          String   @unique
+  description   String   @db.Text
+  language      String   @default("fr")
+  pageCount     Int?
+  coverImageUrl String?
+
+  pdfStorageKey String
+  pdfFileName   String
+  pdfSizeBytes  Int
+
+  isActive      Boolean  @default(true)
+  downloadCount Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([isActive, createdAt])
+}
+
 // Avis des acheteurs sur un ouvrage (un seul par acheteur et par ouvrage)
 model Review {
   id        String       @id @default(cuid())
@@ -682,7 +705,7 @@ model AdSpace {
   targetUrl       String?
   altText         String?
 
-    // Contrat publicitaire (prix payé par l'annonceur, en FCFA)
+  // Contrat publicitaire (prix payé par l'annonceur, en FCFA)
   priceAmountXof  Int?
   startsAt        DateTime?
   endsAt          DateTime?
