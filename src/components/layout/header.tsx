@@ -20,6 +20,10 @@ export async function Header() {
             Catalogue
           </Link>
 
+          <Link href="/gratuit" className="text-slate-700 hover:text-brand-700">
+            Gratuit
+          </Link>
+
           <Link href="/panier" className="text-slate-700 hover:text-brand-700">
             Panier{cartCount > 0 ? ` (${cartCount})` : ""}
           </Link>
@@ -79,4 +83,4 @@ export async function Header() {
       )}
     </header>
   );
-            }
+      }
