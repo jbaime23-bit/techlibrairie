@@ -1,4 +1,3 @@
-// src/components/layout/header.tsx
 import Link from "next/link";
 import Script from "next/script";
 import { getCurrentUser } from "@/lib/auth";
@@ -11,12 +10,21 @@ export async function Header() {
 
   return (
     <header className="border-b border-slate-200 bg-white">
-      {/* Chargement du script Google sans toucher au reste */}
-      <Script
-        async
-        src="https://googlesyndication.com"
-        crossorigin="anonymous"
-        strategy="afterInteractive"
+      {/* Script de configuration et d'invocation publicitaire */}
+      <Script id="adsterra-options" strategy="afterInteractive">
+        {`
+          window.atOptions = {
+            'key' : 'b9b40b1c4e412de03b6465589ab82662',
+            'format' : 'iframe',
+            'height' : 90,
+            'width' : 728,
+            'params' : {}
+          };
+        `}
+      </Script>
+      <Script 
+        src="https://www.highrevenueformat.com/b9b40b1c4e412de03b6465589ab82662/invoke.js" 
+        strategy="afterInteractive" 
       />
 
       <div className="container-page flex flex-wrap items-center justify-between gap-3 py-4">
@@ -43,7 +51,7 @@ export async function Header() {
                 Mon espace
               </Link>
 
-              {user.role === "SELLER" && (
+              {(user.role === "SELLER" || user.role === "ADMIN") && (
                 <Link href="/vendeur" className="text-slate-700 hover:text-brand-700">
                   Espace vendeur
                 </Link>
@@ -78,17 +86,9 @@ export async function Header() {
         </nav>
       </div>
 
-      {/* BLOC PUBLICITAIRE VISIBLE (Placé juste en bas de l'en-tête) */}
+      {/* Conteneur d'affichage de la bannière publicitaire */}
       <div className="container-page py-2 text-center">
-        <ins className="adsbygoogle"
-             style={{ display: "block" }}
-             data-ad-client="ca-pub-3883537883013867"
-             data-ad-slot="auto"
-             data-ad-format="auto"
-             data-full-width-responsive="true"></ins>
-        <script>
-             (adsbygoogle = window.adsbygoogle || []).push({});
-        </script>
+        <div id="container-b9b40b1c4e412de03b6465589ab82662" className="inline-block min-h-[90px] min-w-[728px]" />
       </div>
 
       {user && !user.emailVerified && (
@@ -103,4 +103,4 @@ export async function Header() {
       )}
     </header>
   );
-      }
+}
