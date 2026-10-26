@@ -1,7 +1,8 @@
-// src/components/vendeur/product-form.tsx
+// src/components/vendeur/product-edit-form.tsx
 "use client";
 
 import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { upload } from "@vercel/blob/client";
 import {
@@ -17,6 +18,21 @@ type Step = "idle" | "uploading" | "saving";
 interface CategoryOption {
   id: string;
   name: string;
+}
+
+export interface EditableProduct {
+  id: string;
+  title: string;
+  description: string;
+  categoryId: string | null;
+  language: string;
+  pageCount: number | null;
+  isXof: boolean;
+  priceValue: string;
+  priceLabel: string;
+  coverImageUrl: string | null;
+  pdfFileName: string;
+  pdfSizeLabel: string;
 }
 
 function FieldError({ messages }: { messages?: string[] }) {
@@ -37,26 +53,29 @@ function toSafeFileName(name: string): string {
   return base || "document";
 }
 
-export function ProductForm({
+export function ProductEditForm({
   sellerId,
+  product,
   categories,
   commissionPercent,
 }: {
   sellerId: string;
+  product: EditableProduct;
   categories: CategoryOption[];
   commissionPercent: number;
 }) {
   const router = useRouter();
   const [values, setValues] = useState({
-    title: "",
-    description: "",
-    categoryId: "",
-    price: "",
-    language: "fr",
-    pageCount: "",
+    title: product.title,
+    description: product.description,
+    categoryId: product.categoryId ?? "",
+    language: product.language,
+    pageCount: product.pageCount !== null ? String(product.pageCount) : "",
+    price: product.priceValue,
   });
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [removeCover, setRemoveCover] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [step, setStep] = useState<Step>("idle");
@@ -74,33 +93,24 @@ export function ProductForm({
     setValues((previous) => ({ ...previous, [name]: value }));
   }
 
-  function handlePdfChange(event: ChangeEvent<HTMLInputElement>) {
-    setPdfFile(event.target.files?.[0] ?? null);
-  }
-
-  function handleCoverChange(event: ChangeEvent<HTMLInputElement>) {
-    setCoverFile(event.target.files?.[0] ?? null);
-  }
-
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setGlobalError(null);
     setFieldErrors({});
 
-    // Contrôles rapides côté navigateur (le serveur revérifie tout).
     const localErrors: FieldErrors = {};
 
-    if (!pdfFile) {
-      localErrors.pdf = ["Sélectionnez le fichier PDF de votre ouvrage."];
-    } else if (
-      pdfFile.type !== "application/pdf" &&
-      !pdfFile.name.toLowerCase().endsWith(".pdf")
-    ) {
-      localErrors.pdf = ["Seuls les fichiers PDF sont acceptés."];
-    } else if (pdfFile.size === 0) {
-      localErrors.pdf = ["Le fichier PDF est vide."];
-    } else if (pdfFile.size > MAX_PDF_SIZE_BYTES) {
-      localErrors.pdf = ["Le PDF dépasse la taille maximale de 50 Mo."];
+    if (pdfFile) {
+      if (
+        pdfFile.type !== "application/pdf" &&
+        !pdfFile.name.toLowerCase().endsWith(".pdf")
+      ) {
+        localErrors.pdf = ["Seuls les fichiers PDF sont acceptés."];
+      } else if (pdfFile.size === 0) {
+        localErrors.pdf = ["Le fichier PDF est vide."];
+      } else if (pdfFile.size > MAX_PDF_SIZE_BYTES) {
+        localErrors.pdf = ["Le PDF dépasse la taille maximale de 50 Mo."];
+      }
     }
 
     if (coverFile) {
@@ -111,59 +121,68 @@ export function ProductForm({
       }
     }
 
-    const priceNumber = Number(values.price);
-    if (values.price.trim() !== "" && Number.isFinite(priceNumber)) {
-      if (!Number.isInteger(priceNumber) || priceNumber % 5 !== 0) {
-        localErrors.price = ["Le prix en FCFA doit être un multiple de 5."];
+    if (product.isXof) {
+      const priceNumber = Number(values.price);
+      if (
+        values.price.trim() === "" ||
+        !Number.isFinite(priceNumber) ||
+        !Number.isInteger(priceNumber) ||
+        priceNumber % 5 !== 0
+      ) {
+        localErrors.price = ["Le prix en FCFA doit être un nombre entier multiple de 5."];
       }
     }
 
-    if (Object.keys(localErrors).length > 0 || !pdfFile) {
+    if (Object.keys(localErrors).length > 0) {
       setFieldErrors(localErrors);
       return;
     }
 
     try {
-      // 1) Envoi direct du PDF vers le store privé.
-      let pdfPathname: string;
+      // 1) Envoi direct du nouveau PDF (s'il y en a un) vers le store privé.
+      let newPdfPathname: string | null = null;
 
-      if (uploadedRef.current && uploadedRef.current.file === pdfFile) {
-        pdfPathname = uploadedRef.current.pathname;
-      } else {
-        setStep("uploading");
-        setProgress(0);
+      if (pdfFile) {
+        if (uploadedRef.current && uploadedRef.current.file === pdfFile) {
+          newPdfPathname = uploadedRef.current.pathname;
+        } else {
+          setStep("uploading");
+          setProgress(0);
 
-        const blob = await upload(
-          `pdfs/${sellerId}/${toSafeFileName(pdfFile.name)}.pdf`,
-          pdfFile,
-          {
-            access: "private",
-            handleUploadUrl: "/api/upload/pdf",
-            onUploadProgress: ({ percentage }) => setProgress(Math.round(percentage)),
-          }
-        );
+          const blob = await upload(
+            `pdfs/${sellerId}/${toSafeFileName(pdfFile.name)}.pdf`,
+            pdfFile,
+            {
+              access: "private",
+              handleUploadUrl: "/api/upload/pdf",
+              onUploadProgress: ({ percentage }) => setProgress(Math.round(percentage)),
+            }
+          );
 
-        pdfPathname = blob.pathname;
-        uploadedRef.current = { file: pdfFile, pathname: pdfPathname };
+          newPdfPathname = blob.pathname;
+          uploadedRef.current = { file: pdfFile, pathname: newPdfPathname };
+        }
       }
 
-      // 2) Création du produit (publication automatique).
+      // 2) Enregistrement des modifications.
       setStep("saving");
 
       const formData = new FormData();
       formData.append("title", values.title);
       formData.append("description", values.description);
       if (values.categoryId) formData.append("categoryId", values.categoryId);
-      formData.append("currency", "XOF");
-      formData.append("price", values.price);
       formData.append("language", values.language);
       if (values.pageCount) formData.append("pageCount", values.pageCount);
-      formData.append("pdfStorageKey", pdfPathname);
-      formData.append("pdfFileName", pdfFile.name);
-      formData.append("pdfSizeBytes", String(pdfFile.size));
+      if (product.isXof) formData.append("price", values.price);
+      formData.append("removeCover", removeCover ? "true" : "false");
       if (coverFile) formData.append("cover", coverFile);
+      if (pdfFile && newPdfPathname) {
+        formData.append("newPdfStorageKey", newPdfPathname);
+        formData.append("newPdfFileName", pdfFile.name);
+        formData.append("newPdfSizeBytes", String(pdfFile.size));
+      }
 
-      const response = await fetch("/api/produits", {
+      const response = await fetch(`/api/produits/${product.id}/modifier`, {
         method: "POST",
         body: formData,
       });
@@ -174,10 +193,7 @@ export function ProductForm({
       } | null;
 
       if (!response.ok) {
-        // Le PDF a été supprimé côté serveur s'il était invalide.
-        if (response.status === 403 || response.status === 422) {
-          if (data?.fieldErrors?.pdf) uploadedRef.current = null;
-        }
+        if (data?.fieldErrors?.pdf) uploadedRef.current = null;
         setGlobalError(data?.error ?? "Une erreur est survenue. Veuillez réessayer.");
         setFieldErrors(data?.fieldErrors ?? {});
         setStep("idle");
@@ -281,24 +297,36 @@ export function ProductForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label htmlFor="price" className="label">
-            Prix en FCFA (multiple de 5, minimum 100)
-          </label>
-          <input
-            id="price"
-            name="price"
-            type="number"
-            inputMode="numeric"
-            min="100"
-            step="5"
-            required
-            value={values.price}
-            onChange={handleChange}
-            className="input"
-            disabled={busy}
-          />
-          <FieldError messages={fieldErrors.price} />
-          <FieldError messages={fieldErrors.currency} />
+          {product.isXof ? (
+            <>
+              <label htmlFor="price" className="label">
+                Prix en FCFA (multiple de 5, minimum 100)
+              </label>
+              <input
+                id="price"
+                name="price"
+                type="number"
+                inputMode="numeric"
+                min="100"
+                step="5"
+                required
+                value={values.price}
+                onChange={handleChange}
+                className="input"
+                disabled={busy}
+              />
+              <FieldError messages={fieldErrors.price} />
+            </>
+          ) : (
+            <>
+              <p className="label">Prix</p>
+              <p className="input bg-slate-50">{product.priceLabel}</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Ce produit n&apos;est pas en FCFA : son prix ne peut pas être
+                modifié.
+              </p>
+            </>
+          )}
         </div>
 
         <div>
@@ -322,38 +350,77 @@ export function ProductForm({
       </div>
 
       <p className="text-xs text-slate-500">
-        Le prix est fixé en FCFA. Pour les paiements par carte bancaire, il est
-        converti automatiquement en euros ou en dollars au moment du paiement.
-        Aucune taxe n&apos;est ajoutée. La boutique prélève une commission de{" "}
-        {commissionPercent} % sur chaque vente ; le reste vous revient.
+        Le prix modifié ne s&apos;applique qu&apos;aux ventes futures : les
+        commandes déjà passées gardent leur prix et leur commission (
+        {commissionPercent} % actuellement). Aucune taxe n&apos;est ajoutée.
       </p>
 
-      <div>
-        <label htmlFor="pdf" className="label">
-          Fichier PDF (50 Mo maximum)
+      <div className="rounded-lg border border-slate-200 p-4">
+        <p className="label">Fichier PDF actuel</p>
+        <p className="text-sm text-slate-700">
+          {product.pdfFileName} ({product.pdfSizeLabel})
+        </p>
+
+        <label htmlFor="pdf" className="label mt-3">
+          Remplacer le PDF (facultatif, 50 Mo maximum)
         </label>
         <input
           id="pdf"
           name="pdf"
           type="file"
           accept="application/pdf,.pdf"
-          onChange={handlePdfChange}
+          onChange={(event: ChangeEvent<HTMLInputElement>) =>
+            setPdfFile(event.target.files?.[0] ?? null)
+          }
           className="input"
           disabled={busy}
         />
         <FieldError messages={fieldErrors.pdf} />
+        <p className="mt-1 text-xs text-slate-500">
+          Le nouveau PDF sera aussi celui que reçoivent les acheteurs
+          précédents lors de leurs prochains téléchargements. L&apos;ancien
+          fichier est supprimé.
+        </p>
       </div>
 
-      <div>
+      <div className="rounded-lg border border-slate-200 p-4">
+        <p className="label">Image de couverture</p>
+
+        {product.coverImageUrl ? (
+          <div className="mb-3 flex items-start gap-3">
+            <Image
+              src={product.coverImageUrl}
+              alt="Couverture actuelle"
+              width={80}
+              height={112}
+              className="h-28 w-20 rounded object-cover"
+            />
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={removeCover}
+                onChange={(event) => setRemoveCover(event.target.checked)}
+                disabled={busy}
+              />
+              Supprimer la couverture actuelle
+            </label>
+          </div>
+        ) : (
+          <p className="mb-3 text-sm text-slate-600">Aucune couverture actuellement.</p>
+        )}
+
         <label htmlFor="cover" className="label">
-          Image de couverture (facultatif, JPEG, PNG ou WebP, 2 Mo maximum)
+          {product.coverImageUrl ? "Remplacer" : "Ajouter"} la couverture
+          (JPEG, PNG ou WebP, 2 Mo maximum)
         </label>
         <input
           id="cover"
           name="cover"
           type="file"
           accept="image/jpeg,image/png,image/webp"
-          onChange={handleCoverChange}
+          onChange={(event: ChangeEvent<HTMLInputElement>) =>
+            setCoverFile(event.target.files?.[0] ?? null)
+          }
           className="input"
           disabled={busy}
         />
@@ -368,24 +435,17 @@ export function ProductForm({
               style={{ width: `${progress}%` }}
             />
           </div>
-          <p className="mt-1 text-xs text-slate-600">
-            Envoi du PDF : {progress} %
-          </p>
+          <p className="mt-1 text-xs text-slate-600">Envoi du PDF : {progress} %</p>
         </div>
       )}
-
-      <p className="text-xs text-slate-500">
-        En cliquant sur « Publier », votre ouvrage est mis en vente
-        immédiatement.
-      </p>
 
       <button type="submit" className="btn-primary w-full" disabled={busy}>
         {step === "uploading"
           ? "Envoi du PDF en cours..."
           : step === "saving"
-            ? "Publication en cours..."
-            : "Publier l'ouvrage"}
+            ? "Enregistrement..."
+            : "Enregistrer les modifications"}
       </button>
     </form>
   );
-}
+      }
