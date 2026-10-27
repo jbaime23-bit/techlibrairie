@@ -1,18 +1,3 @@
-src/app/vendeur/produits/nouveau/page.tsx: 1 version(s), last in block 11, 58 lines
-src/components/vendeur/product-form.tsx: 2 version(s), last in block 27, 391 lines
-src/lib/product-validation.ts: 3 version(s), last in block 27, 111 lines
-=========== exports of product-validation
-7:export const MAX_PDF_SIZE_BYTES = 50 * 1024 * 1024; // 50 Mo
-8:export const MAX_COVER_SIZE_BYTES = 2 * 1024 * 1024; // 2 Mo
-9:export const ALLOWED_COVER_TYPES = ["image/jpeg", "image/png", "image/webp"];
-11:export const PRODUCT_LANGUAGES = [
-16:export const PRODUCT_CURRENCIES = [
-21:export const MIN_PRICE = { XOF: 100 } as const;
-22:export const MAX_PRICE = { XOF: 10_000_000 } as const;
-24:export const productFieldsSchema = z
-111:export type ProductFields = z.infer<typeof productFieldsSchema>;
-
-=========== nouveau/page.tsx
 // src/app/vendeur/produits/nouveau/page.tsx
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
@@ -70,4 +55,4 @@ export default async function NouveauProduitPage() {
       </div>
     </div>
   );
-  }
+}
