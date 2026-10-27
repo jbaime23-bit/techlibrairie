@@ -1,327 +1,391 @@
-// src/lib/product-validation.ts
-// Règles de validation d'un produit (utilisables côté navigateur et serveur).
-// Règle métier : tous les prix sont fixés en FCFA (XOF), sans taxe.
+// src/components/vendeur/product-form.tsx
+"use client";
 
-import { z } from "zod";
+import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { upload } from "@vercel/blob/client";
+import {
+  ALLOWED_COVER_TYPES,
+  MAX_COVER_SIZE_BYTES,
+  MAX_PDF_SIZE_BYTES,
+  PRODUCT_LANGUAGES,
+} from "@/lib/product-validation";
 
-export const MAX_PDF_SIZE_BYTES = 50 * 1024 * 1024; // 50 Mo
-export const MAX_COVER_SIZE_BYTES = 2 * 1024 * 1024; // 2 Mo
-export const ALLOWED_COVER_TYPES = ["image/jpeg", "image/png", "image/webp"];
+type FieldErrors = Record<string, string[] | undefined>;
+type Step = "idle" | "uploading" | "saving";
 
-export const PRODUCT_LANGUAGES = [
-  { value: "fr", label: "Français" },
-  { value: "en", label: "Anglais" },
-] as const;
+interface CategoryOption {
+  id: string;
+  name: string;
+}
 
-export const PRODUCT_CURRENCIES = [
-  { value: "XOF", label: "Franc CFA (XOF)" },
-] as const;
+function FieldError({ messages }: { messages?: string[] }) {
+  if (!messages || messages.length === 0) return null;
+  return <p className="field-error">{messages[0]}</p>;
+}
 
-// Prix minimum et maximum en FCFA
-export const MIN_PRICE = { XOF: 100 } as const;
-export const MAX_PRICE = { XOF: 10_000_000 } as const;
+// Version locale (le module utils du serveur ne doit pas être chargé ici).
+function toSafeFileName(name: string): string {
+  const base = name
+    .replace(/\.[^/.]+$/, "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+  return base || "document";
+}
 
-export const productFieldsSchema = z
-  .object({
-    title: z
-      .string({ required_error: "Le titre est obligatoire." })
-      .trim()
-      .min(3, "Le titre doit contenir au moins 3 caractères.")
-      .max(150, "Le titre est trop long (150 caractères maximum)."),
-    description: z
-      .string({ required_error: "La description est obligatoire." })
-      .trim()
-      .min(20, "La description doit contenir au moins 20 caractères.")
-      .max(5000, "La description est trop longue (5000 caractères maximum)."),
-    categoryId: z.string().trim().optional(),
-    currency: z.enum(["XOF"], {
-      errorMap: () => ({ message: "Les prix sont fixés en FCFA." }),
-    }),
-    price: z.coerce.number({ invalid_type_error: "Prix invalide." }),
-    language: z.enum(["fr", "en"], {
-      errorMap: () => ({ message: "Choisissez une langue." }),
-    }),
-    pageCount: z.coerce
-      .number({ invalid_type_error: "Nombre de pages invalide." })
-      .int("Le nombre de pages doit être un entier.")
-      .min(1, "Le nombre de pages doit être d'au moins 1.")
-      .max(10000, "Le nombre de pages est trop élevé.")
-      .optional(),
-    pdfStorageKey: z
-      .string({ required_error: "Le fichier PDF est obligatoire." })
-      .trim()
-      .min(1, "Le fichier PDF est obligatoire.")
-      .max(500),
-    pdfFileName: z
-      .string({ required_error: "Le fichier PDF est obligatoire." })
-      .trim()
-      .min(1, "Le fichier PDF est obligatoire.")
-      .max(200),
-    pdfSizeBytes: z.coerce
-      .number({ invalid_type_error: "Taille du PDF invalide." })
-      .int()
-      .positive("Taille du PDF invalide.")
-      .max(MAX_PDF_SIZE_BYTES, "Le PDF dépasse la taille maximale de 50 Mo."),
-  })
-  .superRefine((data, ctx) => {
-    if (!Number.isFinite(data.price)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["price"],
-        message: "Prix invalide.",
-      });
+export function ProductForm({
+  sellerId,
+  categories,
+  commissionPercent,
+}: {
+  sellerId: string;
+  categories: CategoryOption[];
+  commissionPercent: number;
+}) {
+  const router = useRouter();
+  const [values, setValues] = useState({
+    title: "",
+    description: "",
+    categoryId: "",
+    price: "",
+    language: "fr",
+    pageCount: "",
+  });
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [globalError, setGlobalError] = useState<string | null>(null);
+  const [step, setStep] = useState<Step>("idle");
+  const [progress, setProgress] = useState(0);
+
+  // Mémorise le PDF déjà envoyé pour ne pas le renvoyer en cas de nouvel essai.
+  const uploadedRef = useRef<{ file: File; pathname: string } | null>(null);
+
+  const busy = step !== "idle";
+
+  function handleChange(
+    event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) {
+    const { name, value } = event.target;
+    setValues((previous) => ({ ...previous, [name]: value }));
+  }
+
+  function handlePdfChange(event: ChangeEvent<HTMLInputElement>) {
+    setPdfFile(event.target.files?.[0] ?? null);
+  }
+
+  function handleCoverChange(event: ChangeEvent<HTMLInputElement>) {
+    setCoverFile(event.target.files?.[0] ?? null);
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setGlobalError(null);
+    setFieldErrors({});
+
+    // Contrôles rapides côté navigateur (le serveur revérifie tout).
+    const localErrors: FieldErrors = {};
+
+    if (!pdfFile) {
+      localErrors.pdf = ["Sélectionnez le fichier PDF de votre ouvrage."];
+    } else if (
+      pdfFile.type !== "application/pdf" &&
+      !pdfFile.name.toLowerCase().endsWith(".pdf")
+    ) {
+      localErrors.pdf = ["Seuls les fichiers PDF sont acceptés."];
+    } else if (pdfFile.size === 0) {
+      localErrors.pdf = ["Le fichier PDF est vide."];
+    } else if (pdfFile.size > MAX_PDF_SIZE_BYTES) {
+      localErrors.pdf = ["Le PDF dépasse la taille maximale de 50 Mo."];
+    }
+
+    if (coverFile) {
+      if (!ALLOWED_COVER_TYPES.includes(coverFile.type)) {
+        localErrors.cover = ["La couverture doit être au format JPEG, PNG ou WebP."];
+      } else if (coverFile.size > MAX_COVER_SIZE_BYTES) {
+        localErrors.cover = ["La couverture dépasse la taille maximale de 2 Mo."];
+      }
+    }
+
+    const priceNumber = Number(values.price);
+    if (values.price.trim() !== "" && Number.isFinite(priceNumber)) {
+      if (!Number.isInteger(priceNumber) || priceNumber % 5 !== 0) {
+        localErrors.price = ["Le prix en FCFA doit être un multiple de 5."];
+      }
+    }
+
+    if (Object.keys(localErrors).length > 0 || !pdfFile) {
+      setFieldErrors(localErrors);
       return;
     }
 
-    const min = MIN_PRICE.XOF;
-    const max = MAX_PRICE.XOF;
-
-    if (data.price < min) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["price"],
-        message: `Le prix minimum est de ${min} FCFA.`,
-      });
-    }
-
-    if (data.price > max) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["price"],
-        message: `Le prix maximum est de ${max} FCFA.`,
-      });
-    }
-
-    if (!Number.isInteger(data.price)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["price"],
-        message: "Le franc CFA n'a pas de centimes : saisissez un nombre entier.",
-      });
-    } else if (data.price % 5 !== 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["price"],
-        message:
-          "Le prix en FCFA doit être un multiple de 5 (exigence du paiement Mobile Money).",
-      });
-    }
-  });
-
-export type ProductFields = z.infer<typeof productFieldsSchema>;
-=================================== /api/produits
-// src/app/api/produits/route.ts
-// Création d'un produit par un vendeur.
-// Le produit est PUBLIÉ automatiquement dès sa soumission.
-
-import { NextResponse } from "next/server";
-import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
-import { getSellerContext } from "@/lib/seller";
-import { productFieldsSchema } from "@/lib/product-validation";
-import {
-  deletePrivateFile,
-  deletePublicCover,
-  inspectPrivatePdf,
-  isOwnedPdfKey,
-  uploadPublicCover,
-} from "@/lib/storage";
-import { slugWithSuffix, toStoredAmount } from "@/lib/utils";
-
-type FieldErrors = Record<string, string[] | undefined>;
-
-function readField(formData: FormData, name: string): string | undefined {
-  const value = formData.get(name);
-  if (typeof value !== "string") return undefined;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
-}
-
-function sanitizeFileName(name: string): string {
-  const cleaned = name.replace(/[\\/]/g, "_").slice(0, 200);
-  return cleaned.toLowerCase().endsWith(".pdf") ? cleaned : `${cleaned}.pdf`;
-}
-
-function validationError(fieldErrors: FieldErrors, status: number = 422) {
-  return NextResponse.json(
-    { error: "Veuillez corriger les champs signalés.", fieldErrors },
-    { status }
-  );
-}
-
-export async function POST(request: Request) {
-  const context = await getSellerContext();
-  if (context.status !== "ok") {
-    return NextResponse.json(
-      { error: "Accès refusé : un compte vendeur actif est requis." },
-      { status: 403 }
-    );
-  }
-  const { seller } = context;
-
-  let formData: FormData;
-  try {
-    formData = await request.formData();
-  } catch {
-    return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
-  }
-
-  const parsed = productFieldsSchema.safeParse({
-    title: readField(formData, "title"),
-    description: readField(formData, "description"),
-    categoryId: readField(formData, "categoryId"),
-    currency: readField(formData, "currency"),
-    price: readField(formData, "price"),
-    language: readField(formData, "language"),
-    pageCount: readField(formData, "pageCount"),
-    pdfStorageKey: readField(formData, "pdfStorageKey"),
-    pdfFileName: readField(formData, "pdfFileName"),
-    pdfSizeBytes: readField(formData, "pdfSizeBytes"),
-  });
-
-  if (!parsed.success) {
-    const flat = parsed.error.flatten().fieldErrors as FieldErrors;
-    const fieldErrors: FieldErrors = { ...flat };
-    const pdfErrors =
-      flat.pdfStorageKey ?? flat.pdfFileName ?? flat.pdfSizeBytes;
-    delete fieldErrors.pdfStorageKey;
-    delete fieldErrors.pdfFileName;
-    delete fieldErrors.pdfSizeBytes;
-    if (pdfErrors) fieldErrors.pdf = pdfErrors;
-    return validationError(fieldErrors);
-  }
-
-  const fields = parsed.data;
-
-  // Le PDF doit appartenir à ce vendeur.
-  if (!isOwnedPdfKey(fields.pdfStorageKey, seller.id)) {
-    return validationError({ pdf: ["Fichier PDF non autorisé."] }, 403);
-  }
-
-  if (fields.categoryId) {
-    const category = await prisma.category.findUnique({
-      where: { id: fields.categoryId },
-      select: { id: true },
-    });
-    if (!category) {
-      return validationError({ categoryId: ["Catégorie introuvable."] });
-    }
-  }
-
-  // Le PDF doit exister dans le store privé et être un vrai PDF.
-  const inspection = await inspectPrivatePdf(fields.pdfStorageKey);
-  if (!inspection.exists) {
-    return validationError({
-      pdf: ["Le fichier PDF est introuvable. Veuillez l'envoyer à nouveau."],
-    });
-  }
-  if (!inspection.isPdf) {
-    await deletePrivateFile(fields.pdfStorageKey).catch(() => undefined);
-    return validationError({ pdf: ["Le fichier envoyé n'est pas un PDF valide."] });
-  }
-
-  // Couverture facultative (via le serveur, 2 Mo maximum).
-  let coverImageUrl: string | null = null;
-  const cover = formData.get("cover");
-  if (cover instanceof File && cover.size > 0) {
     try {
-      coverImageUrl = await uploadPublicCover(cover, seller.id);
-    } catch (error) {
-      return validationError({
-        cover: [
-          error instanceof Error
-            ? error.message
-            : "Impossible d'envoyer la couverture.",
-        ],
+      // 1) Envoi direct du PDF vers le store privé.
+      let pdfPathname: string;
+
+      if (uploadedRef.current && uploadedRef.current.file === pdfFile) {
+        pdfPathname = uploadedRef.current.pathname;
+      } else {
+        setStep("uploading");
+        setProgress(0);
+
+        const blob = await upload(
+          `pdfs/${sellerId}/${toSafeFileName(pdfFile.name)}.pdf`,
+          pdfFile,
+          {
+            access: "private",
+            handleUploadUrl: "/api/upload/pdf",
+            onUploadProgress: ({ percentage }) => setProgress(Math.round(percentage)),
+          }
+        );
+
+        pdfPathname = blob.pathname;
+        uploadedRef.current = { file: pdfFile, pathname: pdfPathname };
+      }
+
+      // 2) Création du produit (publication automatique).
+      setStep("saving");
+
+      const formData = new FormData();
+      formData.append("title", values.title);
+      formData.append("description", values.description);
+      if (values.categoryId) formData.append("categoryId", values.categoryId);
+      formData.append("currency", "XOF");
+      formData.append("price", values.price);
+      formData.append("language", values.language);
+      if (values.pageCount) formData.append("pageCount", values.pageCount);
+      formData.append("pdfStorageKey", pdfPathname);
+      formData.append("pdfFileName", pdfFile.name);
+      formData.append("pdfSizeBytes", String(pdfFile.size));
+      if (coverFile) formData.append("cover", coverFile);
+
+      const response = await fetch("/api/produits", {
+        method: "POST",
+        body: formData,
       });
+
+      const data = (await response.json().catch(() => null)) as {
+        error?: string;
+        fieldErrors?: FieldErrors;
+      } | null;
+
+      if (!response.ok) {
+        // Le PDF a été supprimé côté serveur s'il était invalide.
+        if (response.status === 403 || response.status === 422) {
+          if (data?.fieldErrors?.pdf) uploadedRef.current = null;
+        }
+        setGlobalError(data?.error ?? "Une erreur est survenue. Veuillez réessayer.");
+        setFieldErrors(data?.fieldErrors ?? {});
+        setStep("idle");
+        return;
+      }
+
+      router.push("/vendeur/produits");
+      router.refresh();
+    } catch (error) {
+      setGlobalError(
+        error instanceof Error && error.message
+          ? `Échec de l'opération : ${error.message}`
+          : "Impossible de contacter le serveur. Vérifiez votre connexion et réessayez."
+      );
+      setStep("idle");
     }
   }
 
-  try {
-    const product = await prisma.product.create({
-      data: {
-        sellerId: seller.id,
-        categoryId: fields.categoryId ?? null,
-        title: fields.title,
-        slug: slugWithSuffix(fields.title),
-        description: fields.description,
-        language: fields.language,
-        pageCount: fields.pageCount ?? null,
-        priceAmount: toStoredAmount(fields.price, fields.currency),
-        currency: fields.currency,
-        coverImageUrl,
-        pdfStorageKey: fields.pdfStorageKey,
-        pdfFileName: sanitizeFileName(fields.pdfFileName),
-        pdfSizeBytes: inspection.sizeBytes ?? fields.pdfSizeBytes,
-        // status : PUBLISHED par défaut => publication automatique
-      },
-      select: { id: true, slug: true },
-    });
+  return (
+    <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+      {globalError && <div className="alert-error">{globalError}</div>}
 
-    revalidatePath("/vendeur");
-    revalidatePath("/vendeur/produits");
-    revalidatePath("/catalogue");
+      <div>
+        <label htmlFor="title" className="label">
+          Titre de l&apos;ouvrage
+        </label>
+        <input
+          id="title"
+          name="title"
+          type="text"
+          required
+          value={values.title}
+          onChange={handleChange}
+          className="input"
+          disabled={busy}
+        />
+        <FieldError messages={fieldErrors.title} />
+      </div>
 
-    return NextResponse.json(product, { status: 201 });
-  } catch (error) {
-    console.error("Erreur lors de la création du produit :", error);
-    if (coverImageUrl) {
-      await deletePublicCover(coverImageUrl).catch(() => undefined);
-    }
-    await deletePrivateFile(fields.pdfStorageKey).catch(() => undefined);
-    return NextResponse.json(
-      { error: "Une erreur est survenue. Veuillez réessayer dans un instant." },
-      { status: 500 }
-    );
-  }
-}
-=================================== /api/upload/pdf
-// src/app/api/upload/pdf/route.ts
-// Génère les jetons d'envoi direct (navigateur -> Vercel Blob) pour les PDF.
-// L'authentification se fait dans onBeforeGenerateToken.
+      <div>
+        <label htmlFor="description" className="label">
+          Description
+        </label>
+        <textarea
+          id="description"
+          name="description"
+          rows={6}
+          required
+          value={values.description}
+          onChange={handleChange}
+          className="input"
+          disabled={busy}
+        />
+        <FieldError messages={fieldErrors.description} />
+      </div>
 
-import { NextResponse } from "next/server";
-import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
-import { getSellerContext } from "@/lib/seller";
-import { isOwnedPdfKey } from "@/lib/storage";
-import { MAX_PDF_SIZE_BYTES } from "@/lib/product-validation";
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label htmlFor="categoryId" className="label">
+            Catégorie
+          </label>
+          <select
+            id="categoryId"
+            name="categoryId"
+            value={values.categoryId}
+            onChange={handleChange}
+            className="input"
+            disabled={busy}
+          >
+            <option value="">Sans catégorie</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+          <FieldError messages={fieldErrors.categoryId} />
+        </div>
 
-export async function POST(request: Request): Promise<NextResponse> {
-  let body: HandleUploadBody;
-  try {
-    body = (await request.json()) as HandleUploadBody;
-  } catch {
-    return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
-  }
+        <div>
+          <label htmlFor="language" className="label">
+            Langue
+          </label>
+          <select
+            id="language"
+            name="language"
+            value={values.language}
+            onChange={handleChange}
+            className="input"
+            disabled={busy}
+          >
+            {PRODUCT_LANGUAGES.map((language) => (
+              <option key={language.value} value={language.value}>
+                {language.label}
+              </option>
+            ))}
+          </select>
+          <FieldError messages={fieldErrors.language} />
+        </div>
+      </div>
 
-  try {
-    const jsonResponse = await handleUpload({
-      body,
-      request,
-      onBeforeGenerateToken: async (pathname) => {
-        const context = await getSellerContext();
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label htmlFor="price" className="label">
+            Prix en FCFA (multiple de 5, minimum 100)
+          </label>
+          <input
+            id="price"
+            name="price"
+            type="number"
+            inputMode="numeric"
+            min="100"
+            step="5"
+            required
+            value={values.price}
+            onChange={handleChange}
+            className="input"
+            disabled={busy}
+          />
+          <FieldError messages={fieldErrors.price} />
+          <FieldError messages={fieldErrors.currency} />
+        </div>
 
-        if (context.status !== "ok") {
-          throw new Error("Accès refusé : un compte vendeur actif est requis.");
-        }
+        <div>
+          <label htmlFor="pageCount" className="label">
+            Nombre de pages (facultatif)
+          </label>
+          <input
+            id="pageCount"
+            name="pageCount"
+            type="number"
+            inputMode="numeric"
+            min="1"
+            step="1"
+            value={values.pageCount}
+            onChange={handleChange}
+            className="input"
+            disabled={busy}
+          />
+          <FieldError messages={fieldErrors.pageCount} />
+        </div>
+      </div>
 
-        if (!isOwnedPdfKey(pathname, context.seller.id)) {
-          throw new Error("Chemin de fichier non autorisé.");
-        }
+      <p className="text-xs text-slate-500">
+        Le prix est fixé en FCFA. Pour les paiements par carte bancaire, il est
+        converti automatiquement en euros ou en dollars au moment du paiement.
+        Aucune taxe n&apos;est ajoutée. La boutique prélève une commission de{" "}
+        {commissionPercent} % sur chaque vente ; le reste vous revient.
+      </p>
 
-        return {
-          allowedContentTypes: ["application/pdf"],
-          maximumSizeInBytes: MAX_PDF_SIZE_BYTES,
-          addRandomSuffix: true,
-        };
-      },
-    });
+      <div>
+        <label htmlFor="pdf" className="label">
+          Fichier PDF (50 Mo maximum)
+        </label>
+        <input
+          id="pdf"
+          name="pdf"
+          type="file"
+          accept="application/pdf,.pdf"
+          onChange={handlePdfChange}
+          className="input"
+          disabled={busy}
+        />
+        <FieldError messages={fieldErrors.pdf} />
+      </div>
 
-    return NextResponse.json(jsonResponse);
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Envoi refusé." },
-      { status: 400 }
-    );
-  }
-}
+      <div>
+        <label htmlFor="cover" className="label">
+          Image de couverture (facultatif, JPEG, PNG ou WebP, 2 Mo maximum)
+        </label>
+        <input
+          id="cover"
+          name="cover"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          onChange={handleCoverChange}
+          className="input"
+          disabled={busy}
+        />
+        <FieldError messages={fieldErrors.cover} />
+      </div>
+
+      {step === "uploading" && (
+        <div aria-live="polite">
+          <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
+            <div
+              className="h-full bg-brand-600 transition-all"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <p className="mt-1 text-xs text-slate-600">
+            Envoi du PDF : {progress} %
+          </p>
+        </div>
+      )}
+
+      <p className="text-xs text-slate-500">
+        En cliquant sur « Publier », votre ouvrage est mis en vente
+        immédiatement.
+      </p>
+
+      <button type="submit" className="btn-primary w-full" disabled={busy}>
+        {step === "uploading"
+          ? "Envoi du PDF en cours..."
+          : step === "saving"
+            ? "Publication en cours..."
+            : "Publier l'ouvrage"}
+      </button>
+    </form>
+  );
+          }
