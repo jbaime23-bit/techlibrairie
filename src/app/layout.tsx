@@ -16,6 +16,10 @@ export const metadata: Metadata = {
   },
   description:
     "La plateforme multi-vendeurs de livres et guides techniques au format PDF. Paiement en ligne sécurisé, téléchargement immédiat.",
+  // Vérification de propriété du site pour Google AdSense (n'affiche aucune publicité).
+  other: {
+    "google-adsense-account": "ca-pub-3883537883013867",
+  },
 };
 
 export default async function RootLayout({
