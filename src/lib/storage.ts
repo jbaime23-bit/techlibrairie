@@ -134,4 +134,4 @@ export async function deletePublicCover(url: string): Promise<void> {
   const token = process.env.BLOB_PUBLIC_READ_WRITE_TOKEN;
   if (!token) return;
   await del(url, { token });
-               }
+}
