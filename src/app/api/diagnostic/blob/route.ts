@@ -1,55 +1,92 @@
 // src/app/api/diagnostic/blob/route.ts
-// OUTIL TEMPORAIRE (à supprimer ensuite) : vérifie la FORME des jetons de stockage Vercel Blob.
-// Réservé aux administrateurs. Aucune valeur secrète n'est jamais affichée : seulement des oui/non.
+// OUTIL TEMPORAIRE (à supprimer ensuite) : teste réellement les jetons de stockage Vercel Blob.
+// Réservé aux administrateurs. Aucune valeur secrète n'est affichée.
 
 import { NextResponse } from "next/server";
+import { del, put } from "@vercel/blob";
 import { getAdminOrNull } from "@/lib/admin";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
-const EXPECTED_PREFIX = "vercel_blob_rw_";
-const EXPECTED_SHAPE = /^vercel_blob_rw_[A-Za-z0-9]+_[A-Za-z0-9]+$/;
+const SHAPE = /^vercel_blob_rw_([A-Za-z0-9]+)_[A-Za-z0-9]+$/;
 
-function inspectToken(name: string) {
-  const raw = process.env[name];
+type Access = "private" | "public";
 
-  if (raw === undefined || raw === "") {
-    return { variable: name, presente: false };
-  }
-
-  return {
-    variable: name,
-    presente: true,
-    longueur: raw.length,
-    commence_par_le_bon_debut: raw.startsWith(EXPECTED_PREFIX),
-    contient_espace_ou_retour_a_la_ligne: /\s/.test(raw),
-    contient_guillemets: /["'`]/.test(raw),
-    contient_signe_egal: raw.includes("="),
-    contient_caracteres_invalides_ou_invisibles: /[^\x21-\x7E]/.test(raw),
-    forme_attendue: EXPECTED_SHAPE.test(raw),
-  };
+interface TokenReport {
+  variable: string;
+  acces_teste: Access;
+  presente: boolean;
+  longueur?: number;
+  forme_correcte?: boolean;
+  debut_identifiant_du_store?: string | null;
+  essai: "réussi" | "échec" | "non effectué";
+  message_du_service?: string;
 }
 
-function adviceFor(info: ReturnType<typeof inspectToken>): string | null {
-  if (!info.presente) {
-    return `${info.variable} est absente dans Vercel.`;
+function shortMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : "erreur inconnue";
+  return message.replace(/\s+/g, " ").slice(0, 220);
+}
+
+async function testToken(variable: string, access: Access): Promise<TokenReport> {
+  const raw = process.env[variable];
+
+  if (!raw) {
+    return { variable, acces_teste: access, presente: false, essai: "non effectué" };
   }
-  if (info.contient_espace_ou_retour_a_la_ligne || info.contient_caracteres_invalides_ou_invisibles) {
-    return `${info.variable} contient un espace, un retour à la ligne ou un caractère invisible : c'est la cause de l'erreur « Invalid value ». Recréez-la avec le bouton Copier, ou en reliant le store au projet.`;
+
+  const shape = SHAPE.exec(raw);
+  const base = {
+    variable,
+    acces_teste: access,
+    presente: true,
+    longueur: raw.length,
+    forme_correcte: Boolean(shape),
+    debut_identifiant_du_store: shape ? shape[1].slice(0, 6).toLowerCase() : null,
+  };
+
+  if (/[^\x21-\x7E]/.test(raw)) {
+    return {
+      ...base,
+      essai: "non effectué",
+      message_du_service: "Le jeton contient un espace, un retour à la ligne ou un caractère invisible.",
+    };
   }
-  if (info.contient_guillemets) {
-    return `${info.variable} contient des guillemets : retirez-les, la valeur doit être collée telle quelle.`;
+
+  try {
+    const blob = await put(`diagnostic/test-${Date.now()}.txt`, "test", {
+      access,
+      token: raw,
+      addRandomSuffix: true,
+      contentType: "text/plain",
+    });
+    await del(blob.url, { token: raw }).catch(() => undefined);
+    return { ...base, essai: "réussi" };
+  } catch (error) {
+    return { ...base, essai: "échec", message_du_service: shortMessage(error) };
   }
-  if (info.contient_signe_egal) {
-    return `${info.variable} contient le signe « = » : le nom de la variable a probablement été collé dans la valeur. Ne collez que le jeton.`;
+}
+
+function adviceFor(report: TokenReport, role: string): string | null {
+  if (!report.presente) {
+    return `${report.variable} (${role}) est ABSENTE pour cet environnement : créez-la ou reliez le store au projet.`;
   }
-  if (!info.commence_par_le_bon_debut) {
-    return `${info.variable} ne commence pas par « ${EXPECTED_PREFIX} » : ce n'est pas un jeton de lecture et d'écriture de Vercel Blob.`;
+
+  if (report.essai === "réussi") return null;
+
+  const message = (report.message_du_service ?? "").toLowerCase();
+
+  if (message.includes("does not exist")) {
+    return `${report.variable} (${role}) désigne un store qui n'existe pas : ancien jeton, store supprimé, ou variable d'un autre projet. Supprimez toutes les variables BLOB du projet (tous les environnements), puis reliez de nouveau le store au projet.`;
   }
-  if (!info.forme_attendue) {
-    return `${info.variable} a une forme inhabituelle : recréez-la en reliant le store au projet.`;
+  if (message.includes("access") || message.includes("private") || message.includes("public")) {
+    return `${report.variable} (${role}) : le service refuse le mode d'accès « ${report.acces_teste} ». Soit le store n'est pas du bon type (privé pour les PDF, public pour les couvertures), soit la bibliothèque du site est trop ancienne pour les stores privés. Envoyez-moi ce message.`;
   }
-  return null;
+  if (message.includes("token")) {
+    return `${report.variable} (${role}) : le jeton est refusé par le service. Recréez-le en reliant le store au projet.`;
+  }
+  return `${report.variable} (${role}) : échec inattendu. Envoyez-moi le message du service.`;
 }
 
 export async function GET() {
@@ -58,26 +95,37 @@ export async function GET() {
     return NextResponse.json({ erreur: "Accès réservé aux administrateurs." }, { status: 403 });
   }
 
-  const prive = inspectToken("BLOB_READ_WRITE_TOKEN");
-  const public_ = inspectToken("BLOB_PUBLIC_READ_WRITE_TOKEN");
+  const [prive, public_] = await Promise.all([
+    testToken("BLOB_READ_WRITE_TOKEN", "private"),
+    testToken("BLOB_PUBLIC_READ_WRITE_TOKEN", "public"),
+  ]);
 
-  const conclusions = [adviceFor(prive), adviceFor(public_)].filter(
+  const conclusions = [adviceFor(prive, "PDF, store privé"), adviceFor(public_, "couvertures, store public")].filter(
     (message): message is string => message !== null
   );
 
-  const bothPresent = Boolean(process.env.BLOB_READ_WRITE_TOKEN && process.env.BLOB_PUBLIC_READ_WRITE_TOKEN);
-  const identical =
-    bothPresent && process.env.BLOB_READ_WRITE_TOKEN === process.env.BLOB_PUBLIC_READ_WRITE_TOKEN;
-
-  if (identical) {
+  const bothPresent = Boolean(
+    process.env.BLOB_READ_WRITE_TOKEN && process.env.BLOB_PUBLIC_READ_WRITE_TOKEN
+  );
+  if (bothPresent && process.env.BLOB_READ_WRITE_TOKEN === process.env.BLOB_PUBLIC_READ_WRITE_TOKEN) {
     conclusions.push(
-      "Les deux variables contiennent le même jeton : les PDF (privés) et les couvertures (publiques) doivent être dans deux stores différents."
+      "Les deux variables contiennent le même jeton : il faut deux stores différents (un privé pour les PDF, un public pour les couvertures)."
+    );
+  }
+
+  const variablesDeStockage = Object.keys(process.env)
+    .filter((name) => /BLOB|READ_WRITE|STORAGE/i.test(name))
+    .sort();
+
+  if (variablesDeStockage.length > 2) {
+    conclusions.push(
+      `Plusieurs variables de stockage existent (${variablesDeStockage.join(", ")}) : seules BLOB_READ_WRITE_TOKEN et BLOB_PUBLIC_READ_WRITE_TOKEN sont lues par le site. Supprimez les autres.`
     );
   }
 
   if (conclusions.length === 0) {
     conclusions.push(
-      "La forme des deux jetons est correcte. Si l'erreur persiste, envoyez-moi la capture du message exact."
+      "Les deux stores répondent et acceptent l'écriture. L'envoi d'un PDF doit maintenant fonctionner : rechargez le formulaire et réessayez."
     );
   }
 
@@ -85,9 +133,11 @@ export async function GET() {
     JSON.stringify(
       {
         conclusions,
+        environnement_vercel: process.env.VERCEL_ENV ?? "inconnu",
+        adresse_du_deploiement: process.env.VERCEL_URL ?? "inconnue",
+        noms_des_variables_de_stockage_presentes: variablesDeStockage,
         stockage_prive_pdf: prive,
         stockage_public_couvertures: public_,
-        les_deux_jetons_sont_identiques: identical,
       },
       null,
       2
@@ -97,4 +147,4 @@ export async function GET() {
       headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
     }
   );
-}
+    }
