@@ -1,137 +1,174 @@
-// src/lib/storage.ts
-// Stockage des fichiers avec Vercel Blob.
-// - PDF : store PRIVÉ. Aucune URL publique : le fichier n'est lu que côté
-//   serveur, après vérification du droit de téléchargement.
-// - Couvertures : store PUBLIC (BLOB_PUBLIC_READ_WRITE_TOKEN).
+// src/lib/storage-check.ts
+// Test réel des deux stockages Vercel Blob (écriture puis suppression d'un petit fichier).
+// Pour chaque jeton, les deux modes (public et privé) sont essayés afin d'identifier le type du store.
+// Aucune valeur secrète n'est jamais renvoyée : seulement des états et des messages.
 
-import { put, get, del } from "@vercel/blob";
-import { slugify } from "@/lib/utils";
-import {
-  ALLOWED_COVER_TYPES,
-  MAX_COVER_SIZE_BYTES,
-} from "@/lib/product-validation";
+import { del, put } from "@vercel/blob";
 
-/** Préfixe de stockage des PDF d'un vendeur. */
-export function pdfPathPrefix(sellerId: string): string {
-  return `pdfs/${sellerId}/`;
+export type StorageAccess = "private" | "public";
+
+type Kind = "ok" | "absent" | "dirty" | "wrong-type" | "invalid";
+
+export interface StorageTestResult {
+  variable: string;
+  role: string;
+  access: StorageAccess;
+  present: boolean;
+  shapeOk: boolean;
+  ok: boolean;
+  kind: Kind;
+  message: string;
 }
 
-/**
- * Vérifie qu'une clé de stockage désigne bien un PDF appartenant à ce vendeur.
- * Empêche un vendeur de référencer le fichier d'un autre vendeur.
- */
-export function isOwnedPdfKey(storageKey: string, sellerId: string): boolean {
-  return (
-    storageKey.startsWith(pdfPathPrefix(sellerId)) &&
-    storageKey.toLowerCase().endsWith(".pdf") &&
-    !storageKey.includes("..") &&
-    !storageKey.includes("\\")
-  );
+export interface StorageTestReport {
+  results: StorageTestResult[];
+  variableNames: string[];
+  environment: string;
+  hints: string[];
 }
 
-export interface PdfInspection {
-  exists: boolean;
-  isPdf: boolean;
-  sizeBytes: number | null;
+const SHAPE = /^vercel_blob_rw_[A-Za-z0-9]+_[A-Za-z0-9]+$/;
+
+function shortMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : "erreur inconnue";
+  return message.replace(/\s+/g, " ").slice(0, 160);
 }
 
-/**
- * Vérifie qu'un PDF existe dans le store privé et commence par la
- * signature %PDF-. Ne télécharge que les premiers octets.
- */
-export async function inspectPrivatePdf(
-  storageKey: string
-): Promise<PdfInspection> {
-  let result;
+function accessLabel(access: StorageAccess): string {
+  return access === "private" ? "privé" : "public";
+}
+
+async function tryPut(
+  token: string,
+  access: StorageAccess
+): Promise<{ ok: boolean; message: string }> {
   try {
-    result = await get(storageKey, { access: "private" });
-  } catch {
-    return { exists: false, isPdf: false, sizeBytes: null };
+    const blob = await put(`diagnostic/test-${Date.now()}.txt`, "test", {
+      access: access as "public",
+      token,
+      addRandomSuffix: true,
+      contentType: "text/plain",
+    });
+    await del(blob.url, { token }).catch(() => undefined);
+    return { ok: true, message: "réussi" };
+  } catch (error) {
+    return { ok: false, message: shortMessage(error) };
   }
-
-  if (!result || result.statusCode !== 200 || !result.stream) {
-    return { exists: false, isPdf: false, sizeBytes: null };
-  }
-
-  const reader = result.stream.getReader();
-  let received = new Uint8Array(0);
-
-  while (received.length < 5) {
-    const { done, value } = await reader.read();
-    if (done || !value) break;
-    const merged = new Uint8Array(received.length + value.length);
-    merged.set(received);
-    merged.set(value, received.length);
-    received = merged;
-  }
-
-  await reader.cancel().catch(() => undefined);
-
-  const signature = new TextDecoder().decode(received.slice(0, 5));
-  const blobInfo = result.blob as unknown as { size?: number };
-  const sizeBytes = typeof blobInfo.size === "number" ? blobInfo.size : null;
-
-  return { exists: true, isPdf: signature === "%PDF-", sizeBytes };
 }
 
-/**
- * Ouvre un PDF du store privé en flux (stream).
- * À appeler uniquement après avoir vérifié le droit de téléchargement.
- * Renvoie null si le fichier est introuvable.
- */
-export async function openPrivatePdfStream(
-  storageKey: string
-): Promise<ReadableStream<Uint8Array> | null> {
-  const result = await get(storageKey, { access: "private" });
+async function testOne(
+  variable: string,
+  role: string,
+  access: StorageAccess
+): Promise<StorageTestResult> {
+  const raw = process.env[variable];
 
-  if (!result || result.statusCode !== 200 || !result.stream) {
-    return null;
+  if (!raw) {
+    return {
+      variable,
+      role,
+      access,
+      present: false,
+      shapeOk: false,
+      ok: false,
+      kind: "absent",
+      message: "Variable absente pour cet environnement.",
+    };
   }
 
-  return result.stream;
+  const shapeOk = SHAPE.test(raw);
+  const cleaned = raw.replace(/[^\x21-\x7E]/g, "").replace(/["'`]/g, "");
+  const dirty = cleaned !== raw;
+
+  const [publicTry, privateTry] = await Promise.all([
+    tryPut(cleaned, "public"),
+    tryPut(cleaned, "private"),
+  ]);
+
+  const works: StorageAccess[] = [];
+  if (publicTry.ok) works.push("public");
+  if (privateTry.ok) works.push("private");
+
+  const base = { variable, role, access, present: true, shapeOk };
+
+  if (works.length === 0) {
+    return {
+      ...base,
+      ok: false,
+      kind: "invalid",
+      message: `Aucun accès ne fonctionne avec ce jeton${dirty ? " (même nettoyé)" : ""}. Public : ${publicTry.message}. Privé : ${privateTry.message}.`,
+    };
+  }
+
+  if (!works.includes(access)) {
+    const actual = works.map(accessLabel).join(" et ");
+    return {
+      ...base,
+      ok: false,
+      kind: "wrong-type",
+      message: `Ce jeton est valable, mais il appartient à un store ${actual}, alors que « ${role} » exige un store ${accessLabel(access)}.`,
+    };
+  }
+
+  if (dirty) {
+    return {
+      ...base,
+      ok: false,
+      kind: "dirty",
+      message:
+        "Le jeton est valable, mais la valeur enregistrée contient des espaces, des guillemets ou des caractères invisibles : le site ne peut pas l'utiliser telle quelle.",
+    };
+  }
+
+  return {
+    ...base,
+    ok: true,
+    kind: "ok",
+    message: "Écriture et suppression réussies.",
+  };
 }
 
-/** Supprime un PDF du store privé. */
-export async function deletePrivateFile(storageKey: string): Promise<void> {
-  await del(storageKey);
+function hintFor(result: StorageTestResult): string | null {
+  switch (result.kind) {
+    case "ok":
+      return null;
+    case "absent":
+      return `${result.variable} (${result.role}) est absente : reliez un store au projet (Storage, Connect Project) puis redéployez.`;
+    case "dirty":
+      return `${result.variable} (${result.role}) : supprimez cette variable dans Vercel puis reliez de nouveau le store avec Connect Project, au lieu de coller le jeton à la main.`;
+    case "wrong-type":
+      return `${result.variable} (${result.role}) : le store relié n'est pas du bon type. Créez un store ${accessLabel(result.access)} neuf et reliez-le à la place.`;
+    case "invalid":
+      return `${result.variable} (${result.role}) : jeton invalide (ancien, incomplet, ou d'un autre projet). Supprimez cette variable, supprimez les anciens stores inutiles, créez un store neuf ${accessLabel(result.access)} et reliez-le avec Connect Project.`;
+  }
 }
 
-/** Envoie une image de couverture dans le store public et renvoie son URL. */
-export async function uploadPublicCover(
-  file: File,
-  sellerId: string
-): Promise<string> {
-  const token = process.env.BLOB_PUBLIC_READ_WRITE_TOKEN;
-  if (!token) {
-    throw new Error(
-      "BLOB_PUBLIC_READ_WRITE_TOKEN est manquant : impossible d'envoyer la couverture."
+export async function testBlobTokens(): Promise<StorageTestReport> {
+  const results = await Promise.all([
+    testOne("BLOB_READ_WRITE_TOKEN", "PDF, store privé", "private"),
+    testOne("BLOB_PUBLIC_READ_WRITE_TOKEN", "couvertures, store public", "public"),
+  ]);
+
+  const hints = results
+    .map((result) => hintFor(result))
+    .filter((hint): hint is string => hint !== null);
+
+  const privateToken = process.env.BLOB_READ_WRITE_TOKEN;
+  const publicToken = process.env.BLOB_PUBLIC_READ_WRITE_TOKEN;
+  if (privateToken && publicToken && privateToken === publicToken) {
+    hints.push(
+      "Les deux variables contiennent le même jeton : il faut deux stores différents (privé pour les PDF, public pour les couvertures)."
     );
   }
-  if (file.size === 0 || file.size > MAX_COVER_SIZE_BYTES) {
-    throw new Error("L'image de couverture doit faire entre 1 octet et 2 Mo.");
-  }
-  if (!ALLOWED_COVER_TYPES.includes(file.type)) {
-    throw new Error("La couverture doit être au format JPEG, PNG ou WebP.");
-  }
 
-  const extension =
-    file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
-  const baseName = slugify(file.name.replace(/\.[^/.]+$/, "")) || "couverture";
-  const pathname = `couvertures/${sellerId}/${baseName}.${extension}`;
+  const variableNames = Object.keys(process.env)
+    .filter((name) => /BLOB|READ_WRITE/i.test(name))
+    .sort();
 
-  const result = await put(pathname, file, {
-    access: "public",
-    addRandomSuffix: true,
-    contentType: file.type,
-    token,
-  });
-
-  return result.url;
-}
-
-/** Supprime une couverture du store public. */
-export async function deletePublicCover(url: string): Promise<void> {
-  const token = process.env.BLOB_PUBLIC_READ_WRITE_TOKEN;
-  if (!token) return;
-  await del(url, { token });
-}
+  return {
+    results,
+    variableNames,
+    environment: process.env.VERCEL_ENV ?? "inconnu",
+    hints,
+  };
+    }
