@@ -1,7 +1,6 @@
 // src/lib/storage-check.ts
-// Test réel des deux stockages Vercel Blob (écriture puis suppression d'un petit fichier)
+// Test réel du stockage Vercel Blob (écriture puis suppression d'un petit fichier)
 // et simulation de la demande de jeton d'envoi faite par le formulaire.
-// Pour chaque jeton, les deux modes (public et privé) sont essayés afin d'identifier le type du store.
 // Aucune valeur secrète n'est jamais renvoyée : seulement des états et des messages.
 
 import { del, put } from "@vercel/blob";
@@ -64,11 +63,10 @@ async function tryPut(
   }
 }
 
-async function testOne(
-  variable: string,
-  role: string,
-  access: StorageAccess
-): Promise<StorageTestResult> {
+async function testPrivateStore(): Promise<StorageTestResult> {
+  const variable = "BLOB_READ_WRITE_TOKEN";
+  const role = "PDF et couvertures, store privé";
+  const access: StorageAccess = "private";
   const raw = process.env[variable];
 
   if (!raw) {
@@ -109,12 +107,11 @@ async function testOne(
   }
 
   if (!works.includes(access)) {
-    const actual = works.map(accessLabel).join(" et ");
     return {
       ...base,
       ok: false,
       kind: "wrong-type",
-      message: `Ce jeton est valable, mais il appartient à un store ${actual}, alors que « ${role} » exige un store ${accessLabel(access)}.`,
+      message: `Ce jeton est valable, mais il appartient à un store ${works.map(accessLabel).join(" et ")}, alors que le site exige un store privé.`,
     };
   }
 
@@ -139,33 +136,27 @@ async function testOne(
 function hintFor(result: StorageTestResult): string | null {
   switch (result.kind) {
     case "ok":
-      return null;
-    case "absent":
-      return `${result.variable} (${result.role}) est absente : reliez un store au projet (Storage, Connect Project) puis redéployez.`;
     case "dirty":
       return null;
+    case "absent":
+      return "BLOB_READ_WRITE_TOKEN est absente : reliez un store privé au projet (Storage, puis Connect Project, préfixe par défaut) et redéployez.";
     case "wrong-type":
-      return `${result.variable} (${result.role}) : le store relié n'est pas du bon type. Créez un store ${accessLabel(result.access)} neuf et reliez-le à la place.`;
+      return "Le store relié au projet est un store PUBLIC : supprimez-le, créez un store PRIVÉ neuf et reliez-le au projet avec le préfixe par défaut.";
     case "invalid":
-      return `${result.variable} (${result.role}) : jeton invalide (ancien, incomplet, ou d'un autre projet). Supprimez cette variable, supprimez les anciens stores inutiles, créez un store neuf ${accessLabel(result.access)} et reliez-le avec Connect Project.`;
+      return "Jeton invalide (ancien, incomplet, ou d'un autre projet) : supprimez les variables BLOB_ du projet et les anciens stores, créez UN store privé neuf et reliez-le avec Connect Project.";
   }
 }
 
 export async function testBlobTokens(): Promise<StorageTestReport> {
-  const results = await Promise.all([
-    testOne("BLOB_READ_WRITE_TOKEN", "PDF, store privé", "private"),
-    testOne("BLOB_PUBLIC_READ_WRITE_TOKEN", "couvertures, store public", "public"),
-  ]);
+  const result = await testPrivateStore();
+  const hints: string[] = [];
 
-  const hints = results
-    .map((result) => hintFor(result))
-    .filter((hint): hint is string => hint !== null);
+  const hint = hintFor(result);
+  if (hint) hints.push(hint);
 
-  const privateToken = process.env.BLOB_READ_WRITE_TOKEN;
-  const publicToken = process.env.BLOB_PUBLIC_READ_WRITE_TOKEN;
-  if (privateToken && publicToken && privateToken === publicToken) {
+  if (process.env.BLOB_PUBLIC_READ_WRITE_TOKEN) {
     hints.push(
-      "Les deux variables contiennent le même jeton : il faut deux stores différents (privé pour les PDF, public pour les couvertures)."
+      "BLOB_PUBLIC_READ_WRITE_TOKEN n'est plus utilisée : le site n'a plus besoin que d'un seul store privé. Vous pouvez supprimer cette variable et le store public."
     );
   }
 
@@ -174,7 +165,7 @@ export async function testBlobTokens(): Promise<StorageTestReport> {
     .sort();
 
   return {
-    results,
+    results: [result],
     variableNames,
     environment: process.env.VERCEL_ENV ?? "inconnu",
     hints,
@@ -193,7 +184,7 @@ function simulationHint(status: number | null, message: string): string | null {
   if (text.includes("chemin")) {
     return "Le chemin du fichier est refusé : envoyez-moi ce message.";
   }
-  if (text.includes("no token") || text.includes("token")) {
+  if (text.includes("token")) {
     return "Le serveur ne trouve pas un jeton valable pour le store privé : vérifiez BLOB_READ_WRITE_TOKEN (store privé relié au projet, puis redéploiement).";
   }
   return "Envoyez-moi ce message tel quel.";
@@ -258,4 +249,4 @@ export async function simulateUploadRoute(params: {
     const message = shortMessage(error);
     return { ok: false, status: null, message, hint: simulationHint(null, message) };
   }
-}
+      }
