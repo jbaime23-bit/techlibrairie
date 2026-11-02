@@ -1,11 +1,12 @@
 // src/app/vendeur/produits/nouveau/page.tsx
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { firstParam } from "@/lib/admin";
 import { loadSellerPage } from "@/lib/seller";
 import { SellerUnavailable } from "@/components/vendeur/seller-unavailable";
 import { ProductForm } from "@/components/vendeur/product-form";
-import { testBlobTokens } from "@/lib/storage-check";
+import { simulateUploadRoute, testBlobTokens } from "@/lib/storage-check";
 import {
   bpsToPercent,
   getDefaultCommissionRateBps,
@@ -45,10 +46,28 @@ export default async function NouveauProduitPage({
     resolveCommissionRateBps(seller.commissionRateBps, defaultRateBps)
   );
 
-  // Test du stockage : réservé aux administrateurs (aucune valeur secrète n'est affichée).
+  // Tests du stockage : réservés aux administrateurs (aucune valeur secrète n'est affichée).
   const isAdmin = context.user.role === "ADMIN";
   const runTest = isAdmin && firstParam(sp.test) === "1";
-  const storage = runTest ? await testBlobTokens() : null;
+
+  let storage = null;
+  let simulation = null;
+
+  if (runTest) {
+    const requestHeaders = await headers();
+    const origin = (
+      process.env.NEXT_PUBLIC_APP_URL ?? `https://${requestHeaders.get("host") ?? ""}`
+    ).replace(/\/+$/, "");
+
+    [storage, simulation] = await Promise.all([
+      testBlobTokens(),
+      simulateUploadRoute({
+        origin,
+        cookie: requestHeaders.get("cookie") ?? "",
+        sellerId: seller.id,
+      }),
+    ]);
+  }
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -57,10 +76,10 @@ export default async function NouveauProduitPage({
           <h2 className="text-lg font-semibold">Vérifier le stockage des fichiers</h2>
           <p className="mt-1 text-slate-600">
             Test réservé à l&apos;administrateur : il enregistre puis efface un petit fichier dans chaque
-            stockage (PDF privés et couvertures publiques).
+            stockage, et rejoue la demande de jeton que fait le formulaire pour envoyer un PDF.
           </p>
 
-          {!storage ? (
+          {!storage || !simulation ? (
             <a href="/vendeur/produits/nouveau?test=1" className="btn-secondary mt-3">
               Lancer le test du stockage
             </a>
@@ -91,6 +110,25 @@ export default async function NouveauProduitPage({
                     <p className="mt-1 break-words text-xs">{result.message}</p>
                   </li>
                 ))}
+
+                <li
+                  className={`rounded-lg border px-3 py-2 ${
+                    simulation.ok
+                      ? "border-green-200 bg-green-50 text-green-900"
+                      : "border-red-200 bg-red-50 text-red-900"
+                  }`}
+                >
+                  <p className="font-semibold">
+                    {simulation.ok ? "OK" : "ÉCHEC"} : demande de jeton d&apos;envoi du formulaire
+                  </p>
+                  <p className="text-xs">
+                    Réponse du serveur : {simulation.status === null ? "aucune" : simulation.status}
+                  </p>
+                  <p className="mt-1 break-words text-xs">{simulation.message}</p>
+                  {simulation.hint && (
+                    <p className="mt-1 break-words text-xs font-semibold">À faire : {simulation.hint}</p>
+                  )}
+                </li>
               </ul>
 
               {storage.hints.length > 0 && (
@@ -104,11 +142,12 @@ export default async function NouveauProduitPage({
                 </div>
               )}
 
-              {storage.results.every((result) => result.ok) && (
-                <p className="font-semibold text-green-800">
-                  Les deux stockages fonctionnent. Vous pouvez publier votre ouvrage.
-                </p>
-              )}
+              {storage.results.every((result) => result.ok || result.kind === "dirty") &&
+                simulation.ok && (
+                  <p className="font-semibold text-green-800">
+                    Le stockage et la demande d&apos;envoi fonctionnent. Vous pouvez publier votre ouvrage.
+                  </p>
+                )}
 
               <a href="/vendeur/produits/nouveau?test=1" className="btn-secondary">
                 Relancer le test
@@ -134,4 +173,4 @@ export default async function NouveauProduitPage({
       </div>
     </div>
   );
-                      }
+}
