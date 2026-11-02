@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { getAdminOrNull } from "@/lib/admin";
 import { isFreePdfKey } from "@/lib/free-resources";
+import { getPrivateBlobToken } from "@/lib/storage";
 import { MAX_PDF_SIZE_BYTES } from "@/lib/product-validation";
 
 export async function POST(request: Request): Promise<NextResponse> {
@@ -20,6 +21,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     const jsonResponse = await handleUpload({
       body,
       request,
+      token: getPrivateBlobToken(),
       onBeforeGenerateToken: async (pathname) => {
         const admin = await getAdminOrNull();
 
