@@ -1,8 +1,9 @@
 // src/lib/storage.ts
-// Stockage des fichiers avec Vercel Blob.
-// - PDF : store PRIVÉ. Aucune URL publique : le fichier n'est lu que côté
-//   serveur, après vérification du droit de téléchargement.
-// - Couvertures : store PUBLIC (BLOB_PUBLIC_READ_WRITE_TOKEN).
+// Stockage des fichiers avec Vercel Blob : UN SEUL store, PRIVÉ (variable BLOB_READ_WRITE_TOKEN).
+// - PDF : jamais d'URL publique. Le fichier n'est lu que côté serveur, après vérification du droit
+//   de téléchargement.
+// - Couvertures : rangées dans le même store privé et affichées par la route /api/couverture/...
+//   (seules les images du dossier "couvertures/" peuvent être lues par cette route).
 
 import { put, get, del } from "@vercel/blob";
 import { slugify } from "@/lib/utils";
@@ -28,14 +29,9 @@ function cleanToken(raw: string | undefined): string | undefined {
   return cleaned.length > 0 ? cleaned : undefined;
 }
 
-/** Jeton du store PRIVÉ (PDF), nettoyé. */
+/** Jeton du store privé (PDF et couvertures), nettoyé. */
 export function getPrivateBlobToken(): string | undefined {
   return cleanToken(process.env.BLOB_READ_WRITE_TOKEN);
-}
-
-/** Jeton du store PUBLIC (couvertures), nettoyé. */
-export function getPublicBlobToken(): string | undefined {
-  return cleanToken(process.env.BLOB_PUBLIC_READ_WRITE_TOKEN);
 }
 
 /** Préfixe de stockage des PDF d'un vendeur. */
@@ -123,15 +119,44 @@ export async function deletePrivateFile(storageKey: string): Promise<void> {
   await del(storageKey, { token: getPrivateBlobToken() });
 }
 
-/** Envoie une image de couverture dans le store public et renvoie son URL. */
+// ---------------------------------------------------------------------------
+// Couvertures
+// ---------------------------------------------------------------------------
+
+export const COVER_PATH_PREFIX = "couvertures/";
+export const COVER_URL_PREFIX = "/api/couverture/";
+
+/** Vérifie qu'une clé de stockage désigne bien une image de couverture. */
+export function isCoverKey(key: string): boolean {
+  return (
+    key.startsWith(COVER_PATH_PREFIX) &&
+    /\.(jpg|jpeg|png|webp)$/i.test(key) &&
+    !key.includes("..") &&
+    !key.includes("\\") &&
+    key.length <= 300
+  );
+}
+
+/** Clé de stockage d'une couverture à partir de son adresse sur le site, ou null. */
+export function coverKeyFromUrl(url: string): string | null {
+  if (!url.startsWith(COVER_URL_PREFIX)) return null;
+
+  const key = `${COVER_PATH_PREFIX}${url.slice(COVER_URL_PREFIX.length)}`;
+  return isCoverKey(key) ? key : null;
+}
+
+/**
+ * Envoie une image de couverture dans le store privé et renvoie son adresse sur le site
+ * (par exemple /api/couverture/<vendeur>/<nom>-<suffixe>.jpg).
+ */
 export async function uploadPublicCover(
   file: File,
   sellerId: string
 ): Promise<string> {
-  const token = getPublicBlobToken();
+  const token = getPrivateBlobToken();
   if (!token) {
     throw new Error(
-      "BLOB_PUBLIC_READ_WRITE_TOKEN est manquant : impossible d'envoyer la couverture."
+      "BLOB_READ_WRITE_TOKEN est manquant : impossible d'envoyer la couverture."
     );
   }
   if (file.size === 0 || file.size > MAX_COVER_SIZE_BYTES) {
@@ -144,21 +169,29 @@ export async function uploadPublicCover(
   const extension =
     file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
   const baseName = slugify(file.name.replace(/\.[^/.]+$/, "")) || "couverture";
-  const pathname = `couvertures/${sellerId}/${baseName}.${extension}`;
+  const pathname = `${COVER_PATH_PREFIX}${sellerId}/${baseName}.${extension}`;
 
   const result = await put(pathname, file, {
-    access: "public",
+    access: "private",
     addRandomSuffix: true,
     contentType: file.type,
     token,
   });
 
-  return result.url;
+  return `${COVER_URL_PREFIX}${result.pathname.slice(COVER_PATH_PREFIX.length)}`;
 }
 
-/** Supprime une couverture du store public. */
+/** Supprime une couverture (adresse du site) ; accepte aussi une ancienne URL absolue d'un store public. */
 export async function deletePublicCover(url: string): Promise<void> {
-  const token = getPublicBlobToken();
-  if (!token) return;
-  await del(url, { token });
-}
+  const key = coverKeyFromUrl(url);
+
+  if (key) {
+    await del(key, { token: getPrivateBlobToken() });
+    return;
+  }
+
+  const legacyToken = cleanToken(process.env.BLOB_PUBLIC_READ_WRITE_TOKEN);
+  if (legacyToken && /^https?:\/\//.test(url)) {
+    await del(url, { token: legacyToken });
+  }
+  }
