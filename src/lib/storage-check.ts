@@ -1,10 +1,14 @@
 // src/lib/storage-check.ts
-// Test réel des deux stockages Vercel Blob (écriture puis suppression d'un petit fichier).
+// Test réel des deux stockages Vercel Blob (écriture puis suppression d'un petit fichier)
+// et simulation de la demande de jeton d'envoi faite par le formulaire.
+// Pour chaque jeton, les deux modes (public et privé) sont essayés afin d'identifier le type du store.
 // Aucune valeur secrète n'est jamais renvoyée : seulement des états et des messages.
 
 import { del, put } from "@vercel/blob";
 
 export type StorageAccess = "private" | "public";
+
+type Kind = "ok" | "absent" | "dirty" | "wrong-type" | "invalid";
 
 export interface StorageTestResult {
   variable: string;
@@ -13,6 +17,7 @@ export interface StorageTestResult {
   present: boolean;
   shapeOk: boolean;
   ok: boolean;
+  kind: Kind;
   message: string;
 }
 
@@ -23,11 +28,40 @@ export interface StorageTestReport {
   hints: string[];
 }
 
+export interface UploadSimulation {
+  ok: boolean;
+  status: number | null;
+  message: string;
+  hint: string | null;
+}
+
 const SHAPE = /^vercel_blob_rw_[A-Za-z0-9]+_[A-Za-z0-9]+$/;
 
 function shortMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : "erreur inconnue";
-  return message.replace(/\s+/g, " ").slice(0, 220);
+  return message.replace(/\s+/g, " ").slice(0, 160);
+}
+
+function accessLabel(access: StorageAccess): string {
+  return access === "private" ? "privé" : "public";
+}
+
+async function tryPut(
+  token: string,
+  access: StorageAccess
+): Promise<{ ok: boolean; message: string }> {
+  try {
+    const blob = await put(`diagnostic/test-${Date.now()}.txt`, "test", {
+      access: access as "public",
+      token,
+      addRandomSuffix: true,
+      contentType: "text/plain",
+    });
+    await del(blob.url, { token }).catch(() => undefined);
+    return { ok: true, message: "réussi" };
+  } catch (error) {
+    return { ok: false, message: shortMessage(error) };
+  }
 }
 
 async function testOne(
@@ -45,75 +79,76 @@ async function testOne(
       present: false,
       shapeOk: false,
       ok: false,
+      kind: "absent",
       message: "Variable absente pour cet environnement.",
     };
   }
 
   const shapeOk = SHAPE.test(raw);
+  const cleaned = raw.replace(/[^\x21-\x7E]/g, "").replace(/["'`]/g, "");
+  const dirty = cleaned !== raw;
 
-  if (/[^\x21-\x7E]/.test(raw)) {
+  const [publicTry, privateTry] = await Promise.all([
+    tryPut(cleaned, "public"),
+    tryPut(cleaned, "private"),
+  ]);
+
+  const works: StorageAccess[] = [];
+  if (publicTry.ok) works.push("public");
+  if (privateTry.ok) works.push("private");
+
+  const base = { variable, role, access, present: true, shapeOk };
+
+  if (works.length === 0) {
     return {
-      variable,
-      role,
-      access,
-      present: true,
-      shapeOk,
+      ...base,
       ok: false,
+      kind: "invalid",
+      message: `Aucun accès ne fonctionne avec ce jeton${dirty ? " (même nettoyé)" : ""}. Public : ${publicTry.message}. Privé : ${privateTry.message}.`,
+    };
+  }
+
+  if (!works.includes(access)) {
+    const actual = works.map(accessLabel).join(" et ");
+    return {
+      ...base,
+      ok: false,
+      kind: "wrong-type",
+      message: `Ce jeton est valable, mais il appartient à un store ${actual}, alors que « ${role} » exige un store ${accessLabel(access)}.`,
+    };
+  }
+
+  if (dirty) {
+    return {
+      ...base,
+      ok: false,
+      kind: "dirty",
       message:
-        "Le jeton contient un espace, un retour à la ligne ou un caractère invisible (cause de l'erreur « Invalid value »).",
+        "Le jeton est valable, mais la valeur enregistrée contient des espaces, des guillemets ou des caractères invisibles. Le site la nettoie désormais automatiquement.",
     };
   }
 
-  try {
-    const blob = await put(`diagnostic/test-${Date.now()}.txt`, "test", {
-      access: access as "public",
-      token: raw,
-      addRandomSuffix: true,
-      contentType: "text/plain",
-    });
-    await del(blob.url, { token: raw }).catch(() => undefined);
-
-    return {
-      variable,
-      role,
-      access,
-      present: true,
-      shapeOk,
-      ok: true,
-      message: "Écriture et suppression réussies.",
-    };
-  } catch (error) {
-    return {
-      variable,
-      role,
-      access,
-      present: true,
-      shapeOk,
-      ok: false,
-      message: shortMessage(error),
-    };
-  }
+  return {
+    ...base,
+    ok: true,
+    kind: "ok",
+    message: "Écriture et suppression réussies.",
+  };
 }
 
 function hintFor(result: StorageTestResult): string | null {
-  if (result.ok) return null;
-
-  if (!result.present) {
-    return `${result.variable} (${result.role}) est absente : reliez le store au projet (Storage, Connect Project), puis redéployez.`;
+  switch (result.kind) {
+    case "ok":
+      return null;
+    case "absent":
+      return `${result.variable} (${result.role}) est absente : reliez un store au projet (Storage, Connect Project) puis redéployez.`;
+    case "dirty":
+      return null;
+    case "wrong-type":
+      return `${result.variable} (${result.role}) : le store relié n'est pas du bon type. Créez un store ${accessLabel(result.access)} neuf et reliez-le à la place.`;
+    case "invalid":
+      return `${result.variable} (${result.role}) : jeton invalide (ancien, incomplet, ou d'un autre projet). Supprimez cette variable, supprimez les anciens stores inutiles, créez un store neuf ${accessLabel(result.access)} et reliez-le avec Connect Project.`;
   }
-
-  const message = result.message.toLowerCase();
-
-  if (message.includes("does not exist")) {
-    return `${result.variable} (${result.role}) désigne un store qui n'existe pas : ancien jeton, store supprimé, jeton incomplet ou variable d'un autre projet. Supprimez toutes les variables BLOB dans tous les environnements, supprimez les anciens stores, créez un store neuf et reliez-le avec Connect Project.`;
-  }
-  if (message.includes("access") || message.includes("private") || message.includes("public")) {
-    return `${result.variable} (${result.role}) : accès « ${result.access} » refusé. Le store n'est probablement pas du bon type (privé pour les PDF, public pour les couvertures). Envoyez-moi ce message.`;
-  }
-  if (message.includes("token") || message.includes("invisible")) {
-    return `${result.variable} (${result.role}) : jeton refusé. Recréez-le en reliant le store au projet, sans le copier à la main.`;
-  }
-  return `${result.variable} (${result.role}) : échec inattendu. Envoyez-moi le message affiché.`;
 }
 
 export async function testBlobTokens(): Promise<StorageTestReport> {
@@ -138,16 +173,89 @@ export async function testBlobTokens(): Promise<StorageTestReport> {
     .filter((name) => /BLOB|READ_WRITE/i.test(name))
     .sort();
 
-  if (variableNames.length > 2) {
-    hints.push(
-      `Plusieurs variables de stockage existent (${variableNames.join(", ")}) : seules BLOB_READ_WRITE_TOKEN et BLOB_PUBLIC_READ_WRITE_TOKEN sont lues par le site. Supprimez les autres.`
-    );
-  }
-
   return {
     results,
     variableNames,
     environment: process.env.VERCEL_ENV ?? "inconnu",
     hints,
   };
+}
+
+function simulationHint(status: number | null, message: string): string | null {
+  const text = message.toLowerCase();
+
+  if (status === null) {
+    return "Le test n'a pas pu joindre la route : vérifiez NEXT_PUBLIC_APP_URL (elle doit valoir https://techlibrairie.com).";
   }
+  if (text.includes("accès refusé") || text.includes("compte vendeur")) {
+    return "Le serveur ne reconnaît pas votre profil vendeur actif : activez-le sur /vendeur/activer.";
+  }
+  if (text.includes("chemin")) {
+    return "Le chemin du fichier est refusé : envoyez-moi ce message.";
+  }
+  if (text.includes("no token") || text.includes("token")) {
+    return "Le serveur ne trouve pas un jeton valable pour le store privé : vérifiez BLOB_READ_WRITE_TOKEN (store privé relié au projet, puis redéploiement).";
+  }
+  return "Envoyez-moi ce message tel quel.";
+}
+
+/**
+ * Rejoue la demande de jeton d'envoi que fait le formulaire, avec la session de l'administrateur,
+ * et renvoie la réponse du serveur (le jeton lui-même n'est jamais affiché).
+ */
+export async function simulateUploadRoute(params: {
+  origin: string;
+  cookie: string;
+  sellerId: string;
+}): Promise<UploadSimulation> {
+  const url = `${params.origin}/api/upload/pdf`;
+
+  const event = {
+    type: "blob.generate-client-token",
+    payload: {
+      pathname: `pdfs/${params.sellerId}/verification.pdf`,
+      callbackUrl: url,
+      clientPayload: null,
+      multipart: false,
+    },
+  };
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie: params.cookie },
+      body: JSON.stringify(event),
+      cache: "no-store",
+      signal: AbortSignal.timeout(15_000),
+    });
+
+    const text = await response.text();
+
+    if (response.ok) {
+      return {
+        ok: true,
+        status: response.status,
+        message: "Le serveur a généré un jeton d'envoi : le formulaire peut envoyer un PDF.",
+        hint: null,
+      };
+    }
+
+    let message = text.replace(/\s+/g, " ").slice(0, 220);
+    try {
+      const parsed = JSON.parse(text) as { error?: unknown };
+      if (typeof parsed.error === "string") message = parsed.error;
+    } catch {
+      // Réponse non JSON : le texte brut est conservé.
+    }
+
+    return {
+      ok: false,
+      status: response.status,
+      message,
+      hint: simulationHint(response.status, message),
+    };
+  } catch (error) {
+    const message = shortMessage(error);
+    return { ok: false, status: null, message, hint: simulationHint(null, message) };
+  }
+}
