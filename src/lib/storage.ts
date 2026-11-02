@@ -11,6 +11,31 @@ import {
   MAX_COVER_SIZE_BYTES,
 } from "@/lib/product-validation";
 
+/**
+ * Nettoie un jeton collé dans Vercel : retire espaces, retours à la ligne, caractères invisibles,
+ * guillemets, et le nom de la variable si elle a été collée avec la valeur ("NOM=valeur").
+ */
+function cleanToken(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+
+  let value = raw;
+  const equalsIndex = value.lastIndexOf("=");
+  if (equalsIndex >= 0) {
+    value = value.slice(equalsIndex + 1);
+  }
+
+  const cleaned = value.replace(/[^\x21-\x7E]/g, "").replace(/["'`]/g, "");
+  return cleaned.length > 0 ? cleaned : undefined;
+}
+
+function privateToken(): string | undefined {
+  return cleanToken(process.env.BLOB_READ_WRITE_TOKEN);
+}
+
+function publicToken(): string | undefined {
+  return cleanToken(process.env.BLOB_PUBLIC_READ_WRITE_TOKEN);
+}
+
 /** Préfixe de stockage des PDF d'un vendeur. */
 export function pdfPathPrefix(sellerId: string): string {
   return `pdfs/${sellerId}/`;
@@ -44,7 +69,7 @@ export async function inspectPrivatePdf(
 ): Promise<PdfInspection> {
   let result;
   try {
-    result = await get(storageKey, { access: "private" });
+    result = await get(storageKey, { access: "private", token: privateToken() });
   } catch {
     return { exists: false, isPdf: false, sizeBytes: null };
   }
@@ -82,7 +107,7 @@ export async function inspectPrivatePdf(
 export async function openPrivatePdfStream(
   storageKey: string
 ): Promise<ReadableStream<Uint8Array> | null> {
-  const result = await get(storageKey, { access: "private" });
+  const result = await get(storageKey, { access: "private", token: privateToken() });
 
   if (!result || result.statusCode !== 200 || !result.stream) {
     return null;
@@ -93,7 +118,7 @@ export async function openPrivatePdfStream(
 
 /** Supprime un PDF du store privé. */
 export async function deletePrivateFile(storageKey: string): Promise<void> {
-  await del(storageKey);
+  await del(storageKey, { token: privateToken() });
 }
 
 /** Envoie une image de couverture dans le store public et renvoie son URL. */
@@ -101,7 +126,7 @@ export async function uploadPublicCover(
   file: File,
   sellerId: string
 ): Promise<string> {
-  const token = process.env.BLOB_PUBLIC_READ_WRITE_TOKEN;
+  const token = publicToken();
   if (!token) {
     throw new Error(
       "BLOB_PUBLIC_READ_WRITE_TOKEN est manquant : impossible d'envoyer la couverture."
@@ -131,7 +156,7 @@ export async function uploadPublicCover(
 
 /** Supprime une couverture du store public. */
 export async function deletePublicCover(url: string): Promise<void> {
-  const token = process.env.BLOB_PUBLIC_READ_WRITE_TOKEN;
+  const token = publicToken();
   if (!token) return;
   await del(url, { token });
-}
+                           }
