@@ -28,11 +28,13 @@ function cleanToken(raw: string | undefined): string | undefined {
   return cleaned.length > 0 ? cleaned : undefined;
 }
 
-function privateToken(): string | undefined {
+/** Jeton du store PRIVÉ (PDF), nettoyé. */
+export function getPrivateBlobToken(): string | undefined {
   return cleanToken(process.env.BLOB_READ_WRITE_TOKEN);
 }
 
-function publicToken(): string | undefined {
+/** Jeton du store PUBLIC (couvertures), nettoyé. */
+export function getPublicBlobToken(): string | undefined {
   return cleanToken(process.env.BLOB_PUBLIC_READ_WRITE_TOKEN);
 }
 
@@ -69,7 +71,7 @@ export async function inspectPrivatePdf(
 ): Promise<PdfInspection> {
   let result;
   try {
-    result = await get(storageKey, { access: "private", token: privateToken() });
+    result = await get(storageKey, { access: "private", token: getPrivateBlobToken() });
   } catch {
     return { exists: false, isPdf: false, sizeBytes: null };
   }
@@ -107,7 +109,7 @@ export async function inspectPrivatePdf(
 export async function openPrivatePdfStream(
   storageKey: string
 ): Promise<ReadableStream<Uint8Array> | null> {
-  const result = await get(storageKey, { access: "private", token: privateToken() });
+  const result = await get(storageKey, { access: "private", token: getPrivateBlobToken() });
 
   if (!result || result.statusCode !== 200 || !result.stream) {
     return null;
@@ -118,7 +120,7 @@ export async function openPrivatePdfStream(
 
 /** Supprime un PDF du store privé. */
 export async function deletePrivateFile(storageKey: string): Promise<void> {
-  await del(storageKey, { token: privateToken() });
+  await del(storageKey, { token: getPrivateBlobToken() });
 }
 
 /** Envoie une image de couverture dans le store public et renvoie son URL. */
@@ -126,7 +128,7 @@ export async function uploadPublicCover(
   file: File,
   sellerId: string
 ): Promise<string> {
-  const token = publicToken();
+  const token = getPublicBlobToken();
   if (!token) {
     throw new Error(
       "BLOB_PUBLIC_READ_WRITE_TOKEN est manquant : impossible d'envoyer la couverture."
@@ -156,7 +158,7 @@ export async function uploadPublicCover(
 
 /** Supprime une couverture du store public. */
 export async function deletePublicCover(url: string): Promise<void> {
-  const token = publicToken();
+  const token = getPublicBlobToken();
   if (!token) return;
   await del(url, { token });
-                           }
+}
