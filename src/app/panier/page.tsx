@@ -7,6 +7,7 @@ import { loadCart } from "@/lib/cart";
 import { firstParam } from "@/lib/admin";
 import { clearCartAction, removeFromCartAction } from "@/app/panier/actions";
 import { applyPromoAction, removePromoAction } from "@/app/panier/promo-actions";
+import { getPaymentMethods } from "@/lib/payment-methods";
 import { isPromoFailure, previewPromo, promoFailureMessage } from "@/lib/promo";
 import { formatPrice } from "@/lib/utils";
 
@@ -47,8 +48,12 @@ export default async function PanierPage({
   const user = await getCurrentUser();
   const preview = await previewPromo(cart, user?.id ?? null);
 
+  const methods = getPaymentMethods();
+  const paymentOpen = methods.mobileMoney || methods.anyCard;
+
   const payable = preview?.ok ? preview.finalTotal : cart.totalAmount;
   const canUsePromo = currency === "XOF";
+  const checkoutBlocked = !paymentOpen || (preview !== null && !preview.ok);
 
   const flashKey = firstParam(sp.promo);
   const minParam = Number.parseInt(firstParam(sp.min) ?? "", 10);
@@ -190,13 +195,29 @@ export default async function PanierPage({
               </form>
             ))}
 
-          <Link
-            href="/paiement"
-            className={`btn-primary mt-6 w-full ${preview && !preview.ok ? "pointer-events-none opacity-50" : ""}`}
-            aria-disabled={preview !== null && !preview.ok}
-          >
-            Procéder au paiement
-          </Link>
+          {!paymentOpen && (
+            <div className="mt-4 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 text-sm text-yellow-900">
+              Les paiements ne sont pas encore ouverts sur TechLibrairie. Vous pouvez préparer votre
+              panier : il est conservé sur cet appareil pendant 30 jours.
+            </div>
+          )}
+
+          {paymentOpen ? (
+            <Link
+              href="/paiement"
+              className={`btn-primary mt-6 w-full ${checkoutBlocked ? "pointer-events-none opacity-50" : ""}`}
+              aria-disabled={checkoutBlocked}
+            >
+              Procéder au paiement
+            </Link>
+          ) : (
+            <span
+              className="btn-primary mt-6 w-full cursor-not-allowed opacity-50"
+              aria-disabled="true"
+            >
+              Paiement bientôt disponible
+            </span>
+          )}
 
           <form action={clearCartAction} className="mt-3 text-center">
             <button
@@ -210,4 +231,4 @@ export default async function PanierPage({
       </div>
     </div>
   );
-    }
+}
