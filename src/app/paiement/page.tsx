@@ -15,6 +15,7 @@ import {
   type CardRate,
   type ForeignCurrency,
 } from "@/lib/fx";
+import { getPaymentMethods } from "@/lib/payment-methods";
 import { previewPromo } from "@/lib/promo";
 import { formatPrice } from "@/lib/utils";
 
@@ -42,6 +43,30 @@ export default async function PaiementPage() {
 
   if (cart.items.length === 0 || !cart.currency) {
     redirect("/panier");
+  }
+
+  // Paiement en pause : aucun moyen de paiement n'est encore configuré.
+  const methods = getPaymentMethods();
+  if (!methods.mobileMoney && !methods.anyCard) {
+    return (
+      <div className="container-page py-12">
+        <div className="card mx-auto max-w-lg text-center">
+          <h1 className="text-2xl font-bold">Paiement bientôt disponible</h1>
+          <p className="mt-2 text-sm text-slate-600">
+            Les paiements ne sont pas encore ouverts sur TechLibrairie. Votre panier est conservé :
+            revenez dès l&apos;ouverture pour finaliser votre achat.
+          </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <Link href="/panier" className="btn-secondary">
+              Retour au panier
+            </Link>
+            <Link href="/catalogue" className="btn-primary">
+              Voir le catalogue
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const currency = cart.currency;
@@ -133,21 +158,23 @@ export default async function PaiementPage() {
             </div>
           ) : isXof ? (
             <div className="mt-4 space-y-6">
-              <div className="space-y-3">
-                <p className="text-sm font-medium">Mobile Money (FCFA)</p>
-                <p className="text-sm text-slate-600">
-                  Orange Money, Moov Money et autres opérateurs, via CinetPay.
-                  Montant débité : {formatPrice(payableTotal, "XOF")}.
-                </p>
-                <CheckoutButton
-                  endpoint="/api/checkout/cinetpay"
-                  label="Payer par Mobile Money"
-                />
-              </div>
+              {methods.mobileMoney && (
+                <div className="space-y-3">
+                  <p className="text-sm font-medium">Mobile Money (FCFA)</p>
+                  <p className="text-sm text-slate-600">
+                    Orange Money, Moov Money et autres opérateurs, via CinetPay.
+                    Montant débité : {formatPrice(payableTotal, "XOF")}.
+                  </p>
+                  <CheckoutButton
+                    endpoint="/api/checkout/cinetpay"
+                    label="Payer par Mobile Money"
+                  />
+                </div>
+              )}
 
               {cinetPayCardEnabled && (
                 <>
-                  <hr className="border-slate-200" />
+                  {methods.mobileMoney && <hr className="border-slate-200" />}
 
                   <div className="space-y-3">
                     <p className="text-sm font-medium">Carte bancaire (Visa, Mastercard)</p>
@@ -190,7 +217,7 @@ export default async function PaiementPage() {
                 </>
               )}
 
-              {noCardAvailable && (
+              {methods.mobileMoney && noCardAvailable && (
                 <p className="text-xs text-slate-500">
                   Le paiement par carte bancaire n&apos;est pas disponible pour le
                   moment : utilisez le Mobile Money.
@@ -227,4 +254,4 @@ export default async function PaiementPage() {
       </div>
     </div>
   );
-            }
+                          }
