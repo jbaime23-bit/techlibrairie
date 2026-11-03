@@ -8,6 +8,8 @@ import { getConsent } from "@/lib/consent";
 import AdSlot from "@/components/publicite/AdSlot";
 import { CookieSettingsButton } from "@/components/legal/cookie-settings-button";
 import { DownloadGate } from "@/components/gratuit/download-gate";
+import { ShareButtons } from "@/components/partage/share-buttons";
+import { getSiteUrl } from "@/lib/site-url";
 import {
   FREE_LINK_MAX_AGE_SECONDS,
   FREE_WAIT_SECONDS,
@@ -38,16 +40,38 @@ export async function generateMetadata({
   const { slug } = await params;
   const resource = await prisma.freeResource.findUnique({
     where: { slug },
-    select: { title: true, description: true, isActive: true },
+    select: { title: true, description: true, isActive: true, coverImageUrl: true, slug: true },
   });
 
   if (!resource || !resource.isActive) {
     return { title: "PDF introuvable" };
   }
 
+  const title = `${resource.title} (PDF gratuit)`;
+  const description = resource.description.slice(0, 200);
+  const path = `/gratuit/${resource.slug}`;
+
   return {
-    title: `${resource.title} (PDF gratuit)`,
-    description: resource.description.slice(0, 160),
+    title,
+    description: description.slice(0, 160),
+    alternates: { canonical: path },
+    openGraph: {
+      title,
+      description,
+      url: path,
+      siteName: "TechLibrairie",
+      locale: "fr_FR",
+      type: "website",
+      images: resource.coverImageUrl
+        ? [{ url: resource.coverImageUrl, alt: `Couverture de ${resource.title}` }]
+        : undefined,
+    },
+    twitter: {
+      card: resource.coverImageUrl ? "summary_large_image" : "summary",
+      title,
+      description,
+      images: resource.coverImageUrl ? [resource.coverImageUrl] : undefined,
+    },
   };
 }
 
@@ -73,6 +97,7 @@ export default async function GratuitResourcePage({
 
   const errorKey = Array.isArray(query.erreur) ? query.erreur[0] : query.erreur;
   const error = errorKey ? ERRORS[errorKey] : undefined;
+  const shareUrl = `${getSiteUrl()}/gratuit/${resource.slug}`;
 
   return (
     <div className="container-page py-8">
@@ -126,6 +151,12 @@ export default async function GratuitResourcePage({
 
           <p className="whitespace-pre-line text-slate-700">{resource.description}</p>
 
+          <ShareButtons
+            url={shareUrl}
+            title={resource.title}
+            text={`${resource.title} : PDF gratuit sur TechLibrairie`}
+          />
+
           <AdSlot placement="DOWNLOAD_CONFIRMATION" />
 
           <DownloadGate
@@ -151,4 +182,4 @@ export default async function GratuitResourcePage({
       </div>
     </div>
   );
-  }
+      }
