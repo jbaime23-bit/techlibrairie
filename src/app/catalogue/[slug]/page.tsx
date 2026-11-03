@@ -12,6 +12,8 @@ import { deleteOwnReviewAction, saveReviewAction } from "@/app/avis/actions";
 import { FavoriteButton } from "@/components/produits/favorite-button";
 import { ProductCard } from "@/components/produits/product-card";
 import { RatingStars } from "@/components/produits/rating-stars";
+import { ShareButtons } from "@/components/partage/share-buttons";
+import { getSiteUrl } from "@/lib/site-url";
 import { MAX_REVIEW_LENGTH, publicReviewerName } from "@/lib/reviews";
 import { formatDate, formatFileSize, formatPrice } from "@/lib/utils";
 
@@ -53,12 +55,29 @@ export async function generateMetadata({
     return { title: "Ouvrage introuvable" };
   }
 
+  const description = product.description.slice(0, 200);
+  const path = `/catalogue/${product.slug}`;
+  const images = product.coverImageUrl
+    ? [{ url: product.coverImageUrl, alt: `Couverture de ${product.title}` }]
+    : undefined;
+
   return {
     title: product.title,
-    description: product.description.slice(0, 160),
+    description: description.slice(0, 160),
+    alternates: { canonical: path },
     openGraph: {
       title: product.title,
-      description: product.description.slice(0, 160),
+      description,
+      url: path,
+      siteName: "TechLibrairie",
+      locale: "fr_FR",
+      type: "website",
+      images,
+    },
+    twitter: {
+      card: product.coverImageUrl ? "summary_large_image" : "summary",
+      title: product.title,
+      description,
       images: product.coverImageUrl ? [product.coverImageUrl] : undefined,
     },
   };
@@ -185,6 +204,7 @@ export default async function ProductPage({
 
   const countByRating = new Map(distribution.map((row) => [row.rating, row._count._all]));
   const canReview = Boolean(purchase) && !isAuthor;
+  const shareUrl = `${getSiteUrl()}/catalogue/${product.slug}`;
 
   return (
     <div className="container-page py-8">
@@ -284,6 +304,14 @@ export default async function ProductPage({
               isFavorite={Boolean(favorite)}
               from="produit"
               fullWidth
+            />
+          </div>
+
+          <div className="mt-6">
+            <ShareButtons
+              url={shareUrl}
+              title={product.title}
+              text={`${product.title} (PDF) sur TechLibrairie`}
             />
           </div>
 
