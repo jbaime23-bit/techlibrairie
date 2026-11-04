@@ -2,24 +2,34 @@
 // Consignes aux moteurs de recherche : les espaces privés et les pages techniques ne sont pas indexés.
 
 import type { MetadataRoute } from "next";
+import { getSiteUrl } from "@/lib/site-url";
 
 export default function robots(): MetadataRoute.Robots {
-  const base = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, "");
+  const base = getSiteUrl();
 
   return {
     rules: [
       {
         userAgent: "*",
-        allow: "/",
+        allow: ["/", "/api/couverture/"],
         disallow: [
           "/admin",
-          "/api",
+          "/api/admin",
+          "/api/checkout",
+          "/api/webhooks",
+          "/api/cron",
+          "/api/gratuit",
+          "/api/telechargement",
+          "/api/upload",
+          "/api/auth",
           "/acheteur",
           "/vendeur",
           "/profil",
           "/support",
+          "/favoris",
           "/panier",
           "/paiement",
+          "/compte-supprime",
           "/initialisation",
           "/verifier-email",
           "/reinitialiser-mot-de-passe",
@@ -29,6 +39,7 @@ export default function robots(): MetadataRoute.Robots {
         ],
       },
     ],
-    ...(base ? { sitemap: `${base}/sitemap.xml` } : {}),
+    sitemap: `${base}/sitemap.xml`,
+    host: base,
   };
 }
