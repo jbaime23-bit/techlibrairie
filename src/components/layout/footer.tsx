@@ -5,9 +5,37 @@ import { ContactForm } from "@/components/layout/contact-form";
 import { CookieSettingsButton } from "@/components/legal/cookie-settings-button";
 import { getPaymentMethods, paymentSummary } from "@/lib/payment-methods";
 
+// Liens des réseaux sociaux : variables facultatives de Vercel. Seuls les liens renseignés sont affichés.
+const SOCIAL_LINKS: { label: string; value: string | undefined }[] = [
+  { label: "Facebook", value: process.env.NEXT_PUBLIC_FACEBOOK_URL },
+  { label: "Instagram", value: process.env.NEXT_PUBLIC_INSTAGRAM_URL },
+  { label: "YouTube", value: process.env.NEXT_PUBLIC_YOUTUBE_URL },
+  { label: "TikTok", value: process.env.NEXT_PUBLIC_TIKTOK_URL },
+  { label: "X", value: process.env.NEXT_PUBLIC_X_URL },
+  { label: "LinkedIn", value: process.env.NEXT_PUBLIC_LINKEDIN_URL },
+  { label: "Telegram", value: process.env.NEXT_PUBLIC_TELEGRAM_URL },
+];
+
+/** Accepte uniquement une adresse https valide (aucune adresse de type javascript:). */
+function safeHttpsUrl(value: string | undefined): string | null {
+  if (!value) return null;
+
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "https:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function Footer() {
   const contact = await getContactInfo();
   const summary = paymentSummary(getPaymentMethods());
+
+  const socials = SOCIAL_LINKS.map((item) => ({
+    label: item.label,
+    href: safeHttpsUrl(item.value),
+  })).filter((item): item is { label: string; href: string } => item.href !== null);
 
   return (
     <footer className="border-t border-slate-200 bg-white">
@@ -26,6 +54,11 @@ export async function Footer() {
               </Link>
             </li>
             <li>
+              <Link href="/gratuit" className="text-slate-700 hover:text-brand-700">
+                Téléchargements gratuits
+              </Link>
+            </li>
+            <li>
               <Link href="/inscription" className="text-slate-700 hover:text-brand-700">
                 Devenir vendeur
               </Link>
@@ -36,6 +69,26 @@ export async function Footer() {
               </Link>
             </li>
           </ul>
+
+          {socials.length > 0 && (
+            <div className="mt-5">
+              <p className="text-sm font-semibold text-slate-700">Suivez-nous</p>
+              <ul className="mt-2 flex flex-wrap gap-2">
+                {socials.map((social) => (
+                  <li key={social.label}>
+                    <a
+                      href={social.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-secondary px-3 py-1 text-xs"
+                    >
+                      {social.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
         <div id="contact">
@@ -105,4 +158,4 @@ export async function Footer() {
       </div>
     </footer>
   );
-              }
+  }
