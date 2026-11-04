@@ -7,7 +7,8 @@ import LegalPage, { LegalList, LegalSection } from "@/components/legal/legal-pag
 
 export const metadata: Metadata = {
   title: "Mentions légales",
-  description: "Mentions légales de TechLibrairie : éditeur, hébergement et contact.",
+  description:
+    "Mentions légales de TechLibrairie : éditeur, hébergement, prestataires techniques, publicité et contact.",
 };
 
 export const dynamic = "force-dynamic";
@@ -40,7 +41,7 @@ export default async function MentionsLegalesPage() {
 
       <LegalSection title="Hébergement et prestataires techniques">
         <LegalList>
-          <li>Hébergement du site et stockage des fichiers : Vercel Inc. (États-Unis).</li>
+          <li>Hébergement du site et stockage des fichiers (PDF et images) : Vercel Inc. (États-Unis).</li>
           <li>Base de données : Neon (infrastructure hébergée par un prestataire de cloud).</li>
           {methods.processors.length > 0 && (
             <li>
@@ -56,31 +57,33 @@ export default async function MentionsLegalesPage() {
             </li>
           )}
           <li>Envoi des emails : Resend.</li>
+          <li>Publicité : Google (AdSense) et Adsterra, selon vos choix en matière de cookies.</li>
         </LegalList>
       </LegalSection>
 
       <LegalSection title="Propriété intellectuelle">
         <p>
           La structure, l&apos;identité visuelle et les textes propres au site sont la propriété de son
-          exploitant. Les ouvrages proposés à la vente restent la propriété de leurs auteurs, éditeurs ou
-          ayants droit. Toute reproduction non autorisée est interdite.
+          exploitant. Les ouvrages proposés à la vente ou en téléchargement gratuit restent la propriété de
+          leurs auteurs, éditeurs ou ayants droit. Toute reproduction non autorisée est interdite.
         </p>
       </LegalSection>
 
       <LegalSection title="Signalement d'un contenu">
         <p>
-          Si vous estimez qu&apos;un ouvrage porte atteinte à vos droits ou enfreint la loi, signalez-le-nous
-          par le formulaire de contact en précisant l&apos;ouvrage concerné et les raisons de votre demande.
+          Si vous estimez qu&apos;un ouvrage ou un document porte atteinte à vos droits ou enfreint la loi,
+          signalez-le-nous par le formulaire de contact en précisant l&apos;adresse de la page concernée et les
+          raisons de votre demande. La procédure détaillée figure dans les conditions générales.
         </p>
       </LegalSection>
 
       <LegalSection title="Publicité">
         <p>
           Le site affiche des publicités, dont certaines proviennent de régies publicitaires tierces
-          (notamment Adsterra), chargées uniquement après votre accord. Ces régies peuvent utiliser leurs
-          propres traceurs ; voir la politique de confidentialité.
+          (notamment Google AdSense et Adsterra), chargées uniquement après votre accord. Ces régies peuvent
+          utiliser leurs propres cookies et traceurs ; voir la politique de confidentialité.
         </p>
       </LegalSection>
     </LegalPage>
   );
-      }
+}
