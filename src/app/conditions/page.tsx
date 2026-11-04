@@ -4,6 +4,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getContactInfo } from "@/lib/contact";
 import { PAYOUT_HOLD_DAYS } from "@/lib/payouts";
+import { FREE_WAIT_SECONDS } from "@/lib/free-resources";
 import { getLegalConfig, operatorName } from "@/lib/legal-config";
 import {
   getPaymentMethods,
@@ -16,7 +17,7 @@ import LegalPage, { LegalList, LegalSection } from "@/components/legal/legal-pag
 export const metadata: Metadata = {
   title: "Conditions générales d'utilisation et de vente",
   description:
-    "Conditions générales d'utilisation et de vente de TechLibrairie : achat, téléchargement, paiement, remboursement, vendeurs et support.",
+    "Conditions générales d'utilisation et de vente de TechLibrairie : achat, téléchargement, téléchargements gratuits, paiement, remboursement, vendeurs, contenus interdits et support.",
 };
 
 export const dynamic = "force-dynamic";
@@ -48,10 +49,10 @@ export default async function ConditionsPage() {
       <LegalSection title="1. Objet">
         <p>
           TechLibrairie est une plateforme en ligne qui met en relation des auteurs et éditeurs
-          (les « vendeurs ») avec des acheteurs de livres et guides techniques au format PDF.
-          Le site est exploité par {operator}. Les présentes conditions régissent l&apos;utilisation du
-          site et les achats qui y sont réalisés. En créant un compte ou en passant commande, vous
-          les acceptez.
+          (les « vendeurs ») avec des acheteurs de livres et guides techniques au format PDF, et qui propose
+          aussi des PDF en téléchargement gratuit. Le site est exploité par {operator}. Les présentes
+          conditions régissent l&apos;utilisation du site et les achats qui y sont réalisés. En créant un compte,
+          en passant commande ou en téléchargeant un document, vous les acceptez.
         </p>
       </LegalSection>
 
@@ -74,11 +75,11 @@ export default async function ConditionsPage() {
 
       <LegalSection title="3. Produits proposés">
         <p>
-          Les produits sont des fichiers numériques au format PDF, publiés par les vendeurs. Chaque
-          vendeur est seul responsable du contenu qu&apos;il publie, de sa description et des droits qu&apos;il
-          détient sur celui-ci. La publication est automatique dès la soumission par le vendeur ; la
-          plateforme peut retirer ou suspendre sans préavis tout contenu contraire à la loi, aux droits
-          de tiers ou aux présentes conditions.
+          Les produits sont des fichiers numériques au format PDF, publiés par les vendeurs. Chaque vendeur est
+          seul responsable du contenu qu&apos;il publie, de sa description et des droits qu&apos;il détient sur
+          celui-ci. La publication est automatique dès la soumission par le vendeur ; la plateforme peut
+          retirer ou suspendre sans préavis tout contenu contraire à la loi, aux droits de tiers ou aux
+          présentes conditions.
         </p>
       </LegalSection>
 
@@ -118,10 +119,15 @@ export default async function ConditionsPage() {
             La commande est confirmée à réception de la confirmation du paiement par le prestataire. En
             cas de paiement non abouti, vous n&apos;êtes pas débité et aucun fichier n&apos;est délivré.
           </li>
+          <li>
+            Un code promotionnel, lorsque la boutique en propose, est valable aux conditions indiquées lors de
+            sa diffusion (dates, montant minimum, nombre d&apos;utilisations). La remise est déduite du prix
+            avant le paiement.
+          </li>
         </LegalList>
       </LegalSection>
 
-      <LegalSection title="6. Livraison et téléchargement">
+      <LegalSection title="6. Livraison et téléchargement des produits payants">
         <LegalList>
           <li>
             Dès la confirmation du paiement, un lien de téléchargement personnel et sécurisé est mis à
@@ -137,17 +143,40 @@ export default async function ConditionsPage() {
         </LegalList>
       </LegalSection>
 
-      <LegalSection title="7. Usage des fichiers et propriété intellectuelle">
+      <LegalSection title="7. Téléchargements gratuits">
+        <LegalList>
+          <li>
+            Le site propose des PDF en téléchargement gratuit, sans compte. Chaque téléchargement est précédé
+            d&apos;une attente de {FREE_WAIT_SECONDS} secondes pendant laquelle des publicités peuvent être
+            affichées : elles financent la mise à disposition gratuite des documents. Aucun clic sur une
+            publicité n&apos;est jamais exigé.
+          </li>
+          <li>
+            Les publicités de partenaires tiers ne s&apos;affichent que si vous avez accepté les cookies
+            publicitaires ; l&apos;attente reste la même dans tous les cas.
+          </li>
+          <li>
+            Les documents gratuits sont fournis tels quels, sans garantie d&apos;exactitude, d&apos;exhaustivité ni
+            d&apos;adaptation à un besoin particulier. Le nombre de téléchargements d&apos;un même fichier peut être
+            limité pour prévenir les abus.
+          </li>
+          <li>
+            L&apos;usage de ces documents est personnel : les règles de l&apos;article suivant s&apos;y appliquent.
+          </li>
+        </LegalList>
+      </LegalSection>
+
+      <LegalSection title="8. Usage des fichiers et propriété intellectuelle">
         <p>
-          L&apos;achat confère un droit d&apos;usage personnel et non exclusif sur le fichier acheté. Il est
-          interdit de le revendre, de le partager publiquement, de le redistribuer ou d&apos;en retirer
-          les mentions de propriété. Les droits d&apos;auteur restent la propriété des vendeurs ou de leurs
-          ayants droit. Si vous estimez qu&apos;un contenu porte atteinte à vos droits, signalez-le-nous par le
-          formulaire de contact.
+          L&apos;achat ou le téléchargement confère un droit d&apos;usage personnel et non exclusif sur le fichier. Il
+          est interdit de le revendre, de le partager publiquement, de le redistribuer ou d&apos;en retirer les
+          mentions de propriété. Les droits d&apos;auteur restent la propriété des vendeurs ou de leurs ayants
+          droit. Si vous estimez qu&apos;un contenu porte atteinte à vos droits, suivez la procédure de signalement
+          de l&apos;article 11.
         </p>
       </LegalSection>
 
-      <LegalSection title="8. Droit de rétractation et remboursement">
+      <LegalSection title="9. Droit de rétractation et remboursement">
         <p>
           Les produits numériques étant fournis immédiatement après le paiement, aucun droit de
           rétractation n&apos;est accordé une fois le téléchargement effectué, sous réserve des dispositions
@@ -160,13 +189,14 @@ export default async function ConditionsPage() {
           <li>achat en double ou erreur de paiement avérée.</li>
         </LegalList>
         <p>
-          Le remboursement est effectué par le même moyen que le paiement ({refundMeansLabel(methods)}).
-          Les liens de téléchargement de la commande remboursée sont alors désactivés. Les délais
-          d&apos;apparition du remboursement dépendent de votre banque ou de votre opérateur.
+          Le remboursement porte sur le montant réellement payé et est effectué par le même moyen que le
+          paiement ({refundMeansLabel(methods)}). Les liens de téléchargement de la commande remboursée sont
+          alors désactivés. Les délais d&apos;apparition du remboursement dépendent de votre banque ou de votre
+          opérateur.
         </p>
       </LegalSection>
 
-      <LegalSection title="9. Dispositions applicables aux vendeurs">
+      <LegalSection title="10. Dispositions applicables aux vendeurs">
         <LegalList>
           <li>
             Le vendeur déclare détenir tous les droits nécessaires sur les fichiers qu&apos;il publie et
@@ -189,7 +219,33 @@ export default async function ConditionsPage() {
         </LegalList>
       </LegalSection>
 
-      <LegalSection title="10. Support payant">
+      <LegalSection title="11. Contenus interdits et signalement">
+        <p>Il est interdit de publier ou de proposer sur le site :</p>
+        <LegalList>
+          <li>des copies non autorisées d&apos;œuvres protégées (livres, cours, logiciels, documents payants d&apos;autrui) ;</li>
+          <li>des contenus illicites, haineux, discriminatoires, violents, pornographiques ou portant atteinte à la dignité des personnes ;</li>
+          <li>des contenus trompeurs, des logiciels malveillants ou des fichiers destinés à nuire à des utilisateurs ;</li>
+          <li>des informations personnelles de tiers diffusées sans leur accord.</li>
+        </LegalList>
+        <p>
+          Pour signaler un contenu, écrivez-nous par le formulaire de contact
+          {contact.email ? (
+            <>
+              {" "}
+              ou à{" "}
+              <a href={`mailto:${contact.email}`} className="font-semibold text-brand-700 hover:underline">
+                {contact.email}
+              </a>
+            </>
+          ) : null}{" "}
+          en indiquant : l&apos;adresse de la page concernée, la description du contenu, les raisons de votre
+          demande et, s&apos;il s&apos;agit d&apos;une atteinte à vos droits, la preuve que vous en êtes titulaire. Nous
+          examinons les signalements dans les meilleurs délais, pouvons suspendre le contenu pendant
+          l&apos;examen, et suspendons ou désactivons les comptes qui enfreignent ces règles de façon répétée.
+        </p>
+      </LegalSection>
+
+      <LegalSection title="12. Support payant">
         <p>
           Le support par conversation est un service payant, au tarif de {formatPrice(supportFee, "XOF")} par
           conversation (tarif affiché avant tout paiement), payable par Mobile Money. Le message n&apos;est lu par
@@ -200,15 +256,20 @@ export default async function ConditionsPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="11. Publicité">
+      <LegalSection title="13. Publicité">
         <p>
-          Le site affiche des publicités, y compris celles de partenaires tiers (affichées après votre
-          accord, voir la politique de confidentialité). TechLibrairie n&apos;est pas responsable du contenu des
-          sites vers lesquels ces publicités renvoient.
+          Le site affiche des publicités, y compris celles de régies publicitaires tierces (notamment Google
+          AdSense et Adsterra), affichées après votre accord (voir la{" "}
+          <Link href="/confidentialite" className="font-semibold text-brand-700 hover:underline">
+            politique de confidentialité
+          </Link>
+          ). Ces annonces sont choisies par ces régies : TechLibrairie n&apos;est pas responsable de leur contenu ni
+          du contenu des sites vers lesquels elles renvoient. Vous pouvez signaler une annonce inappropriée par
+          le formulaire de contact.
         </p>
       </LegalSection>
 
-      <LegalSection title="12. Responsabilité">
+      <LegalSection title="14. Responsabilité">
         <p>
           Nous mettons tout en œuvre pour assurer la disponibilité du site, sans pouvoir garantir
           l&apos;absence d&apos;interruption. TechLibrairie ne saurait être tenue responsable du contenu des
@@ -217,7 +278,7 @@ export default async function ConditionsPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="13. Données personnelles">
+      <LegalSection title="15. Données personnelles">
         <p>
           Le traitement de vos données personnelles est décrit dans notre{" "}
           <Link href="/confidentialite" className="font-semibold text-brand-700 hover:underline">
@@ -227,7 +288,7 @@ export default async function ConditionsPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="14. Droit applicable et litiges">
+      <LegalSection title="16. Droit applicable et litiges">
         <p>
           Les présentes conditions sont régies par le droit en vigueur au {legal.country}. En cas de
           différend, nous vous invitons à nous contacter en priorité afin de rechercher une solution
@@ -236,14 +297,14 @@ export default async function ConditionsPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="15. Modification des conditions">
+      <LegalSection title="17. Modification des conditions">
         <p>
           Nous pouvons modifier les présentes conditions. La version applicable à une commande est celle en
           vigueur à la date de cette commande. La date de dernière mise à jour figure en haut de cette page.
         </p>
       </LegalSection>
 
-      <LegalSection title="16. Contact">
+      <LegalSection title="18. Contact">
         <p>
           Pour toute question :
           {contact.email ? (
@@ -261,4 +322,4 @@ export default async function ConditionsPage() {
       </LegalSection>
     </LegalPage>
   );
-      }
+            }
