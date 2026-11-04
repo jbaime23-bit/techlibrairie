@@ -9,7 +9,7 @@ import LegalPage, { LegalList, LegalSection } from "@/components/legal/legal-pag
 export const metadata: Metadata = {
   title: "Politique de confidentialité",
   description:
-    "Politique de confidentialité de TechLibrairie : données collectées, finalités, durées de conservation et vos droits.",
+    "Politique de confidentialité de TechLibrairie : données collectées, cookies et publicité, durées de conservation et vos droits.",
 };
 
 export const dynamic = "force-dynamic";
@@ -29,7 +29,8 @@ export default async function ConfidentialitePage() {
       <LegalSection title="Qui est responsable de vos données ?">
         <p>
           Le responsable du traitement est {operatorName(legal)}, exploitant du site TechLibrairie. Cette
-          page explique quelles données nous collectons, pourquoi, et comment vous pouvez exercer vos droits.
+          page explique quelles données nous collectons, pourquoi, quels cookies sont utilisés, et comment
+          vous pouvez exercer vos droits.
         </p>
       </LegalSection>
 
@@ -43,6 +44,12 @@ export default async function ConfidentialitePage() {
             <strong>Commandes et téléchargements</strong> : ouvrages achetés, montants, dates, état du
             paiement, liens de téléchargement. Finalité : exécuter votre achat, vous fournir vos fichiers,
             gérer les remboursements et nos obligations comptables.
+          </li>
+          <li>
+            <strong>Téléchargements gratuits</strong> : pour télécharger un PDF gratuit, aucun compte et
+            aucune donnée personnelle ne sont demandés. Pour limiter les abus, nous utilisons une empreinte
+            chiffrée de votre connexion internet (jamais l&apos;adresse elle-même), conservée au plus 24
+            heures.
           </li>
           <li>
             <strong>Rappel de commande non terminée</strong> : si vous commencez une commande sans la
@@ -90,24 +97,63 @@ export default async function ConfidentialitePage() {
         </LegalList>
       </LegalSection>
 
-      <LegalSection title="Cookies et traceurs">
+      <LegalSection title="Cookies, publicité et traceurs">
         <LegalList>
           <li>
-            <strong>Cookies nécessaires</strong> : cookie de session (connexion), cookie de panier et cookie
-            mémorisant votre choix concernant les cookies publicitaires (conservé 6 mois). Ils sont
-            indispensables au fonctionnement du site et ne nécessitent pas de consentement.
+            <strong>Cookies nécessaires</strong> : cookie de session (connexion), cookie de panier, cookie
+            du code promotionnel saisi et cookie mémorisant votre choix concernant les cookies publicitaires
+            (conservé 6 mois). Ils sont indispensables au fonctionnement du site et ne nécessitent pas de
+            consentement.
           </li>
           <li>
             <strong>Publicité de partenaires tiers</strong> : le site affiche des publicités de régies
-            publicitaires tierces (notamment Adsterra), qui peuvent déposer leurs propres cookies et
-            traceurs afin de mesurer et de personnaliser la publicité. Ces publicités ne sont chargées
-            qu&apos;<strong>après votre accord</strong>, donné via le bandeau affiché à votre première
-            visite. Si vous refusez, elles ne sont pas chargées.
+            publicitaires tierces, notamment <strong>Google AdSense</strong> et Adsterra. Ces prestataires
+            peuvent utiliser des cookies et d&apos;autres traceurs pour diffuser, mesurer et personnaliser les
+            annonces. Ces publicités ne sont chargées qu&apos;<strong>après votre accord</strong>, donné via le
+            bandeau affiché à votre première visite. Si vous refusez, elles ne sont pas chargées.
+          </li>
+          <li>
+            <strong>Google AdSense</strong> : Google, en tant que fournisseur tiers, utilise des cookies pour
+            diffuser des annonces sur ce site. Grâce au cookie publicitaire, Google et ses partenaires peuvent
+            diffuser des annonces fondées sur vos visites sur ce site et sur d&apos;autres sites. Vous pouvez
+            désactiver la publicité personnalisée dans les{" "}
+            <a
+              href="https://adssettings.google.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-brand-700 hover:underline"
+            >
+              paramètres des annonces de Google
+            </a>
+            , ou sur{" "}
+            <a
+              href="https://www.aboutads.info"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-brand-700 hover:underline"
+            >
+              www.aboutads.info
+            </a>
+            . Pour en savoir plus sur l&apos;utilisation des données par Google :{" "}
+            <a
+              href="https://policies.google.com/technologies/partner-sites"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-brand-700 hover:underline"
+            >
+              policies.google.com/technologies/partner-sites
+            </a>
+            .
           </li>
           <li>
             <strong>Bannières d&apos;annonceurs locaux</strong> : elles peuvent s&apos;afficher dans tous les cas ;
             nous n&apos;y associons aucun cookie de suivi. Un clic vous mène vers le site de l&apos;annonceur, qui
             applique sa propre politique.
+          </li>
+          <li>
+            <strong>Boutons de partage</strong> : les boutons Facebook, WhatsApp, Telegram, X, LinkedIn et
+            email sont de simples liens. Ils ne chargent aucun script des réseaux sociaux et ne déposent aucun
+            cookie tant que vous ne cliquez pas dessus ; le réseau choisi applique ensuite sa propre politique.
           </li>
           <li>
             Vous pouvez modifier votre choix à tout moment avec le lien « Gérer mes cookies » en bas de
@@ -124,11 +170,11 @@ export default async function ConfidentialitePage() {
             favoris compris. Les commandes passées sont conservées de façon anonyme (numéros, montants,
             dates) pour la durée imposée par nos obligations légales et comptables.
           </li>
-          <li>Panier : 30 jours au plus (cookie sur votre appareil).</li>
+          <li>Panier et code promotionnel saisi : 30 jours au plus pour le panier, 7 jours pour le code (cookies sur votre appareil).</li>
           <li>Choix concernant les cookies publicitaires : 6 mois (cookie sur votre appareil).</li>
           <li>Commandes jamais payées : annulées après 48 heures.</li>
           <li>Conversations de support jamais payées : supprimées après 14 jours.</li>
-          <li>Tentatives de connexion échouées : supprimées après 24 heures.</li>
+          <li>Tentatives de connexion échouées et empreintes de limitation des téléchargements : supprimées après 24 heures.</li>
           <li>Liens de téléchargement expirés : supprimés après 30 jours.</li>
           <li>
             Sauvegardes techniques de la base de données : elles peuvent contenir d&apos;anciennes données
@@ -140,12 +186,14 @@ export default async function ConfidentialitePage() {
       <LegalSection title="Destinataires et prestataires">
         <p>
           Vos données ne sont jamais vendues. Elles sont traitées par des prestataires techniques qui
-          interviennent pour notre compte : Vercel (hébergement et stockage), Neon (base de données),{" "}
+          interviennent pour notre compte : Vercel (hébergement et stockage des fichiers), Neon (base de
+          données),{" "}
           {methods.processors.length > 0
             ? `${methods.processors.join(" et ")} (paiement), `
             : "nos prestataires de paiement, "}
-          Resend (envoi des emails) et, si vous l&apos;acceptez, les régies publicitaires pour l&apos;affichage
-          des annonces. Ces prestataires peuvent traiter vos données dans des pays autres que le vôtre.
+          Resend (envoi des emails) et, si vous l&apos;acceptez, les régies publicitaires (Google AdSense,
+          Adsterra) pour l&apos;affichage des annonces. Ces prestataires peuvent traiter vos données dans des pays
+          autres que le vôtre.
         </p>
       </LegalSection>
 
@@ -169,6 +217,10 @@ export default async function ConfidentialitePage() {
           <li>
             <strong>Refuser les rappels par email</strong> : décochez « Rappels par email » dans « Mon
             profil ».
+          </li>
+          <li>
+            <strong>Refuser les cookies publicitaires</strong> : avec le lien « Gérer mes cookies » en bas de
+            chaque page.
           </li>
           <li>
             <strong>Supprimer votre compte</strong> : vous pouvez le faire vous-même et immédiatement
@@ -215,4 +267,4 @@ export default async function ConfidentialitePage() {
       </LegalSection>
     </LegalPage>
   );
-      }
+            }
