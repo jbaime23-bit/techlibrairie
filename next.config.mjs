@@ -4,14 +4,15 @@ const isProduction = process.env.NODE_ENV === "production";
 
 // Politique de sécurité du contenu pour les pages SANS publicité.
 // Elle interdit le chargement de scripts, d'images et de connexions provenant
-// d'un autre domaine que le site (hors images du stockage Vercel Blob public).
+// d'un autre domaine que le site, avec une exception : le stockage de fichiers de Vercel,
+// nécessaire à l'envoi des PDF depuis l'administration (page /admin/gratuit).
 const strictContentSecurityPolicy = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://*.public.blob.vercel-storage.com",
   "font-src 'self' data:",
-  "connect-src 'self'",
+  "connect-src 'self' https://vercel.com https://*.vercel-storage.com",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
