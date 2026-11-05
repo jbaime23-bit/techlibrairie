@@ -1,0 +1,63 @@
+# .github/workflows/typecheck.yml
+# Vérification des types du code (n'affecte ni le site ni la base de données).
+# Se lance toute seule quand ce fichier est enregistré, puis à la demande
+# (onglet Actions, "Vérification du code", bouton "Run workflow").
+
+name: Vérification du code
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/typecheck.yml"
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Valeurs factices : elles servent seulement à générer le client de base de données.
+      DATABASE_URL: "postgresql://user:password@localhost:5432/techlibrairie"
+      NEXTAUTH_SECRET: "valeur-de-test-uniquement-pour-la-verification-du-code"
+      NEXT_PUBLIC_APP_URL: "https://techlibrairie.com"
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Installer les dépendances
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+
+      - name: Générer le client de base de données
+        run: npx prisma generate
+
+      - name: Vérifier les types
+        run: |
+          printf '/// <reference types="next" />\n/// <reference types="next/image-types/global" />\n' > next-env.d.ts
+          npx tsc --noEmit --pretty false > tsc-output.txt 2>&1 || true
+          ERRORS=$(grep -c "error TS" tsc-output.txt || true)
+          {
+            echo "## Résultat de la vérification des types"
+            echo ""
+            echo "Nombre d'erreurs : ${ERRORS}"
+            echo ""
+            if [ "${ERRORS}" -gt 0 ]; then
+              echo "### Erreurs par fichier (nombre, fichier)"
+              echo '```'
+              grep "error TS" tsc-output.txt | sed -E 's/\(.*//' | sort | uniq -c | sort -rn | head -60
+              echo '```'
+              echo ""
+              echo "### Détail (100 premières erreurs)"
+              echo '```'
+              grep "error TS" tsc-output.txt | head -100
+              echo '```'
+            else
+              echo "Aucune erreur de typage détectée."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "${ERRORS}" -gt 0 ]; then exit 1; fi
