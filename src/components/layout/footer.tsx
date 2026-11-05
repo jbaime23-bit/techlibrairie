@@ -59,6 +59,11 @@ export async function Footer() {
               </Link>
             </li>
             <li>
+              <Link href="/a-propos" className="text-slate-700 hover:text-brand-700">
+                À propos
+              </Link>
+            </li>
+            <li>
               <Link href="/inscription" className="text-slate-700 hover:text-brand-700">
                 Devenir vendeur
               </Link>
@@ -158,4 +163,4 @@ export async function Footer() {
       </div>
     </footer>
   );
-  }
+}
