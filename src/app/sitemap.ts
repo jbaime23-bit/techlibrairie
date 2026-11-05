@@ -16,6 +16,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: base, lastModified: now, changeFrequency: "daily", priority: 1 },
     { url: `${base}/catalogue`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
     { url: `${base}/gratuit`, lastModified: now, changeFrequency: "daily", priority: 0.8 },
+    { url: `${base}/a-propos`, lastModified: now, changeFrequency: "monthly", priority: 0.4 },
     { url: `${base}/conditions`, lastModified: now, changeFrequency: "yearly", priority: 0.2 },
     { url: `${base}/mentions-legales`, lastModified: now, changeFrequency: "yearly", priority: 0.2 },
     { url: `${base}/confidentialite`, lastModified: now, changeFrequency: "yearly", priority: 0.2 },
@@ -83,4 +84,4 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
 
   return entries;
-}
+                 }
