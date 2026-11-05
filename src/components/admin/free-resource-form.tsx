@@ -1,6 +1,7 @@
 // src/components/admin/free-resource-form.tsx
 // Formulaire d'ajout d'un PDF gratuit : le PDF part directement vers le stockage privé,
 // puis la fiche (titre, description, couverture) est enregistrée.
+// Si l'envoi n'avance plus pendant 90 secondes, le formulaire se débloque avec un message.
 "use client";
 
 import { useState, type FormEvent } from "react";
@@ -13,6 +14,8 @@ import {
 } from "@/lib/product-validation";
 
 type FieldErrors = Record<string, string[] | undefined>;
+
+const STALL_MS = 90_000;
 
 function toSafeFileName(name: string): string {
   return (
@@ -85,12 +88,36 @@ export function FreeResourceForm() {
     setLoading(true);
     setProgress(0);
 
+    // Surveillance : si aucune progression n'est reçue pendant 90 secondes, on abandonne avec un message.
+    const lastProgress = { at: Date.now() };
+    let watchdog: number | undefined;
+
+    const stalled = new Promise<never>((_, reject) => {
+      watchdog = window.setInterval(() => {
+        if (Date.now() - lastProgress.at > STALL_MS) {
+          reject(
+            new Error(
+              "L'envoi n'avance plus depuis 90 secondes. Vérifiez votre connexion internet, essayez avec un fichier plus petit, puis réessayez."
+            )
+          );
+        }
+      }, 5000);
+    });
+
     try {
-      const blob = await upload(`free/${toSafeFileName(pdf.name)}.pdf`, pdf, {
-        access: "private",
-        handleUploadUrl: "/api/admin/gratuit/upload",
-        onUploadProgress: ({ percentage }) => setProgress(Math.round(percentage)),
-      });
+      const blob = await Promise.race([
+        upload(`free/${toSafeFileName(pdf.name)}.pdf`, pdf, {
+          access: "private",
+          handleUploadUrl: "/api/admin/gratuit/upload",
+          onUploadProgress: ({ percentage }) => {
+            lastProgress.at = Date.now();
+            setProgress(Math.round(percentage));
+          },
+        }),
+        stalled,
+      ]);
+
+      window.clearInterval(watchdog);
 
       const payload = new FormData();
       payload.set("title", title);
@@ -123,6 +150,7 @@ export function FreeResourceForm() {
       setLoading(false);
       router.refresh();
     } catch (uploadError) {
+      window.clearInterval(watchdog);
       setError(
         uploadError instanceof Error
           ? `Envoi impossible : ${uploadError.message}`
@@ -258,4 +286,4 @@ export function FreeResourceForm() {
       </button>
     </form>
   );
-    }
+  }
