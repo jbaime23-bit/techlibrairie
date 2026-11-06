@@ -1,5 +1,5 @@
+// src/components/layout/header.tsx
 import Link from "next/link";
-import Script from "next/script";
 import { getCurrentUser } from "@/lib/auth";
 import { getCartIds } from "@/lib/cart";
 import { SignOutButton } from "@/components/layout/sign-out-button";
@@ -10,23 +10,6 @@ export async function Header() {
 
   return (
     <header className="border-b border-slate-200 bg-white">
-      {/* Script de configuration et d'invocation publicitaire */}
-      <Script id="adsterra-options" strategy="afterInteractive">
-        {`
-          window.atOptions = {
-            'key' : 'b9b40b1c4e412de03b6465589ab82662',
-            'format' : 'iframe',
-            'height' : 90,
-            'width' : 728,
-            'params' : {}
-          };
-        `}
-      </Script>
-      <Script 
-        src="https://www.highrevenueformat.com/b9b40b1c4e412de03b6465589ab82662/invoke.js" 
-        strategy="afterInteractive" 
-      />
-
       <div className="container-page flex flex-wrap items-center justify-between gap-3 py-4">
         <Link href="/" className="text-xl font-bold text-brand-700">
           TechLibrairie
@@ -47,6 +30,11 @@ export async function Header() {
 
           {user ? (
             <>
+              <Link href="/publier" className="btn-primary px-3 py-1 text-sm">
+                <span className="hidden sm:inline">Publier un document / livre</span>
+                <span className="sm:hidden">Publier</span>
+              </Link>
+
               <Link href="/acheteur" className="text-slate-700 hover:text-brand-700">
                 Mon espace
               </Link>
@@ -58,6 +46,8 @@ export async function Header() {
               )}
 
               {user.role === "ADMIN" ? (
+                // Lien classique (rechargement complet) : l'administration démarre
+                // sur une page vierge, avec sa protection CSP.
                 <a href="/admin" className="text-slate-700 hover:text-brand-700">
                   Administration
                 </a>
@@ -84,11 +74,6 @@ export async function Header() {
             </>
           )}
         </nav>
-      </div>
-
-      {/* Conteneur d'affichage de la bannière publicitaire */}
-      <div className="container-page py-2 text-center">
-        <div id="container-b9b40b1c4e412de03b6465589ab82662" className="inline-block min-h-[90px] min-w-[728px]" />
       </div>
 
       {user && !user.emailVerified && (
