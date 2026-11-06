@@ -1,7 +1,7 @@
 // src/app/admin/produits/page.tsx
 import type { Metadata } from "next";
 import Link from "next/link";
-import type { Prisma, ProductStatus } from "@prisma/client";
+import type { Prisma, ProductStatus, PublishingCapacity } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   ADMIN_PAGE_SIZE,
@@ -31,6 +31,12 @@ const STATUS_STYLES: Record<ProductStatus, string> = {
   SUSPENDED: "bg-red-100 text-red-800",
 };
 
+const CAPACITY_LABELS: Record<PublishingCapacity, string> = {
+  AUTHOR: "Auteur",
+  INDEPENDENT_PUBLISHER: "Éditeur indépendant",
+  THIRD_PARTY_SELLER: "Vendeur tiers",
+};
+
 const STATUSES: ProductStatus[] = ["PUBLISHED", "UNPUBLISHED", "SUSPENDED"];
 
 export default async function AdminProduitsPage({
@@ -46,6 +52,9 @@ export default async function AdminProduitsPage({
   const rawStatus = firstParam(sp.statut);
   const status = STATUSES.find((value) => value === rawStatus);
 
+  // Recherche par ISBN : sans tirets ni espaces.
+  const isbnQuery = q.replace(/[\s-]/g, "").toUpperCase();
+
   const where: Prisma.ProductWhereInput = {
     ...(status ? { status } : {}),
     ...(q
@@ -53,6 +62,8 @@ export default async function AdminProduitsPage({
           OR: [
             { title: { contains: q, mode: "insensitive" } },
             { seller: { displayName: { contains: q, mode: "insensitive" } } },
+            { authorName: { contains: q, mode: "insensitive" } },
+            ...(isbnQuery.length >= 3 ? [{ isbn: { contains: isbnQuery } }] : []),
           ],
         }
       : {}),
@@ -90,7 +101,7 @@ export default async function AdminProduitsPage({
           name="q"
           type="search"
           defaultValue={q}
-          placeholder="Titre ou vendeur"
+          placeholder="Titre, vendeur, auteur ou ISBN"
           className="input max-w-xs"
         />
         {status && <input type="hidden" name="statut" value={status} />}
@@ -148,6 +159,24 @@ export default async function AdminProduitsPage({
                         {product.category?.name ?? "Sans catégorie"} · publié le{" "}
                         {formatDate(product.publishedAt)}
                       </p>
+                      <p className="text-xs text-slate-500">
+                        {product.publishingCapacity
+                          ? CAPACITY_LABELS[product.publishingCapacity]
+                          : "Qualité non indiquée"}
+                        {product.authorName ? ` · auteur : ${product.authorName}` : ""}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        ISBN : {product.isbn ?? "non renseigné"}
+                      </p>
+                      <p
+                        className={`text-xs ${
+                          product.rightsCertifiedAt ? "text-green-700" : "text-yellow-700"
+                        }`}
+                      >
+                        {product.rightsCertifiedAt
+                          ? `Droits certifiés le ${formatDate(product.rightsCertifiedAt)}`
+                          : "Droits non certifiés (publié avant la certification)"}
+                      </p>
                       {product.status === "PUBLISHED" && (
                         <Link
                           href={`/catalogue/${product.slug}`}
@@ -198,4 +227,4 @@ export default async function AdminProduitsPage({
       />
     </div>
   );
-                  }
+    }
