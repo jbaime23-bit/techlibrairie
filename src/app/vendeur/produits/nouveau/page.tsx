@@ -7,6 +7,7 @@ import { loadSellerPage } from "@/lib/seller";
 import { SellerUnavailable } from "@/components/vendeur/seller-unavailable";
 import { ProductForm } from "@/components/vendeur/product-form";
 import { simulateUploadRoute, testBlobTokens } from "@/lib/storage-check";
+import type { PublishingCapacityValue } from "@/lib/product-validation";
 import {
   bpsToPercent,
   getDefaultCommissionRateBps,
@@ -14,10 +15,22 @@ import {
 } from "@/lib/commission";
 
 export const metadata: Metadata = {
-  title: "Publier un ouvrage",
+  title: "Éditeur en ligne : publier un ouvrage",
 };
 
 export const dynamic = "force-dynamic";
+
+/** Qualité demandée dans l'adresse (?profil=auteur, editeur ou vendeur) ; auteur par défaut. */
+function capacityFromQuery(value: string | undefined): PublishingCapacityValue {
+  switch (value) {
+    case "editeur":
+      return "INDEPENDENT_PUBLISHER";
+    case "vendeur":
+      return "THIRD_PARTY_SELLER";
+    default:
+      return "AUTHOR";
+  }
+}
 
 export default async function NouveauProduitPage({
   searchParams,
@@ -45,6 +58,8 @@ export default async function NouveauProduitPage({
   const commissionPercent = bpsToPercent(
     resolveCommissionRateBps(seller.commissionRateBps, defaultRateBps)
   );
+
+  const initialCapacity = capacityFromQuery(firstParam(sp.profil));
 
   // Tests du stockage : réservés aux administrateurs (aucune valeur secrète n'est affichée).
   const isAdmin = context.user.role === "ADMIN";
@@ -75,7 +90,7 @@ export default async function NouveauProduitPage({
         <div className="card text-sm">
           <h2 className="text-lg font-semibold">Vérifier le stockage des fichiers</h2>
           <p className="mt-1 text-slate-600">
-            Test réservé à l&apos;administrateur : il enregistre puis efface un petit fichier dans chaque
+            Test réservé à l&apos;administrateur : il enregistre puis efface un petit fichier dans le
             stockage, et rejoue la demande de jeton que fait le formulaire pour envoyer un PDF.
           </p>
 
@@ -158,19 +173,22 @@ export default async function NouveauProduitPage({
       )}
 
       <div className="card">
-        <h1 className="text-2xl font-bold">Publier un ouvrage</h1>
+        <h1 className="text-2xl font-bold">Éditeur en ligne</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Votre PDF est publié automatiquement dès l&apos;envoi du formulaire.
+          Publiez votre document ou votre livre au format PDF. Il est mis en vente dès l&apos;envoi du
+          formulaire.
         </p>
 
         <div className="mt-6">
           <ProductForm
             sellerId={seller.id}
+            sellerName={seller.displayName}
             categories={categories}
             commissionPercent={commissionPercent}
+            initialCapacity={initialCapacity}
           />
         </div>
       </div>
     </div>
   );
-}
+                  }
