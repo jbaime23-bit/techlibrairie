@@ -1,12 +1,18 @@
 // src/app/api/produits/route.ts
 // Création d'un produit par un vendeur.
-// Le produit est PUBLIÉ automatiquement dès sa soumission.
+// Le produit est PUBLIÉ automatiquement dès sa soumission, à condition que le déposant ait coché
+// la certification des droits (vérifiée ici, côté serveur) ; l'ISBN éventuel est contrôlé.
 
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getSellerContext } from "@/lib/seller";
-import { productFieldsSchema } from "@/lib/product-validation";
+import {
+  ISBN_ERROR_MESSAGE,
+  RIGHTS_CERTIFICATION_TEXT,
+  normalizeIsbn,
+  productFieldsSchema,
+} from "@/lib/product-validation";
 import {
   deletePrivateFile,
   deletePublicCover,
@@ -62,6 +68,10 @@ export async function POST(request: Request) {
     price: readField(formData, "price"),
     language: readField(formData, "language"),
     pageCount: readField(formData, "pageCount"),
+    publishingCapacity: readField(formData, "publishingCapacity"),
+    authorName: readField(formData, "authorName"),
+    isbn: readField(formData, "isbn"),
+    rightsAccepted: readField(formData, "rightsAccepted"),
     pdfStorageKey: readField(formData, "pdfStorageKey"),
     pdfFileName: readField(formData, "pdfFileName"),
     pdfSizeBytes: readField(formData, "pdfSizeBytes"),
@@ -84,6 +94,27 @@ export async function POST(request: Request) {
   // Le PDF doit appartenir à ce vendeur.
   if (!isOwnedPdfKey(fields.pdfStorageKey, seller.id)) {
     return validationError({ pdf: ["Fichier PDF non autorisé."] }, 403);
+  }
+
+  // ISBN : normalisé (sans tirets) et unique dans le catalogue.
+  let isbn: string | null = null;
+  if (fields.isbn) {
+    isbn = normalizeIsbn(fields.isbn);
+    if (!isbn) {
+      return validationError({ isbn: [ISBN_ERROR_MESSAGE] });
+    }
+
+    const duplicate = await prisma.product.findFirst({
+      where: { isbn },
+      select: { id: true },
+    });
+    if (duplicate) {
+      return validationError({
+        isbn: [
+          "Cet ISBN est déjà utilisé par un autre ouvrage du catalogue. Si c'est une erreur, contactez-nous.",
+        ],
+      });
+    }
   }
 
   if (fields.categoryId) {
@@ -141,6 +172,12 @@ export async function POST(request: Request) {
         pdfStorageKey: fields.pdfStorageKey,
         pdfFileName: sanitizeFileName(fields.pdfFileName),
         pdfSizeBytes: inspection.sizeBytes ?? fields.pdfSizeBytes,
+        isbn,
+        publishingCapacity: fields.publishingCapacity,
+        authorName: fields.authorName,
+        // Preuve de la certification : date du serveur et texte exact accepté.
+        rightsCertifiedAt: new Date(),
+        rightsCertificationText: RIGHTS_CERTIFICATION_TEXT,
         // status : PUBLISHED par défaut => publication automatique
       },
       select: { id: true, slug: true },
@@ -162,4 +199,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}
+                             }
