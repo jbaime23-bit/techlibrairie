@@ -137,6 +137,16 @@ enum PromoBearer {
   SHOP
 }
 
+// Qualité sous laquelle un ouvrage est publié
+enum PublishingCapacity {
+  // L'auteur de l'ouvrage
+  AUTHOR
+  // Éditeur indépendant (détient les droits de diffusion numérique)
+  INDEPENDENT_PUBLISHER
+  // Vendeur tiers (diffuse l'ouvrage d'autrui avec son autorisation écrite)
+  THIRD_PARTY_SELLER
+}
+
 // ---------------------------------------------------------------------------
 // UTILISATEURS & AUTHENTIFICATION (compatible Auth.js)
 // ---------------------------------------------------------------------------
@@ -320,6 +330,17 @@ model Product {
   pdfFileName   String
   pdfSizeBytes  Int
 
+  // Édition : ISBN facultatif (10 ou 13 caractères, sans tirets), qualité du déposant et auteur indiqué.
+  // Null pour les ouvrages publiés avant l'ajout de ces champs.
+  isbn               String?
+  publishingCapacity PublishingCapacity?
+  authorName         String?
+
+  // Certification des droits cochée par le déposant : date et texte exact accepté.
+  // Null pour les ouvrages publiés avant l'ajout de la certification.
+  rightsCertifiedAt       DateTime?
+  rightsCertificationText String?   @db.Text
+
   // Publication automatique dès la soumission par le vendeur
   status        ProductStatus @default(PUBLISHED)
   publishedAt   DateTime      @default(now())
@@ -342,6 +363,7 @@ model Product {
   @@index([sellerId])
   @@index([categoryId])
   @@index([status, publishedAt])
+  @@index([isbn])
 }
 
 // Ressources gratuites : PDF publiés par l'administration, téléchargeables après une attente
