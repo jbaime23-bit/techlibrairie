@@ -1,13 +1,16 @@
 // src/app/vendeur/produits/nouveau/page.tsx
 import type { Metadata } from "next";
-import { headers } from "next/headers";
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { firstParam } from "@/lib/admin";
 import { loadSellerPage } from "@/lib/seller";
 import { SellerUnavailable } from "@/components/vendeur/seller-unavailable";
 import { ProductForm } from "@/components/vendeur/product-form";
-import { simulateUploadRoute, testBlobTokens } from "@/lib/storage-check";
-import type { PublishingCapacityValue } from "@/lib/product-validation";
+import { getContributionConfig } from "@/lib/publication-fee";
+import type {
+  ProductKindValue,
+  PublishingCapacityValue,
+} from "@/lib/product-validation";
 import {
   bpsToPercent,
   getDefaultCommissionRateBps,
@@ -15,10 +18,17 @@ import {
 } from "@/lib/commission";
 
 export const metadata: Metadata = {
-  title: "Éditeur en ligne : publier un ouvrage",
+  title: "Publier : édition de livres ou vente de PDF",
 };
 
 export const dynamic = "force-dynamic";
+
+/** Service demandé dans l'adresse (?service=edition ou document), ou null. */
+function kindFromQuery(value: string | undefined): ProductKindValue | null {
+  if (value === "edition") return "BOOK_EDITION";
+  if (value === "document") return "PDF_DOCUMENT";
+  return null;
+}
 
 /** Qualité demandée dans l'adresse (?profil=auteur, editeur ou vendeur) ; auteur par défaut. */
 function capacityFromQuery(value: string | undefined): PublishingCapacityValue {
@@ -30,6 +40,10 @@ function capacityFromQuery(value: string | undefined): PublishingCapacityValue {
     default:
       return "AUTHOR";
   }
+}
+
+function formatXof(amount: number): string {
+  return `${amount.toLocaleString("fr-FR")} FCFA`;
 }
 
 export default async function NouveauProduitPage({
@@ -46,6 +60,54 @@ export default async function NouveauProduitPage({
   }
 
   const { seller } = context;
+  const isAdmin = context.user.role === "ADMIN";
+  const kind = kindFromQuery(firstParam(sp.service));
+  const profilQuery = firstParam(sp.profil);
+  const contribution = getContributionConfig();
+
+  // Aucun service choisi : on propose les deux (les anciens liens « Nouveau produit » arrivent ici).
+  if (!kind) {
+    const editionHref = `/vendeur/produits/nouveau?service=edition${
+      profilQuery ? `&profil=${encodeURIComponent(profilQuery)}` : ""
+    }`;
+
+    return (
+      <div className="mx-auto max-w-3xl space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">Que souhaitez-vous publier ?</h1>
+          <p className="mt-1 text-sm text-slate-600">
+            TechLibrairie propose deux services distincts, qui obéissent à des règles différentes.
+          </p>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <section className="card flex flex-col">
+            <h2 className="text-lg font-semibold">Édition de livres</h2>
+            <p className="mt-2 flex-1 text-sm text-slate-600">
+              Faire éditer et publier un livre sur TechLibrairie. Contribution de participation unique de{" "}
+              {formatXof(contribution.amountXof)}
+              {isAdmin ? " (non demandée à l'administrateur)" : ""}, qui n&apos;a aucun effet sur vos
+              redevances. ISBN facultatif et certification des droits.
+            </p>
+            <Link href={editionHref} className="btn-primary mt-4">
+              Faire éditer un livre
+            </Link>
+          </section>
+
+          <section className="card flex flex-col">
+            <h2 className="text-lg font-semibold">Vente de PDF</h2>
+            <p className="mt-2 flex-1 text-sm text-slate-600">
+              Déposer et vendre directement des documents et ressources (cours, rapports, guides...).
+              Publication immédiate, sans contribution de participation.
+            </p>
+            <Link href="/vendeur/produits/nouveau?service=document" className="btn-secondary mt-4">
+              Vendre un PDF
+            </Link>
+          </section>
+        </div>
+      </div>
+    );
+  }
 
   const [categories, defaultRateBps] = await Promise.all([
     prisma.category.findMany({
@@ -59,124 +121,25 @@ export default async function NouveauProduitPage({
     resolveCommissionRateBps(seller.commissionRateBps, defaultRateBps)
   );
 
-  const initialCapacity = capacityFromQuery(firstParam(sp.profil));
-
-  // Tests du stockage : réservés aux administrateurs (aucune valeur secrète n'est affichée).
-  const isAdmin = context.user.role === "ADMIN";
-  const runTest = isAdmin && firstParam(sp.test) === "1";
-
-  let storage = null;
-  let simulation = null;
-
-  if (runTest) {
-    const requestHeaders = await headers();
-    const origin = (
-      process.env.NEXT_PUBLIC_APP_URL ?? `https://${requestHeaders.get("host") ?? ""}`
-    ).replace(/\/+$/, "");
-
-    [storage, simulation] = await Promise.all([
-      testBlobTokens(),
-      simulateUploadRoute({
-        origin,
-        cookie: requestHeaders.get("cookie") ?? "",
-        sellerId: seller.id,
-      }),
-    ]);
-  }
+  const isEdition = kind === "BOOK_EDITION";
+  const contributionXof = isEdition && !isAdmin ? contribution.amountXof : null;
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      {isAdmin && (
-        <div className="card text-sm">
-          <h2 className="text-lg font-semibold">Vérifier le stockage des fichiers</h2>
-          <p className="mt-1 text-slate-600">
-            Test réservé à l&apos;administrateur : il enregistre puis efface un petit fichier dans le
-            stockage, et rejoue la demande de jeton que fait le formulaire pour envoyer un PDF.
-          </p>
-
-          {!storage || !simulation ? (
-            <a href="/vendeur/produits/nouveau?test=1" className="btn-secondary mt-3">
-              Lancer le test du stockage
-            </a>
-          ) : (
-            <div className="mt-4 space-y-3">
-              <p className="text-xs text-slate-500">
-                Environnement : <strong>{storage.environment}</strong> · variables de stockage vues par le
-                site : {storage.variableNames.length > 0 ? storage.variableNames.join(", ") : "aucune"}
-              </p>
-
-              <ul className="space-y-2">
-                {storage.results.map((result) => (
-                  <li
-                    key={result.variable}
-                    className={`rounded-lg border px-3 py-2 ${
-                      result.ok
-                        ? "border-green-200 bg-green-50 text-green-900"
-                        : "border-red-200 bg-red-50 text-red-900"
-                    }`}
-                  >
-                    <p className="font-semibold">
-                      {result.ok ? "OK" : "ÉCHEC"} : {result.role}
-                    </p>
-                    <p className="text-xs">
-                      {result.variable} · forme du jeton :{" "}
-                      {result.present ? (result.shapeOk ? "correcte" : "inhabituelle") : "absent"}
-                    </p>
-                    <p className="mt-1 break-words text-xs">{result.message}</p>
-                  </li>
-                ))}
-
-                <li
-                  className={`rounded-lg border px-3 py-2 ${
-                    simulation.ok
-                      ? "border-green-200 bg-green-50 text-green-900"
-                      : "border-red-200 bg-red-50 text-red-900"
-                  }`}
-                >
-                  <p className="font-semibold">
-                    {simulation.ok ? "OK" : "ÉCHEC"} : demande de jeton d&apos;envoi du formulaire
-                  </p>
-                  <p className="text-xs">
-                    Réponse du serveur : {simulation.status === null ? "aucune" : simulation.status}
-                  </p>
-                  <p className="mt-1 break-words text-xs">{simulation.message}</p>
-                  {simulation.hint && (
-                    <p className="mt-1 break-words text-xs font-semibold">À faire : {simulation.hint}</p>
-                  )}
-                </li>
-              </ul>
-
-              {storage.hints.length > 0 && (
-                <div className="alert-error">
-                  <p className="font-semibold">À faire :</p>
-                  <ul className="mt-1 list-disc space-y-1 pl-5">
-                    {storage.hints.map((hint) => (
-                      <li key={hint}>{hint}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {storage.results.every((result) => result.ok || result.kind === "dirty") &&
-                simulation.ok && (
-                  <p className="font-semibold text-green-800">
-                    Le stockage et la demande d&apos;envoi fonctionnent. Vous pouvez publier votre ouvrage.
-                  </p>
-                )}
-
-              <a href="/vendeur/produits/nouveau?test=1" className="btn-secondary">
-                Relancer le test
-              </a>
-            </div>
-          )}
-        </div>
-      )}
-
       <div className="card">
-        <h1 className="text-2xl font-bold">Éditeur en ligne</h1>
+        <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">
+          {isEdition ? "Édition de livres" : "Vente de PDF"}
+        </p>
+        <h1 className="mt-1 text-2xl font-bold">
+          {isEdition ? "Faire éditer un livre" : "Vendre un document"}
+        </h1>
         <p className="mt-1 text-sm text-slate-600">
-          Publiez votre document ou votre livre au format PDF. Il est mis en vente dès l&apos;envoi du
-          formulaire.
+          {isEdition
+            ? "Renseignez votre ouvrage. Il est publié dès la validation de la contribution de participation."
+            : "Votre document est mis en vente dès l'envoi du formulaire."}{" "}
+          <Link href="/vendeur/produits/nouveau" className="font-semibold text-brand-700 hover:underline">
+            Changer de service
+          </Link>
         </p>
 
         <div className="mt-6">
@@ -185,10 +148,12 @@ export default async function NouveauProduitPage({
             sellerName={seller.displayName}
             categories={categories}
             commissionPercent={commissionPercent}
-            initialCapacity={initialCapacity}
+            kind={kind}
+            initialCapacity={capacityFromQuery(profilQuery)}
+            contributionXof={contributionXof}
           />
         </div>
       </div>
     </div>
   );
-                  }
+}
