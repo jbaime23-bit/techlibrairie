@@ -91,7 +91,11 @@ export async function setSellerCommissionAction(formData: FormData): Promise<voi
   revalidatePath("/admin/vendeurs");
 }
 
-/** Publie, retire ou suspend un produit. */
+/**
+ * Publie, retire ou suspend un produit.
+ * Un ouvrage en attente du règlement de ses frais de publication ne peut être publié que depuis
+ * la page « Publications » (après validation du paiement).
+ */
 export async function setProductStatusAction(formData: FormData): Promise<void> {
   const admin = await assertAdminAction();
 
@@ -106,8 +110,17 @@ export async function setProductStatusAction(formData: FormData): Promise<void> 
     return;
   }
 
-  const result = await prisma.product.updateMany({
+  const existing = await prisma.product.findUnique({
     where: { id: productId },
+    select: { status: true },
+  });
+
+  if (!existing || existing.status === "PENDING_PAYMENT") {
+    return;
+  }
+
+  const result = await prisma.product.updateMany({
+    where: { id: productId, status: { not: "PENDING_PAYMENT" } },
     data: { status: status as (typeof PRODUCT_STATUSES)[number] },
   });
 
@@ -215,4 +228,4 @@ export async function deleteAdAction(formData: FormData): Promise<void> {
 
   revalidateTag("ads");
   revalidatePath("/admin/publicites");
-}
+                                     }
