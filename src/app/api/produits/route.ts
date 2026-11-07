@@ -1,18 +1,22 @@
 // src/app/api/produits/route.ts
-// Création d'un produit par un vendeur.
-// Le produit est PUBLIÉ automatiquement dès sa soumission, à condition que le déposant ait coché
-// la certification des droits (vérifiée ici, côté serveur) ; l'ISBN éventuel est contrôlé.
+// Création d'un produit par un vendeur, selon le service choisi :
+// - Vente de PDF (PDF_DOCUMENT) : publication immédiate.
+// - Édition de livres (BOOK_EDITION) : qualité, auteur, ISBN contrôlé ; l'ouvrage est publié après la
+//   validation de la contribution de participation (sauf pour un administrateur).
+// La certification des droits est vérifiée ici, côté serveur.
 
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth";
 import { getSellerContext } from "@/lib/seller";
 import {
   ISBN_ERROR_MESSAGE,
-  RIGHTS_CERTIFICATION_TEXT,
+  certificationTextFor,
   normalizeIsbn,
   productFieldsSchema,
 } from "@/lib/product-validation";
+import { getContributionConfig } from "@/lib/publication-fee";
 import {
   deletePrivateFile,
   deletePublicCover,
@@ -61,6 +65,7 @@ export async function POST(request: Request) {
   }
 
   const parsed = productFieldsSchema.safeParse({
+    kind: readField(formData, "kind"),
     title: readField(formData, "title"),
     description: readField(formData, "description"),
     categoryId: readField(formData, "categoryId"),
@@ -90,15 +95,16 @@ export async function POST(request: Request) {
   }
 
   const fields = parsed.data;
+  const isEdition = fields.kind === "BOOK_EDITION";
 
   // Le PDF doit appartenir à ce vendeur.
   if (!isOwnedPdfKey(fields.pdfStorageKey, seller.id)) {
     return validationError({ pdf: ["Fichier PDF non autorisé."] }, 403);
   }
 
-  // ISBN : normalisé (sans tirets) et unique dans le catalogue.
+  // ISBN (édition de livres seulement) : normalisé, sans tirets, et unique dans le catalogue.
   let isbn: string | null = null;
-  if (fields.isbn) {
+  if (isEdition && fields.isbn) {
     isbn = normalizeIsbn(fields.isbn);
     if (!isbn) {
       return validationError({ isbn: [ISBN_ERROR_MESSAGE] });
@@ -156,11 +162,16 @@ export async function POST(request: Request) {
     }
   }
 
+  // Contribution de participation : édition de livres seulement, et jamais pour un administrateur.
+  const user = await getCurrentUser();
+  const requiresContribution = isEdition && user?.role !== "ADMIN";
+
   try {
     const product = await prisma.product.create({
       data: {
         sellerId: seller.id,
         categoryId: fields.categoryId ?? null,
+        kind: fields.kind,
         title: fields.title,
         slug: slugWithSuffix(fields.title),
         description: fields.description,
@@ -173,12 +184,19 @@ export async function POST(request: Request) {
         pdfFileName: sanitizeFileName(fields.pdfFileName),
         pdfSizeBytes: inspection.sizeBytes ?? fields.pdfSizeBytes,
         isbn,
-        publishingCapacity: fields.publishingCapacity,
-        authorName: fields.authorName,
-        // Preuve de la certification : date du serveur et texte exact accepté.
+        publishingCapacity: isEdition ? fields.publishingCapacity ?? null : null,
+        authorName: fields.authorName && fields.authorName.length > 0 ? fields.authorName : null,
+        // Preuve de la certification : date du serveur et texte exact accepté pour ce service.
         rightsCertifiedAt: new Date(),
-        rightsCertificationText: RIGHTS_CERTIFICATION_TEXT,
-        // status : PUBLISHED par défaut => publication automatique
+        rightsCertificationText: certificationTextFor(fields.kind),
+        status: requiresContribution ? "PENDING_PAYMENT" : "PUBLISHED",
+        ...(requiresContribution
+          ? {
+              publicationFee: {
+                create: { amountXof: getContributionConfig().amountXof },
+              },
+            }
+          : {}),
       },
       select: { id: true, slug: true },
     });
@@ -187,7 +205,10 @@ export async function POST(request: Request) {
     revalidatePath("/vendeur/produits");
     revalidatePath("/catalogue");
 
-    return NextResponse.json(product, { status: 201 });
+    return NextResponse.json(
+      { id: product.id, slug: product.slug, pendingPayment: requiresContribution },
+      { status: 201 }
+    );
   } catch (error) {
     console.error("Erreur lors de la création du produit :", error);
     if (coverImageUrl) {
@@ -199,4 +220,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-                             }
+}
