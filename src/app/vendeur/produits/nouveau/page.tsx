@@ -84,10 +84,12 @@ export default async function NouveauProduitPage({
           <section className="card flex flex-col">
             <h2 className="text-lg font-semibold">Édition de livres</h2>
             <p className="mt-2 flex-1 text-sm text-slate-600">
-              Faire éditer et publier un livre sur TechLibrairie. Contribution de participation unique de{" "}
-              {formatXof(contribution.amountXof)}
-              {isAdmin ? " (non demandée à l'administrateur)" : ""}, qui n&apos;a aucun effet sur vos
-              redevances. ISBN facultatif et certification des droits.
+              Faire éditer et publier un livre sur TechLibrairie. Vous renseignez votre livre, puis, à la
+              dernière étape avant la publication
+              {isAdmin
+                ? " (non demandée à l'administrateur)"
+                : `, une contribution unique de ${formatXof(contribution.amountXof)} est demandée pour cet ouvrage`}
+              . Elle n&apos;a aucun effet sur vos redevances. ISBN facultatif et certification des droits.
             </p>
             <Link href={editionHref} className="btn-primary mt-4">
               Faire éditer un livre
@@ -135,7 +137,9 @@ export default async function NouveauProduitPage({
         </h1>
         <p className="mt-1 text-sm text-slate-600">
           {isEdition
-            ? "Renseignez votre ouvrage. Il est publié dès la validation de la contribution de participation."
+            ? contributionXof !== null
+              ? "Renseignez votre ouvrage. La contribution n'est demandée qu'à la dernière étape, juste avant la publication."
+              : "Renseignez votre ouvrage : il est publié dès l'envoi du formulaire."
             : "Votre document est mis en vente dès l'envoi du formulaire."}{" "}
           <Link href="/vendeur/produits/nouveau" className="font-semibold text-brand-700 hover:underline">
             Changer de service
