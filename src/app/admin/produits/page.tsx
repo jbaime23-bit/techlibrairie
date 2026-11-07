@@ -23,12 +23,14 @@ const STATUS_LABELS: Record<ProductStatus, string> = {
   PUBLISHED: "En vente",
   UNPUBLISHED: "Retiré",
   SUSPENDED: "Suspendu",
+  PENDING_PAYMENT: "Frais à régler",
 };
 
 const STATUS_STYLES: Record<ProductStatus, string> = {
   PUBLISHED: "bg-green-100 text-green-800",
   UNPUBLISHED: "bg-slate-100 text-slate-700",
   SUSPENDED: "bg-red-100 text-red-800",
+  PENDING_PAYMENT: "bg-yellow-100 text-yellow-800",
 };
 
 const CAPACITY_LABELS: Record<PublishingCapacity, string> = {
@@ -37,7 +39,12 @@ const CAPACITY_LABELS: Record<PublishingCapacity, string> = {
   THIRD_PARTY_SELLER: "Vendeur tiers",
 };
 
-const STATUSES: ProductStatus[] = ["PUBLISHED", "UNPUBLISHED", "SUSPENDED"];
+const STATUSES: ProductStatus[] = [
+  "PUBLISHED",
+  "UNPUBLISHED",
+  "SUSPENDED",
+  "PENDING_PAYMENT",
+];
 
 export default async function AdminProduitsPage({
   searchParams,
@@ -150,6 +157,7 @@ export default async function AdminProduitsPage({
             <tbody>
               {products.map((product) => {
                 const suspended = product.status === "SUSPENDED";
+                const pending = product.status === "PENDING_PAYMENT";
 
                 return (
                   <tr key={product.id} className="border-b border-slate-100 align-top">
@@ -199,17 +207,26 @@ export default async function AdminProduitsPage({
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <form action={setProductStatusAction}>
-                        <input type="hidden" name="productId" value={product.id} />
-                        <input
-                          type="hidden"
-                          name="status"
-                          value={suspended ? "PUBLISHED" : "SUSPENDED"}
-                        />
-                        <button type="submit" className="btn-secondary px-3 py-1 text-xs">
-                          {suspended ? "Rétablir" : "Suspendre"}
-                        </button>
-                      </form>
+                      {pending ? (
+                        <Link
+                          href="/admin/publications"
+                          className="text-xs font-semibold text-brand-700 hover:underline"
+                        >
+                          Voir Publications
+                        </Link>
+                      ) : (
+                        <form action={setProductStatusAction}>
+                          <input type="hidden" name="productId" value={product.id} />
+                          <input
+                            type="hidden"
+                            name="status"
+                            value={suspended ? "PUBLISHED" : "SUSPENDED"}
+                          />
+                          <button type="submit" className="btn-secondary px-3 py-1 text-xs">
+                            {suspended ? "Rétablir" : "Suspendre"}
+                          </button>
+                        </form>
+                      )}
                     </td>
                   </tr>
                 );
@@ -227,4 +244,4 @@ export default async function AdminProduitsPage({
       />
     </div>
   );
-    }
+                        }
