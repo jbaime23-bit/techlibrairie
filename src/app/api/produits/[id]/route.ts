@@ -56,6 +56,16 @@ export async function PATCH(
     );
   }
 
+  if (product.status === "PENDING_PAYMENT") {
+    return NextResponse.json(
+      {
+        error:
+          "Cet ouvrage sera publié dès la validation du règlement des frais de publication.",
+      },
+      { status: 403 }
+    );
+  }
+
   await prisma.product.update({
     where: { id: product.id },
     data: {
