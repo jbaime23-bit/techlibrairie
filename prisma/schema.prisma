@@ -681,6 +681,7 @@ appliquée lors de la conversion FCFA vers une devise étrangère
 
   updatedAt                DateTime @updatedAt
 }
+
 // ---------------------------------------------------------------------------
 // MESSAGERIE MONÉTISÉE : support payant en FCFA avec la plateforme
 // ---------------------------------------------------------------------------
