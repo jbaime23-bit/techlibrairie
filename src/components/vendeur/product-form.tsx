@@ -1,6 +1,7 @@
 // src/components/vendeur/product-form.tsx
 // Formulaire de dépôt d'un ouvrage. Il s'adapte au service choisi :
-// - Édition de livres : qualité du déposant, auteur, ISBN, certification BBDA et contribution unique ;
+// - Édition de livres : qualité du déposant, auteur, ISBN, certification BBDA ; la contribution unique
+//   n'est demandée qu'à la dernière étape (page de règlement), juste avant la publication ;
 // - Vente de PDF : titre, description, prix, publication immédiate.
 "use client";
 
@@ -65,7 +66,7 @@ export function ProductForm({
   commissionPercent: number;
   kind: ProductKindValue;
   initialCapacity: PublishingCapacityValue;
-  // Contribution à régler avant la publication ; null si aucune (vente de PDF ou administrateur)
+  // Contribution à régler à la dernière étape ; null si aucune (vente de PDF ou administrateur)
   contributionXof: number | null;
 }) {
   const router = useRouter();
@@ -261,9 +262,11 @@ export function ProductForm({
     }
   }
 
+  const needsContribution = isEdition && contributionXof !== null;
+
   const submitLabel = isEdition
-    ? contributionXof !== null
-      ? "Envoyer mon livre pour édition"
+    ? needsContribution
+      ? "Continuer vers la dernière étape"
       : "Publier le livre"
     : "Publier le document";
 
@@ -271,23 +274,22 @@ export function ProductForm({
     <form onSubmit={handleSubmit} className="space-y-6" noValidate>
       {globalError && <div className="alert-error">{globalError}</div>}
 
-      {isEdition && contributionXof !== null && (
-        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-900">
-          <p className="font-semibold">Contribution de participation : {formatXof(contributionXof)}</p>
-          <ul className="mt-2 list-disc space-y-1 pl-5">
+      {needsContribution && contributionXof !== null && (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+          <p className="font-semibold">Comment se déroule la publication</p>
+          <ol className="mt-2 list-decimal space-y-1 pl-5">
+            <li>Vous renseignez votre livre et vous envoyez votre PDF (cette page).</li>
             <li>
-              Elle est versée <strong>une seule fois pour cet ouvrage</strong> et sert exclusivement de
-              participation au soutien technique et à l&apos;hébergement du site.
+              <strong>Dernière étape avant la publication</strong> : une contribution unique de{" "}
+              {formatXof(contributionXof)}, à régler par Mobile Money.
             </li>
-            <li>
-              Elle n&apos;a <strong>aucun effet sur vos redevances</strong> : la commission de{" "}
-              {commissionPercent} % et vos revenus sur les ventes restent inchangés.
-            </li>
-            <li>
-              Après l&apos;envoi du formulaire, vous réglez cette somme par Mobile Money. Votre livre est publié
-              dès que votre paiement est validé.
-            </li>
-          </ul>
+            <li>Votre livre est publié dès la validation de votre paiement.</li>
+          </ol>
+          <p className="mt-2 text-xs text-slate-600">
+            Cette contribution sert exclusivement de participation au soutien technique et à
+            l&apos;hébergement du site. Elle n&apos;a aucun effet sur vos redevances : la commission de{" "}
+            {commissionPercent} % sur vos ventes reste inchangée.
+          </p>
         </div>
       )}
 
@@ -590,4 +592,4 @@ export function ProductForm({
       </button>
     </form>
   );
-  }
+    }
