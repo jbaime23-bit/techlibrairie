@@ -652,21 +652,16 @@ model DownloadToken {
   @@index([expiresAt])
 }
 
-// ---------------------------------------------------------------------------
-// VERSEMENTS AUX VENDEURS
+ GLOBAUX DE LA PLATEFORME (une seule ligne, id = "global")
 // ---------------------------------------------------------------------------
 
-model Payout {
-  id          String       @id @default(cuid())
-  sellerId    String
-  amount      Int
-  currency    Currency
-  status      PayoutStatus @default(PENDING)
-  method      String?
-  reference   String?
-  note        String?
-  requestedAt DateTime     @default(now())
-  t sécurisé
+model PlatformSetting {
+  id                       String   @id @default("global")
+
+  // Commission par défaut en points de base (1000 = 10 %)
+  defaultCommissionRateBps Int      @default(1000)
+
+  // Téléchargement sécurisé
   downloadLinkTtlHours     Int      @default(72)
   downloadMaxAttempts      Int      @default(5)
 
