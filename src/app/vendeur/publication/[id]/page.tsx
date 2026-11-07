@@ -1,5 +1,6 @@
 // src/app/vendeur/publication/[id]/page.tsx
-// Règlement de la contribution de participation d'un ouvrage de l'édition de livres.
+// Dernière étape avant la publication d'un ouvrage de l'édition de livres :
+// règlement de la contribution de participation (Mobile Money, vérifié par l'administration).
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -16,7 +17,7 @@ import {
 import { formatDate } from "@/lib/utils";
 
 export const metadata: Metadata = {
-  title: "Contribution de participation",
+  title: "Dernière étape avant la publication",
   robots: { index: false, follow: false },
 };
 
@@ -93,6 +94,7 @@ export default async function ContributionPage({
   const config = getContributionConfig();
   const code = paymentReferenceCode(product.id);
   const canDeclare = fee.status === "AWAITING_PAYMENT" || fee.status === "REJECTED";
+  const verifying = fee.status === "SUBMITTED";
 
   const messageKey = firstParam(sp.message);
   const errorKey = firstParam(sp.erreur);
@@ -105,7 +107,28 @@ export default async function ContributionPage({
         <Link href="/vendeur/produits" className="text-sm font-semibold text-brand-700 hover:underline">
           Retour à mes produits
         </Link>
-        <h1 className="mt-3 text-2xl font-bold">Contribution de participation</h1>
+
+        <ol className="mt-4 flex flex-wrap items-center gap-2 text-xs sm:text-sm" aria-label="Étapes">
+          <li className="rounded-full bg-green-100 px-3 py-1 font-semibold text-green-800">
+            1. Votre livre : envoyé
+          </li>
+          <li
+            className={`rounded-full px-3 py-1 font-semibold ${
+              verifying ? "bg-green-100 text-green-800" : "bg-brand-600 text-white"
+            }`}
+          >
+            {verifying ? "2. Contribution : déclarée" : "2. Dernière étape : contribution"}
+          </li>
+          <li
+            className={`rounded-full px-3 py-1 ${
+              verifying ? "bg-yellow-100 font-semibold text-yellow-800" : "bg-slate-100 text-slate-600"
+            }`}
+          >
+            3. Publication
+          </li>
+        </ol>
+
+        <h1 className="mt-4 text-2xl font-bold">Dernière étape avant la publication</h1>
         <p className="mt-1 text-sm text-slate-600">
           Ouvrage : <strong>{product.title}</strong>
         </p>
@@ -120,8 +143,9 @@ export default async function ContributionPage({
 
       <section className="card">
         <p className="text-sm text-slate-700">
-          Votre livre est enregistré. Il sera publié sur TechLibrairie dès que votre contribution unique de{" "}
-          <strong>{formatXof(fee.amountXof)}</strong> aura été reçue et validée.
+          Votre livre est prêt. Pour le publier sur TechLibrairie, une contribution unique de{" "}
+          <strong>{formatXof(fee.amountXof)}</strong> est demandée pour cet ouvrage. Votre livre est publié dès
+          que ce paiement est reçu et validé.
         </p>
         <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-slate-600">
           <li>
@@ -135,7 +159,7 @@ export default async function ContributionPage({
         </ul>
       </section>
 
-      {fee.status === "SUBMITTED" && (
+      {verifying && (
         <section className="card border-yellow-200 bg-yellow-50">
           <h2 className="text-lg font-semibold text-yellow-900">Paiement en cours de vérification</h2>
           <p className="mt-1 text-sm text-yellow-900">
@@ -259,4 +283,4 @@ export default async function ContributionPage({
       )}
     </div>
   );
-}
+                    }
