@@ -668,7 +668,7 @@ model Payout {
   requestedAt DateTime     @default(now())
   paidAt      DateTime?
 
-seller SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Restrict)
+  seller SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Restrict)
 
   @@index([sellerId])
   @@index([status])
