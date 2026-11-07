@@ -80,14 +80,23 @@ export default async function PublierPage({
               </p>
               <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-700">
                 <li>
-                  <strong>Contribution unique de {formatXof(contribution.amountXof)}</strong>
-                  {user.role === "ADMIN" ? " (non demandée à l'administrateur)" : ""}, versée une fois pour
-                  l&apos;ouvrage avant sa publication. Elle sert exclusivement de participation au soutien
-                  technique et à l&apos;hébergement du site.
+                  Vous renseignez votre livre et envoyez votre PDF.{" "}
+                  {user.role === "ADMIN" ? (
+                    <>
+                      <strong>Aucune contribution n&apos;est demandée à l&apos;administrateur.</strong>
+                    </>
+                  ) : (
+                    <>
+                      <strong>À la dernière étape, juste avant la publication</strong>, une contribution unique de{" "}
+                      {formatXof(contribution.amountXof)} est demandée pour cet ouvrage. Aucun paiement n&apos;est
+                      demandé avant.
+                    </>
+                  )}
                 </li>
                 <li>
-                  Elle n&apos;a <strong>aucun effet sur vos redevances</strong> : les pourcentages et commissions
-                  que vous percevez sur les ventes restent totalement inchangés.
+                  Cette contribution sert exclusivement de participation au soutien technique et à
+                  l&apos;hébergement du site. Elle n&apos;a <strong>aucun effet sur vos redevances</strong> : les
+                  pourcentages et commissions que vous percevez sur les ventes restent totalement inchangés.
                 </li>
                 <li>
                   Numéro ISBN facultatif, et <strong>certification de vos droits</strong> (auteur ou titulaire
@@ -238,4 +247,4 @@ export default async function PublierPage({
       </div>
     </div>
   );
-              }
+}
