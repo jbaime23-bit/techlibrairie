@@ -665,8 +665,10 @@ model Payout {
   method      String?
   reference   String?
   note        String?
-  requestedAt DateTime     @default(now())
-  paidAt      DateTime? appliquée lors de la conversion FCFA vers une devise étrangère
+  requestedAt DateTime?   @default(now())
+  paidAt      DateTime?
+
+appliquée lors de la conversion FCFA vers une devise étrangère
   // (en points de base, 200 = 2 %), pour absorber les variations de change
   fxMarginBps              Int      @default(200)
 
