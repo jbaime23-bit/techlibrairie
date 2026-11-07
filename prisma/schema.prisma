@@ -652,7 +652,30 @@ model DownloadToken {
   @@index([expiresAt])
 }
 
- GLOBAUX DE LA PLATEFORME (une seule ligne, id = "global")
+// ---------------------------------------------------------------------------
+// VERSEMENTS AUX VENDEURS
+// ---------------------------------------------------------------------------
+
+model Payout {
+  id          String       @id @default(cuid())
+  sellerId    String
+  amount      Int
+  currency    Currency
+  status      PayoutStatus @default(PENDING)
+  method      String?
+  reference   String?
+  note        String?
+  requestedAt DateTime     @default(now())
+  paidAt      DateTime?
+
+  seller SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Restrict)
+
+  @@index([sellerId])
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// PARAMÈTRES GLOBAUX DE LA PLATEFORME (une seule ligne, id = "global")
 // ---------------------------------------------------------------------------
 
 model PlatformSetting {
@@ -667,17 +690,6 @@ model PlatformSetting {
 
   // Montant minimal pour demander un versement (en XOF)
   minPayoutAmountXof       Int      @default(5000)
-
-  // Marge appliquée lors de la conversion FCFA vers une devise étrangère
-  // (en points de base, 200 = 2 %), pour absorber les variations de change
-  fxMarginBps              Int      @default(200)
-
-  // Tarif par défaut d'une conversation de support (en FCFA)
-  supportFeeXof            Int      @default(1000)
-
-  // Coordonnées affichées dans le pied de page
-  contactEmail             String?
-  whatsappNumber           String?
 
   updatedAt                DateTime @updatedAt
 }
