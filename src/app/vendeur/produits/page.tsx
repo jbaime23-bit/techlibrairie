@@ -19,12 +19,14 @@ const STATUS_LABELS: Record<ProductStatus, string> = {
   PUBLISHED: "En vente",
   UNPUBLISHED: "Retiré",
   SUSPENDED: "Suspendu",
+  PENDING_PAYMENT: "Frais à régler",
 };
 
 const STATUS_STYLES: Record<ProductStatus, string> = {
   PUBLISHED: "bg-green-100 text-green-800",
   UNPUBLISHED: "bg-slate-100 text-slate-700",
   SUSPENDED: "bg-red-100 text-red-800",
+  PENDING_PAYMENT: "bg-yellow-100 text-yellow-800",
 };
 
 export default async function ProduitsPage() {
@@ -40,6 +42,8 @@ export default async function ProduitsPage() {
     include: { category: { select: { name: true } } },
   });
 
+  const pendingCount = products.filter((product) => product.status === "PENDING_PAYMENT").length;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -48,6 +52,14 @@ export default async function ProduitsPage() {
           Nouveau produit
         </Link>
       </div>
+
+      {pendingCount > 0 && (
+        <div className="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-900">
+          {pendingCount} ouvrage{pendingCount > 1 ? "s sont" : " est"} en attente du règlement des frais de
+          publication : {pendingCount > 1 ? "ils seront publiés" : "il sera publié"} dès la validation de
+          votre paiement.
+        </div>
+      )}
 
       {products.length === 0 ? (
         <div className="card text-center">
@@ -111,7 +123,9 @@ export default async function ProduitsPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3">{product.salesCount}</td>
-                  <td className="px-4 py-3">{formatDate(product.publishedAt)}</td>
+                  <td className="px-4 py-3">
+                    {product.status === "PENDING_PAYMENT" ? "-" : formatDate(product.publishedAt)}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-col items-start gap-2">
                       <Link
@@ -125,6 +139,13 @@ export default async function ProduitsPage() {
                         <span className="text-xs text-slate-500">
                           Contactez l&apos;administration
                         </span>
+                      ) : product.status === "PENDING_PAYMENT" ? (
+                        <Link
+                          href={`/vendeur/publication/${product.id}`}
+                          className="btn-primary px-3 py-1 text-xs"
+                        >
+                          Régler les frais
+                        </Link>
                       ) : (
                         <ProductStatusToggle
                           productId={product.id}
@@ -141,4 +162,4 @@ export default async function ProduitsPage() {
       )}
     </div>
   );
-                  }
+                        }
