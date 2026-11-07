@@ -1,4 +1,7 @@
 // src/components/vendeur/product-form.tsx
+// Formulaire de dépôt d'un ouvrage. Il s'adapte au service choisi :
+// - Édition de livres : qualité du déposant, auteur, ISBN, certification BBDA et contribution unique ;
+// - Vente de PDF : titre, description, prix, publication immédiate.
 "use client";
 
 import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
@@ -11,8 +14,9 @@ import {
   MAX_PDF_SIZE_BYTES,
   PRODUCT_LANGUAGES,
   PUBLISHING_CAPACITIES,
-  RIGHTS_CERTIFICATION_TEXT,
+  certificationTextFor,
   normalizeIsbn,
+  type ProductKindValue,
   type PublishingCapacityValue,
 } from "@/lib/product-validation";
 
@@ -42,20 +46,32 @@ function toSafeFileName(name: string): string {
   return base || "document";
 }
 
+function formatXof(amount: number): string {
+  return `${amount.toLocaleString("fr-FR")} FCFA`;
+}
+
 export function ProductForm({
   sellerId,
   sellerName,
   categories,
   commissionPercent,
+  kind,
   initialCapacity,
+  contributionXof,
 }: {
   sellerId: string;
   sellerName: string;
   categories: CategoryOption[];
   commissionPercent: number;
+  kind: ProductKindValue;
   initialCapacity: PublishingCapacityValue;
+  // Contribution à régler avant la publication ; null si aucune (vente de PDF ou administrateur)
+  contributionXof: number | null;
 }) {
   const router = useRouter();
+  const isEdition = kind === "BOOK_EDITION";
+  const certificationText = certificationTextFor(kind);
+
   const [capacity, setCapacity] = useState<PublishingCapacityValue>(initialCapacity);
   const [values, setValues] = useState({
     title: "",
@@ -64,7 +80,7 @@ export function ProductForm({
     price: "",
     language: "fr",
     pageCount: "",
-    authorName: initialCapacity === "AUTHOR" ? sellerName : "",
+    authorName: isEdition && initialCapacity === "AUTHOR" ? sellerName : "",
     isbn: "",
   });
   const [rightsAccepted, setRightsAccepted] = useState(false);
@@ -114,11 +130,11 @@ export function ProductForm({
     // Contrôles rapides côté navigateur (le serveur revérifie tout).
     const localErrors: FieldErrors = {};
 
-    if (values.authorName.trim().length < 2) {
+    if (isEdition && values.authorName.trim().length < 2) {
       localErrors.authorName = ["Le nom de l'auteur doit contenir au moins 2 caractères."];
     }
 
-    if (values.isbn.trim() !== "" && normalizeIsbn(values.isbn) === null) {
+    if (isEdition && values.isbn.trim() !== "" && normalizeIsbn(values.isbn) === null) {
       localErrors.isbn = [ISBN_ERROR_MESSAGE];
     }
 
@@ -183,10 +199,11 @@ export function ProductForm({
         uploadedRef.current = { file: pdfFile, pathname: pdfPathname };
       }
 
-      // 2) Création du produit (publication automatique).
+      // 2) Création du produit.
       setStep("saving");
 
       const formData = new FormData();
+      formData.append("kind", kind);
       formData.append("title", values.title);
       formData.append("description", values.description);
       if (values.categoryId) formData.append("categoryId", values.categoryId);
@@ -194,9 +211,11 @@ export function ProductForm({
       formData.append("price", values.price);
       formData.append("language", values.language);
       if (values.pageCount) formData.append("pageCount", values.pageCount);
-      formData.append("publishingCapacity", capacity);
-      formData.append("authorName", values.authorName);
-      if (values.isbn.trim()) formData.append("isbn", values.isbn.trim());
+      if (values.authorName.trim()) formData.append("authorName", values.authorName.trim());
+      if (isEdition) {
+        formData.append("publishingCapacity", capacity);
+        if (values.isbn.trim()) formData.append("isbn", values.isbn.trim());
+      }
       formData.append("rightsAccepted", "true");
       formData.append("pdfStorageKey", pdfPathname);
       formData.append("pdfFileName", pdfFile.name);
@@ -211,6 +230,8 @@ export function ProductForm({
       const data = (await response.json().catch(() => null)) as {
         error?: string;
         fieldErrors?: FieldErrors;
+        id?: string;
+        pendingPayment?: boolean;
       } | null;
 
       if (!response.ok) {
@@ -224,7 +245,11 @@ export function ProductForm({
         return;
       }
 
-      router.push("/vendeur/produits");
+      if (data?.pendingPayment && data.id) {
+        router.push(`/vendeur/publication/${data.id}`);
+      } else {
+        router.push("/vendeur/produits");
+      }
       router.refresh();
     } catch (error) {
       setGlobalError(
@@ -236,52 +261,91 @@ export function ProductForm({
     }
   }
 
+  const submitLabel = isEdition
+    ? contributionXof !== null
+      ? "Envoyer mon livre pour édition"
+      : "Publier le livre"
+    : "Publier le document";
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6" noValidate>
       {globalError && <div className="alert-error">{globalError}</div>}
 
-      <fieldset className="space-y-3">
-        <legend className="label">Vous publiez en tant que</legend>
-
-        <div className="space-y-2">
-          {PUBLISHING_CAPACITIES.map((option) => (
-            <label
-              key={option.value}
-              className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm ${
-                capacity === option.value
-                  ? "border-brand-500 bg-brand-50"
-                  : "border-slate-200 bg-white"
-              }`}
-            >
-              <input
-                type="radio"
-                name="capacity"
-                value={option.value}
-                checked={capacity === option.value}
-                onChange={() => handleCapacityChange(option.value)}
-                className="mt-1"
-                disabled={busy}
-              />
-              <span>
-                <span className="block font-semibold">{option.label}</span>
-                <span className="block text-slate-600">{option.description}</span>
-              </span>
-            </label>
-          ))}
+      {isEdition && contributionXof !== null && (
+        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-900">
+          <p className="font-semibold">Contribution de participation : {formatXof(contributionXof)}</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            <li>
+              Elle est versée <strong>une seule fois pour cet ouvrage</strong> et sert exclusivement de
+              participation au soutien technique et à l&apos;hébergement du site.
+            </li>
+            <li>
+              Elle n&apos;a <strong>aucun effet sur vos redevances</strong> : la commission de{" "}
+              {commissionPercent} % et vos revenus sur les ventes restent inchangés.
+            </li>
+            <li>
+              Après l&apos;envoi du formulaire, vous réglez cette somme par Mobile Money. Votre livre est publié
+              dès que votre paiement est validé.
+            </li>
+          </ul>
         </div>
-        <FieldError messages={fieldErrors.publishingCapacity} />
+      )}
 
-        {capacity !== "AUTHOR" && (
-          <p className="text-xs text-slate-600">
-            Vous devez détenir l&apos;autorisation écrite de l&apos;auteur ou de l&apos;éditeur de cet ouvrage.
-            Conservez-la : elle peut vous être demandée.
+      {!isEdition && (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+          <p className="font-semibold">Vente de PDF</p>
+          <p className="mt-1">
+            Votre document est mis en vente dès l&apos;envoi du formulaire, sans contribution de
+            participation. La commission de {commissionPercent} % s&apos;applique sur chaque vente. Ce service
+            est distinct de l&apos;édition de livres.
           </p>
-        )}
-      </fieldset>
+        </div>
+      )}
+
+      {isEdition && (
+        <fieldset className="space-y-3">
+          <legend className="label">Vous publiez en tant que</legend>
+
+          <div className="space-y-2">
+            {PUBLISHING_CAPACITIES.map((option) => (
+              <label
+                key={option.value}
+                className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm ${
+                  capacity === option.value
+                    ? "border-brand-500 bg-brand-50"
+                    : "border-slate-200 bg-white"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="capacity"
+                  value={option.value}
+                  checked={capacity === option.value}
+                  onChange={() => handleCapacityChange(option.value)}
+                  className="mt-1"
+                  disabled={busy}
+                />
+                <span>
+                  <span className="block font-semibold">{option.label}</span>
+                  <span className="block text-slate-600">{option.description}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <FieldError messages={fieldErrors.publishingCapacity} />
+
+          {capacity !== "AUTHOR" && (
+            <p className="text-xs text-slate-600">
+              Vous devez détenir l&apos;autorisation écrite de l&apos;auteur ou de l&apos;éditeur de cet
+              ouvrage. Conservez-la : elle peut vous être demandée.
+            </p>
+          )}
+        </fieldset>
+      )}
 
       <div>
         <label htmlFor="title" className="label">
-          Titre de l&apos;ouvrage
+          {isEdition ? "Titre du livre" : "Titre du document"}
         </label>
         <input
           id="title"
@@ -298,15 +362,17 @@ export function ProductForm({
 
       <div>
         <label htmlFor="authorName" className="label">
-          {capacity === "AUTHOR"
-            ? "Nom de l'auteur (tel qu'il sera affiché)"
-            : "Nom de l'auteur de l'ouvrage"}
+          {isEdition
+            ? capacity === "AUTHOR"
+              ? "Nom de l'auteur (tel qu'il sera affiché)"
+              : "Nom de l'auteur de l'ouvrage"
+            : "Auteur ou source (facultatif)"}
         </label>
         <input
           id="authorName"
           name="authorName"
           type="text"
-          required
+          required={isEdition}
           value={values.authorName}
           onChange={handleChange}
           className="input"
@@ -332,28 +398,30 @@ export function ProductForm({
         <FieldError messages={fieldErrors.description} />
       </div>
 
-      <div>
-        <label htmlFor="isbn" className="label">
-          Numéro ISBN (laisser vide si vous n&apos;en avez pas)
-        </label>
-        <input
-          id="isbn"
-          name="isbn"
-          type="text"
-          inputMode="text"
-          autoComplete="off"
-          placeholder="978-2-1234-5680-3"
-          value={values.isbn}
-          onChange={handleChange}
-          className="input"
-          disabled={busy}
-        />
-        <p className="mt-1 text-xs text-slate-500">
-          10 ou 13 chiffres, tirets acceptés. TechLibrairie n&apos;attribue pas d&apos;ISBN : saisissez
-          uniquement celui que vous avez obtenu pour cet ouvrage.
-        </p>
-        <FieldError messages={fieldErrors.isbn} />
-      </div>
+      {isEdition && (
+        <div>
+          <label htmlFor="isbn" className="label">
+            Numéro ISBN (laisser vide si vous n&apos;en avez pas)
+          </label>
+          <input
+            id="isbn"
+            name="isbn"
+            type="text"
+            inputMode="text"
+            autoComplete="off"
+            placeholder="978-2-1234-5680-3"
+            value={values.isbn}
+            onChange={handleChange}
+            className="input"
+            disabled={busy}
+          />
+          <p className="mt-1 text-xs text-slate-500">
+            10 ou 13 chiffres, tirets acceptés. TechLibrairie n&apos;attribue pas d&apos;ISBN : saisissez
+            uniquement celui que vous avez obtenu pour cet ouvrage.
+          </p>
+          <FieldError messages={fieldErrors.isbn} />
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
@@ -403,7 +471,7 @@ export function ProductForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="price" className="label">
-            Prix en FCFA (multiple de 5, minimum 100)
+            Prix de vente en FCFA (multiple de 5, minimum 100)
           </label>
           <input
             id="price"
@@ -491,11 +559,11 @@ export function ProductForm({
             className="mt-1"
             disabled={busy}
           />
-          <span>{RIGHTS_CERTIFICATION_TEXT}</span>
+          <span>{certificationText}</span>
         </label>
         <FieldError messages={fieldErrors.rightsAccepted} />
         <p className="mt-2 text-xs text-slate-500">
-          Cette déclaration est enregistrée avec la date de la publication.
+          Cette déclaration est enregistrée avec la date du dépôt.
         </p>
       </div>
 
@@ -513,18 +581,13 @@ export function ProductForm({
         </div>
       )}
 
-      <p className="text-xs text-slate-500">
-        En cliquant sur « Publier », votre ouvrage est mis en vente
-        immédiatement.
-      </p>
-
       <button type="submit" className="btn-primary w-full" disabled={busy}>
         {step === "uploading"
           ? "Envoi du PDF en cours..."
           : step === "saving"
-            ? "Publication en cours..."
-            : "Publier l'ouvrage"}
+            ? "Enregistrement en cours..."
+            : submitLabel}
       </button>
     </form>
   );
-      }
+  }
