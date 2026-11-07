@@ -30,6 +30,16 @@ enum ProductStatus {
   PUBLISHED
   UNPUBLISHED
   SUSPENDED
+  // Ouvrage de l'édition de livres déposé mais pas encore publié : la contribution n'est pas validée
+  PENDING_PAYMENT
+}
+
+// Service sous lequel un ouvrage est déposé
+enum ProductKind {
+  // Édition de livres : contribution de participation unique, ISBN et certification des droits
+  BOOK_EDITION
+  // Vente de PDF : dépôt et vente directe de documents et ressources (cours, rapports, guides...)
+  PDF_DOCUMENT
 }
 
 enum OrderStatus {
@@ -137,7 +147,7 @@ enum PromoBearer {
   SHOP
 }
 
-// Qualité sous laquelle un ouvrage est publié
+// Qualité sous laquelle un ouvrage de l'édition de livres est publié
 enum PublishingCapacity {
   // L'auteur de l'ouvrage
   AUTHOR
@@ -145,6 +155,18 @@ enum PublishingCapacity {
   INDEPENDENT_PUBLISHER
   // Vendeur tiers (diffuse l'ouvrage d'autrui avec son autorisation écrite)
   THIRD_PARTY_SELLER
+}
+
+// État du règlement de la contribution de participation d'un ouvrage de l'édition de livres
+enum PublicationFeeStatus {
+  // La contribution est à régler : l'auteur n'a pas encore déclaré son paiement
+  AWAITING_PAYMENT
+  // Paiement déclaré par l'auteur : à vérifier par l'administration
+  SUBMITTED
+  // Paiement vérifié : l'ouvrage est publié
+  VALIDATED
+  // Paiement non retrouvé ou insuffisant : l'auteur peut déclarer à nouveau
+  REJECTED
 }
 
 // ---------------------------------------------------------------------------
@@ -330,8 +352,12 @@ model Product {
   pdfFileName   String
   pdfSizeBytes  Int
 
+  // Service : édition de livres (contribution unique, ISBN, certification BBDA) ou vente de PDF
+  // (documents et ressources, sans contribution). Les ouvrages antérieurs sont classés PDF_DOCUMENT.
+  kind          ProductKind   @default(PDF_DOCUMENT)
+
   // Édition : ISBN facultatif (10 ou 13 caractères, sans tirets), qualité du déposant et auteur indiqué.
-  // Null pour les ouvrages publiés avant l'ajout de ces champs.
+  // Null pour les ouvrages publiés avant l'ajout de ces champs et pour la vente de PDF (sauf l'auteur, facultatif).
   isbn               String?
   publishingCapacity PublishingCapacity?
   authorName         String?
@@ -341,7 +367,8 @@ model Product {
   rightsCertifiedAt       DateTime?
   rightsCertificationText String?   @db.Text
 
-  // Publication automatique dès la soumission par le vendeur
+  // Publication immédiate pour la vente de PDF ; PENDING_PAYMENT pour un ouvrage de l'édition
+  // tant que la contribution de participation n'est pas validée par l'administration.
   status        ProductStatus @default(PUBLISHED)
   publishedAt   DateTime      @default(now())
 
@@ -354,16 +381,50 @@ model Product {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  seller    SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-  category  Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  items     OrderItem[]
-  reviews   Review[]
-  favorites Favorite[]
+  seller         SellerProfile   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  category       Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  items          OrderItem[]
+  reviews        Review[]
+  favorites      Favorite[]
+  publicationFee PublicationFee?
 
   @@index([sellerId])
   @@index([categoryId])
   @@index([status, publishedAt])
+  @@index([kind, status])
   @@index([isbn])
+}
+
+// Contribution de participation (soutien technique et hébergement du site) d'un ouvrage de l'édition
+// de livres. Elle est indépendante des ventes : aucune commission ni redevance n'en dépend.
+// Un seul enregistrement par ouvrage ; le montant est figé au dépôt.
+model PublicationFee {
+  id               String               @id @default(cuid())
+  productId        String               @unique
+  // Montant en FCFA
+  amountXof        Int
+  status           PublicationFeeStatus @default(AWAITING_PAYMENT)
+
+  // Paiement déclaré par l'auteur
+  // Moyen : ORANGE_MONEY ou MOOV_MONEY
+  method           String?
+  payerPhone       String?
+  // Référence de la transaction Mobile Money (unique : une référence ne sert qu'une fois)
+  paymentReference String?              @unique
+  submittedAt      DateTime?
+
+  // Décision de l'administration
+  validatedAt      DateTime?
+  validatedBy      String?
+  rejectionReason  String?
+
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([status, submittedAt])
+  @@index([status, createdAt])
 }
 
 // Ressources gratuites : PDF publiés par l'administration, téléchargeables après une attente
@@ -605,155 +666,7 @@ model Payout {
   reference   String?
   note        String?
   requestedAt DateTime     @default(now())
-  paidAt      DateTime?
-
-  seller SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Restrict)
-
-  @@index([sellerId])
-  @@index([status])
-}
-
-// ---------------------------------------------------------------------------
-// MESSAGERIE MONÉTISÉE : support payant en FCFA avec la plateforme
-// ---------------------------------------------------------------------------
-
-model SupportThread {
-  id            String          @id @default(cuid())
-  number        String          @unique
-  userId        String
-  subject       String
-  category      SupportCategory @default(GENERAL)
-  status        ThreadStatus    @default(AWAITING_PAYMENT)
-
-  // Tarif du support en FCFA, figé à la création de la conversation
-  feeAmountXof  Int
-  paidAt        DateTime?
-
-  // Membre de l'équipe (administrateur) qui répond
-  assignedToId  String?
-
-  lastMessageAt DateTime        @default(now())
-  closedAt      DateTime?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-
-  user       User             @relation("ThreadOwner", fields: [userId], references: [id], onDelete: Cascade)
-  assignedTo User?            @relation("ThreadAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
-  messages   Message[]
-  payments   SupportPayment[]
-
-  @@index([userId])
-  @@index([assignedToId])
-  @@index([status, lastMessageAt])
-}
-
-model Message {
-  id        String    @id @default(cuid())
-  threadId  String
-  senderId  String
-  // true si le message vient de l'équipe de la plateforme
-  isStaff   Boolean   @default(false)
-  body      String    @db.Text
-  readAt    DateTime?
-  createdAt DateTime  @default(now())
-
-  thread SupportThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  sender User          @relation("MessageSender", fields: [senderId], references: [id], onDelete: Restrict)
-
-  @@index([threadId, createdAt])
-  @@index([senderId])
-}
-
-// Paiement du support (mêmes passerelles que les commandes)
-model SupportPayment {
-  id                String          @id @default(cuid())
-  threadId          String
-  provider          PaymentProvider
-  method            PaymentMethod
-  status            PaymentStatus   @default(PENDING)
-  amount            Int
-  currency          Currency
-  baseAmountXof     Int
-  exchangeRate      Decimal?        @db.Decimal(18, 6)
-  providerReference String          @unique
-  providerPayload   Json?
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-
-  thread SupportThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
-
-  @@index([threadId])
-  @@index([status])
-}
-
-// Messages envoyés depuis le formulaire de contact du pied de page (gratuit, public)
-model ContactMessage {
-  id        String        @id @default(cuid())
-  userId    String?
-  name      String
-  email     String
-  phone     String?
-  subject   String
-  message   String        @db.Text
-  status    ContactStatus @default(NEW)
-  // Empreinte de l'adresse IP (jamais l'IP en clair) pour limiter le spam
-  ipHash    String?
-  createdAt DateTime      @default(now())
-
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  @@index([status, createdAt])
-  @@index([ipHash, createdAt])
-}
-
-// ---------------------------------------------------------------------------
-// ESPACES PUBLICITAIRES : bannières locales et emplacements Adsterra
-// ---------------------------------------------------------------------------
-
-model AdSpace {
-  id              String      @id @default(cuid())
-  name            String
-  placement       AdPlacement
-  kind            AdKind
-  isActive        Boolean     @default(true)
-  // Plus la valeur est élevée, plus l'annonce est prioritaire dans l'emplacement
-  priority        Int         @default(0)
-
-  // Bannière locale (entreprise tierce)
-  advertiserName  String?
-  advertiserEmail String?
-  advertiserPhone String?
-  imageUrl        String?
-  targetUrl       String?
-  altText         String?
-
-  // Contrat publicitaire (prix payé par l'annonceur, en FCFA)
-  priceAmountXof  Int?
-  startsAt        DateTime?
-  endsAt          DateTime?
-
-  // Statistiques
-  impressions     Int         @default(0)
-  clicks          Int         @default(0)
-
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
-
-  @@index([placement, isActive, priority])
-  @@index([endsAt])
-}
-
-// ---------------------------------------------------------------------------
-// PARAMÈTRES GLOBAUX DE LA PLATEFORME (une seule ligne, id = "global")
-// ---------------------------------------------------------------------------
-
-model PlatformSetting {
-  id                       String   @id @default("global")
-
-  // Commission par défaut en points de base (1000 = 10 %)
-  defaultCommissionRateBps Int      @default(1000)
-
-  // Téléchargement sécurisé
+  t sécurisé
   downloadLinkTtlHours     Int      @default(72)
   downloadMaxAttempts      Int      @default(5)
 
