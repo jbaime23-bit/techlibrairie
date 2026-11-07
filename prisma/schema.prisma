@@ -665,21 +665,13 @@ model Payout {
   method      String?
   reference   String?
   note        String?
-  requestedAt DateTime?   @default(now())
+  requestedAt DateTime     @default(now())
   paidAt      DateTime?
 
-appliquée lors de la conversion FCFA vers une devise étrangère
-  // (en points de base, 200 = 2 %), pour absorber les variations de change
-  fxMarginBps              Int      @default(200)
+seller SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Restrict)
 
-  // Tarif par défaut d'une conversation de support (en FCFA)
-  supportFeeXof            Int      @default(1000)
-
-  // Coordonnées affichées dans le pied de page
-  contactEmail             String?
-  whatsappNumber           String?
-
-  updatedAt                DateTime @updatedAt
+  @@index([sellerId])
+  @@index([status])
 }
 
 // ---------------------------------------------------------------------------
