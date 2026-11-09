@@ -834,3 +834,70 @@ model PlatformSetting {
 
   updatedAt                DateTime @updatedAt
 }
+
+// ---------------------------------------------------------------------------
+// ÉDITION À COMPTE D'AUTEUR : suivi d'un ouvrage de l'édition
+// (contrat accepté, forfait, maquette, bon à tirer, publication)
+// ---------------------------------------------------------------------------
+
+enum EditionStage {
+  // Forfait à régler ou à vérifier (le détail du paiement est dans PublicationFee)
+  FEE_PENDING
+  // Forfait validé : contrôle et mise en page en cours
+  IN_LAYOUT
+  // Épreuve (bon à tirer) déposée : à valider par l'auteur
+  PROOF_PENDING
+  // L'auteur a demandé des corrections sur l'épreuve
+  CHANGES_REQUESTED
+  // Bon à tirer approuvé : l'ouvrage est publié
+  PUBLISHED
+  // Œuvre refusée (non-conformité) : remboursement du forfait si versé
+  REFUSED
+}
+
+model EditionProject {
+  id        String       @id @default(cuid())
+  // Ouvrage concerné : référence simple (une seule édition par ouvrage), sans relation Prisma
+  productId String       @unique
+  sellerId  String
+  stage     EditionStage @default(FEE_PENDING)
+
+  // Contrat à compte d'auteur accepté au dépôt : version, texte complet archivé et empreinte
+  contractVersion       String
+  contractHash          String
+  contractText          String   @db.Text
+  contractAcceptedAt    DateTime
+  // Signature : nom saisi par l'auteur, adresse du compte, empreinte de la connexion (jamais l'IP)
+  signerName            String
+  signerEmail           String
+  signerIpHash          String?
+  // L'auteur a demandé que la prestation commence avant la fin du délai de rétractation
+  serviceStartRequested Boolean  @default(false)
+
+  // Manuscrit déposé par l'auteur (conservé même après remplacement par la maquette)
+  manuscriptStorageKey  String
+  manuscriptFileName    String
+
+  // Épreuve (bon à tirer) déposée par TechLibrairie Édition
+  proofStorageKey       String?
+  proofFileName         String?
+  proofSizeBytes        Int?
+  proofVersion          Int       @default(0)
+  proofUploadedAt       DateTime?
+  correctionRounds      Int       @default(0)
+  changeRequest         String?   @db.Text
+
+  // Approbation du bon à tirer par l'auteur
+  approvedAt            DateTime?
+  approvedByName        String?
+  approvedProofVersion  Int?
+  approvedIpHash        String?
+
+  refusalReason         String?
+
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([stage, updatedAt])
+  @@index([sellerId])
+}
