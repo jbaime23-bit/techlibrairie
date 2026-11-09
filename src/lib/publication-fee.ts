@@ -1,12 +1,12 @@
 // src/lib/publication-fee.ts
-// Contribution de participation du service « Édition de livres » : montant, numéros de réception
+// Forfait d'édition du service « Édition de livres à compte d'auteur » : montant, numéros de réception
 // et contrôles des informations de paiement saisies par l'auteur.
 //
-// Cette contribution (1 500 FCFA par défaut, une seule fois pour l'ouvrage) sert exclusivement de
-// participation au soutien technique et à l'hébergement du site. Elle est enregistrée à part
+// Le forfait (25 000 FCFA par défaut) est dû pour chaque nouveau livre, aussitôt après le dépôt du PDF.
+// Il rémunère les prestations d'édition décrites dans le contrat. Il est enregistré à part
 // (table PublicationFee) et n'intervient dans AUCUN calcul de commission, de revenu ou de versement.
 
-export const DEFAULT_CONTRIBUTION_XOF = 1500;
+export const DEFAULT_CONTRIBUTION_XOF = 25_000;
 
 export const CONTRIBUTION_METHODS = [
   { value: "ORANGE_MONEY", label: "Orange Money" },
