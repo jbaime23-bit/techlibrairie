@@ -1,6 +1,6 @@
 // src/app/vendeur/publication/[id]/page.tsx
-// Dernière étape avant la publication d'un ouvrage de l'édition de livres :
-// règlement de la contribution de participation (Mobile Money, vérifié par l'administration).
+// Suivi de l'édition d'un livre à compte d'auteur : étapes, règlement du forfait (Mobile Money, vérifié
+// par l'administration) puis maquette et bon à tirer.
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -17,7 +17,7 @@ import {
 import { formatDate } from "@/lib/utils";
 
 export const metadata: Metadata = {
-  title: "Dernière étape avant la publication",
+  title: "Suivi de votre édition",
   robots: { index: false, follow: false },
 };
 
@@ -33,16 +33,24 @@ const ERRORS: Record<string, string> = {
   reference:
     "Référence de transaction invalide : 4 à 40 caractères (lettres, chiffres, point ou tiret), telle qu'indiquée dans le message de confirmation de votre opérateur.",
   doublon: "Cette référence de transaction a déjà été déclarée pour un autre ouvrage.",
-  etat: "Cette contribution n'est plus à déclarer.",
+  etat: "Ce forfait n'est plus à déclarer.",
   ferme: "Le règlement n'est pas encore ouvert. Contactez-nous.",
   technique: "Une erreur est survenue. Réessayez dans un instant.",
+};
+
+type StepState = "done" | "current" | "todo";
+
+const STEP_STYLES: Record<StepState, string> = {
+  done: "bg-green-100 text-green-800",
+  current: "bg-brand-600 text-white",
+  todo: "bg-slate-100 text-slate-600",
 };
 
 function formatXof(amount: number): string {
   return `${amount.toLocaleString("fr-FR")} FCFA`;
 }
 
-export default async function ContributionPage({
+export default async function EditionTrackingPage({
   params,
   searchParams,
 }: {
@@ -86,15 +94,48 @@ export default async function ContributionPage({
     notFound();
   }
 
-  if (product.status !== "PENDING_PAYMENT" || !product.publicationFee) {
+  const project = await prisma.editionProject.findUnique({
+    where: { productId: product.id },
+    select: {
+      stage: true,
+      contractVersion: true,
+      contractAcceptedAt: true,
+      signerName: true,
+      refusalReason: true,
+    },
+  });
+
+  const refused = project?.stage === "REFUSED";
+
+  if (!product.publicationFee || (!refused && product.status !== "PENDING_PAYMENT")) {
     redirect("/vendeur/produits");
   }
 
   const fee = product.publicationFee;
   const config = getContributionConfig();
   const code = paymentReferenceCode(product.id);
-  const canDeclare = fee.status === "AWAITING_PAYMENT" || fee.status === "REJECTED";
-  const verifying = fee.status === "SUBMITTED";
+  const canDeclare = !refused && (fee.status === "AWAITING_PAYMENT" || fee.status === "REJECTED");
+  const verifying = !refused && fee.status === "SUBMITTED";
+  const stage = project?.stage ?? "FEE_PENDING";
+
+  const feeStep: StepState = fee.status === "VALIDATED" ? "done" : "current";
+  const layoutStep: StepState =
+    stage === "IN_LAYOUT" ? "current" : stage === "FEE_PENDING" ? "todo" : "done";
+  const proofStep: StepState =
+    stage === "PROOF_PENDING" || stage === "CHANGES_REQUESTED"
+      ? "current"
+      : stage === "PUBLISHED"
+        ? "done"
+        : "todo";
+
+  const steps: { label: string; state: StepState }[] = [
+    { label: "1. Dépôt", state: "done" },
+    { label: "2. Contrat", state: project ? "done" : "todo" },
+    { label: "3. Forfait", state: refused ? "todo" : feeStep },
+    { label: "4. Mise en page", state: refused ? "todo" : layoutStep },
+    { label: "5. Bon à tirer", state: refused ? "todo" : proofStep },
+    { label: "6. Publication", state: "todo" },
+  ];
 
   const messageKey = firstParam(sp.message);
   const errorKey = firstParam(sp.erreur);
@@ -108,30 +149,18 @@ export default async function ContributionPage({
           Retour à mes produits
         </Link>
 
-        <ol className="mt-4 flex flex-wrap items-center gap-2 text-xs sm:text-sm" aria-label="Étapes">
-          <li className="rounded-full bg-green-100 px-3 py-1 font-semibold text-green-800">
-            1. Votre livre : envoyé
-          </li>
-          <li
-            className={`rounded-full px-3 py-1 font-semibold ${
-              verifying ? "bg-green-100 text-green-800" : "bg-brand-600 text-white"
-            }`}
-          >
-            {verifying ? "2. Contribution : déclarée" : "2. Dernière étape : contribution"}
-          </li>
-          <li
-            className={`rounded-full px-3 py-1 ${
-              verifying ? "bg-yellow-100 font-semibold text-yellow-800" : "bg-slate-100 text-slate-600"
-            }`}
-          >
-            3. Publication
-          </li>
-        </ol>
-
-        <h1 className="mt-4 text-2xl font-bold">Dernière étape avant la publication</h1>
+        <h1 className="mt-3 text-2xl font-bold">Suivi de votre édition</h1>
         <p className="mt-1 text-sm text-slate-600">
           Ouvrage : <strong>{product.title}</strong>
         </p>
+
+        <ol className="mt-4 flex flex-wrap gap-2 text-xs sm:text-sm" aria-label="Étapes">
+          {steps.map((step) => (
+            <li key={step.label} className={`rounded-full px-3 py-1 font-semibold ${STEP_STYLES[step.state]}`}>
+              {step.label}
+            </li>
+          ))}
+        </ol>
       </div>
 
       {message && (
@@ -141,23 +170,43 @@ export default async function ContributionPage({
       )}
       {error && <div className="alert-error">{error}</div>}
 
-      <section className="card">
-        <p className="text-sm text-slate-700">
-          Votre livre est prêt. Pour le publier sur TechLibrairie, une contribution unique de{" "}
-          <strong>{formatXof(fee.amountXof)}</strong> est demandée pour cet ouvrage. Votre livre est publié dès
-          que ce paiement est reçu et validé.
-        </p>
-        <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-slate-600">
-          <li>
-            Cette contribution sert exclusivement de participation au soutien technique et à l&apos;hébergement
-            du site.
-          </li>
-          <li>
-            Elle n&apos;a aucun effet sur vos redevances : la commission et vos revenus sur les ventes restent
-            inchangés.
-          </li>
-        </ul>
-      </section>
+      {project && (
+        <section className="card text-sm text-slate-600">
+          Contrat d&apos;édition à compte d&apos;auteur (version {project.contractVersion}) accepté le{" "}
+          {formatDate(project.contractAcceptedAt)} par <strong>{project.signerName}</strong>.{" "}
+          <Link href="/contrat-edition" className="font-semibold text-brand-700 hover:underline">
+            Relire le contrat
+          </Link>
+        </section>
+      )}
+
+      {refused && (
+        <div className="alert-error">
+          <p className="font-semibold">Votre livre n&apos;a pas pu être retenu pour l&apos;édition.</p>
+          {project?.refusalReason && <p className="mt-1">Motif : {project.refusalReason}</p>}
+          <p className="mt-1">
+            Si vous avez déjà réglé le forfait, il vous est remboursé intégralement : l&apos;administration vous
+            contacte pour le remboursement.
+          </p>
+        </div>
+      )}
+
+      {!refused && (
+        <section className="card">
+          <p className="text-sm text-slate-700">
+            Pour lancer l&apos;édition de votre livre, le forfait d&apos;édition de{" "}
+            <strong>{formatXof(fee.amountXof)}</strong> est demandé pour cet ouvrage. Il couvre le contrôle, la
+            mise en page et la publication. Vous gardez vos droits et 100 % de vos gains.
+          </p>
+          <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-slate-600">
+            <li>
+              Les frais d&apos;impression des exemplaires imprimés sont à votre charge : ils sont déduits de
+              chaque vente, sans avance de votre part.
+            </li>
+            <li>Votre livre n&apos;est publié qu&apos;après votre approbation du bon à tirer.</li>
+          </ul>
+        </section>
+      )}
 
       {verifying && (
         <section className="card border-yellow-200 bg-yellow-50">
@@ -166,12 +215,32 @@ export default async function ContributionPage({
             Vous avez déclaré votre paiement
             {fee.submittedAt ? ` le ${formatDate(fee.submittedAt)}` : ""} (référence{" "}
             <strong>{fee.paymentReference ?? "-"}</strong>). L&apos;administration le vérifie sur son compte
-            Mobile Money : votre livre sera publié dès la validation.
+            Mobile Money. Le contrôle et la mise en page commencent dès la validation.
           </p>
         </section>
       )}
 
-      {fee.status === "REJECTED" && (
+      {!refused && fee.status === "VALIDATED" && stage === "IN_LAYOUT" && (
+        <section className="card border-green-200 bg-green-50">
+          <h2 className="text-lg font-semibold text-green-900">Forfait validé : mise en page en cours</h2>
+          <p className="mt-1 text-sm text-green-900">
+            TechLibrairie Édition contrôle votre livre puis réalise sa mise en page (délai indicatif de 30
+            jours). Vous recevrez l&apos;épreuve à approuver avant toute publication.
+          </p>
+        </section>
+      )}
+
+      {!refused && (stage === "PROOF_PENDING" || stage === "CHANGES_REQUESTED") && (
+        <section className="card border-yellow-200 bg-yellow-50">
+          <h2 className="text-lg font-semibold text-yellow-900">Bon à tirer</h2>
+          <p className="mt-1 text-sm text-yellow-900">
+            Votre épreuve est en cours de traitement. L&apos;approbation en ligne sera disponible
+            prochainement : en attendant, TechLibrairie Édition vous contacte directement.
+          </p>
+        </section>
+      )}
+
+      {fee.status === "REJECTED" && !refused && (
         <div className="alert-error">
           <p className="font-semibold">Votre paiement n&apos;a pas pu être validé.</p>
           {fee.rejectionReason && <p className="mt-1">Motif : {fee.rejectionReason}</p>}
@@ -283,4 +352,4 @@ export default async function ContributionPage({
       )}
     </div>
   );
-                    }
+          }
