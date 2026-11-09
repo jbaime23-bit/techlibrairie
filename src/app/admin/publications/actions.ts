@@ -22,7 +22,12 @@ function revalidateAll(): void {
   revalidatePath("/catalogue");
 }
 
-/** Valide le paiement des frais de publication : l'ouvrage est publié. */
+/**
+ * Valide le paiement du forfait d'édition.
+ * - Édition à compte d'auteur (projet existant) : l'ouvrage passe « En maquette » ; il n'est PAS publié
+ *   (il ne le sera qu'après le bon à tirer approuvé par l'auteur).
+ * - Ancien dépôt sans projet : l'ouvrage est publié comme avant.
+ */
 export async function validatePublicationAction(formData: FormData): Promise<void> {
   const admin = await assertAdminAction();
 
@@ -64,10 +69,22 @@ export async function validatePublicationAction(formData: FormData): Promise<voi
     redirect(`${BACK}?erreur=etat`);
   }
 
-  await prisma.product.updateMany({
-    where: { id: fee.productId, status: "PENDING_PAYMENT" },
-    data: { status: "PUBLISHED", publishedAt: new Date() },
+  const project = await prisma.editionProject.findUnique({
+    where: { productId: fee.productId },
+    select: { id: true },
   });
+
+  if (project) {
+    await prisma.editionProject.updateMany({
+      where: { id: project.id, stage: "FEE_PENDING" },
+      data: { stage: "IN_LAYOUT" },
+    });
+  } else {
+    await prisma.product.updateMany({
+      where: { id: fee.productId, status: "PENDING_PAYMENT" },
+      data: { status: "PUBLISHED", publishedAt: new Date() },
+    });
+  }
 
   await recordAdminAction(admin, {
     action: "publication.validee",
@@ -77,11 +94,12 @@ export async function validatePublicationAction(formData: FormData): Promise<voi
       titre: fee.product.title,
       montant_fcfa: fee.amountXof,
       reference: fee.paymentReference,
+      suite: project ? "maquette" : "publication",
     },
   });
 
   revalidateAll();
-  redirect(`${BACK}?message=validee`);
+  redirect(`${BACK}?message=${project ? "validee-maquette" : "validee"}`);
 }
 
 /** Rejette un paiement déclaré (non retrouvé, montant insuffisant) : l'auteur peut déclarer à nouveau. */
@@ -136,4 +154,4 @@ export async function rejectPublicationAction(formData: FormData): Promise<void>
 
   revalidateAll();
   redirect(`${BACK}?message=rejetee`);
-    }
+}
