@@ -1,9 +1,9 @@
 // src/app/api/produits/route.ts
 // Création d'un produit par un vendeur, selon le service choisi :
 // - Vente de PDF (PDF_DOCUMENT) : publication immédiate.
-// - Édition de livres (BOOK_EDITION) : qualité, auteur, ISBN contrôlé ; l'ouvrage est publié après la
-//   validation de la contribution de participation (sauf pour un administrateur).
-// La certification des droits est vérifiée ici, côté serveur.
+// - Édition de livres à compte d'auteur (BOOK_EDITION) : contrat accepté au dépôt (texte archivé), forfait
+//   à régler aussitôt après le dépôt ; l'ouvrage n'est publié qu'après maquette et bon à tirer.
+//   Les ouvrages d'un administrateur sont publiés directement, sans contrat ni forfait.
 
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
@@ -16,7 +16,15 @@ import {
   normalizeIsbn,
   productFieldsSchema,
 } from "@/lib/product-validation";
+import {
+  CONTRACT_VERSION,
+  RIGHTS_WARRANTY_TEXT,
+  buildContract,
+  contractToPlainText,
+  hashText,
+} from "@/lib/edition-contract";
 import { getContributionConfig } from "@/lib/publication-fee";
+import { hashClientIp } from "@/lib/login-throttle";
 import {
   deletePrivateFile,
   deletePublicCover,
@@ -102,6 +110,35 @@ export async function POST(request: Request) {
     return validationError({ pdf: ["Fichier PDF non autorisé."] }, 403);
   }
 
+  // Édition à compte d'auteur : contrat et forfait, sauf pour un administrateur.
+  const user = await getCurrentUser();
+  const requiresContract = isEdition && user?.role !== "ADMIN";
+  let signerName = "";
+
+  if (requiresContract) {
+    const contractErrors: FieldErrors = {};
+
+    if (readField(formData, "contractAccepted") !== "true") {
+      contractErrors.contractAccepted = ["Vous devez accepter le contrat pour déposer votre livre."];
+    }
+    if (readField(formData, "serviceStartRequested") !== "true") {
+      contractErrors.serviceStartRequested = [
+        "Cette demande est nécessaire pour que la prestation puisse commencer.",
+      ];
+    }
+
+    signerName = readField(formData, "signerName") ?? "";
+    if (signerName.length < 3 || signerName.length > 120) {
+      contractErrors.signerName = [
+        "Tapez votre nom et prénom (3 à 120 caractères) : il vaut signature du contrat.",
+      ];
+    }
+
+    if (Object.keys(contractErrors).length > 0) {
+      return validationError(contractErrors);
+    }
+  }
+
   // ISBN (édition de livres seulement) : normalisé, sans tirets, et unique dans le catalogue.
   let isbn: string | null = null;
   if (isEdition && fields.isbn) {
@@ -162,43 +199,70 @@ export async function POST(request: Request) {
     }
   }
 
-  // Contribution de participation : édition de livres seulement, et jamais pour un administrateur.
-  const user = await getCurrentUser();
-  const requiresContribution = isEdition && user?.role !== "ADMIN";
+  const pdfFileName = sanitizeFileName(fields.pdfFileName);
+
+  // Texte du contrat tel qu'il est archivé : celui de la version courante, calculé côté serveur.
+  const contractText = requiresContract ? contractToPlainText(buildContract()) : "";
 
   try {
-    const product = await prisma.product.create({
-      data: {
-        sellerId: seller.id,
-        categoryId: fields.categoryId ?? null,
-        kind: fields.kind,
-        title: fields.title,
-        slug: slugWithSuffix(fields.title),
-        description: fields.description,
-        language: fields.language,
-        pageCount: fields.pageCount ?? null,
-        priceAmount: toStoredAmount(fields.price, fields.currency),
-        currency: fields.currency,
-        coverImageUrl,
-        pdfStorageKey: fields.pdfStorageKey,
-        pdfFileName: sanitizeFileName(fields.pdfFileName),
-        pdfSizeBytes: inspection.sizeBytes ?? fields.pdfSizeBytes,
-        isbn,
-        publishingCapacity: isEdition ? fields.publishingCapacity ?? null : null,
-        authorName: fields.authorName && fields.authorName.length > 0 ? fields.authorName : null,
-        // Preuve de la certification : date du serveur et texte exact accepté pour ce service.
-        rightsCertifiedAt: new Date(),
-        rightsCertificationText: certificationTextFor(fields.kind),
-        status: requiresContribution ? "PENDING_PAYMENT" : "PUBLISHED",
-        ...(requiresContribution
-          ? {
-              publicationFee: {
-                create: { amountXof: getContributionConfig().amountXof },
-              },
-            }
-          : {}),
-      },
-      select: { id: true, slug: true },
+    const product = await prisma.$transaction(async (tx) => {
+      const created = await tx.product.create({
+        data: {
+          sellerId: seller.id,
+          categoryId: fields.categoryId ?? null,
+          kind: fields.kind,
+          title: fields.title,
+          slug: slugWithSuffix(fields.title),
+          description: fields.description,
+          language: fields.language,
+          pageCount: fields.pageCount ?? null,
+          priceAmount: toStoredAmount(fields.price, fields.currency),
+          currency: fields.currency,
+          coverImageUrl,
+          pdfStorageKey: fields.pdfStorageKey,
+          pdfFileName,
+          pdfSizeBytes: inspection.sizeBytes ?? fields.pdfSizeBytes,
+          isbn,
+          publishingCapacity: isEdition ? fields.publishingCapacity ?? null : null,
+          authorName: fields.authorName && fields.authorName.length > 0 ? fields.authorName : null,
+          // Preuve de la déclaration de titularité : date du serveur et texte exact accepté.
+          rightsCertifiedAt: new Date(),
+          rightsCertificationText: isEdition
+            ? RIGHTS_WARRANTY_TEXT
+            : certificationTextFor(fields.kind),
+          status: requiresContract ? "PENDING_PAYMENT" : "PUBLISHED",
+          ...(requiresContract
+            ? {
+                publicationFee: {
+                  create: { amountXof: getContributionConfig().amountXof },
+                },
+              }
+            : {}),
+        },
+        select: { id: true, slug: true },
+      });
+
+      if (requiresContract) {
+        await tx.editionProject.create({
+          data: {
+            productId: created.id,
+            sellerId: seller.id,
+            stage: "FEE_PENDING",
+            contractVersion: CONTRACT_VERSION,
+            contractHash: hashText(contractText),
+            contractText,
+            contractAcceptedAt: new Date(),
+            signerName,
+            signerEmail: user?.email ?? "",
+            signerIpHash: hashClientIp(request.headers.get("x-forwarded-for")),
+            serviceStartRequested: true,
+            manuscriptStorageKey: fields.pdfStorageKey,
+            manuscriptFileName: pdfFileName,
+          },
+        });
+      }
+
+      return created;
     });
 
     revalidatePath("/vendeur");
@@ -206,7 +270,7 @@ export async function POST(request: Request) {
     revalidatePath("/catalogue");
 
     return NextResponse.json(
-      { id: product.id, slug: product.slug, pendingPayment: requiresContribution },
+      { id: product.id, slug: product.slug, pendingPayment: requiresContract },
       { status: 201 }
     );
   } catch (error) {
@@ -220,4 +284,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}
+              }
