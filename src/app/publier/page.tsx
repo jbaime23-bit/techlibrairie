@@ -6,28 +6,32 @@ import { requireUser } from "@/lib/auth";
 import { firstParam } from "@/lib/admin";
 import { activatePublishingAction } from "@/app/publier/actions";
 import { getContributionConfig } from "@/lib/publication-fee";
-import {
-  PUBLISHING_CAPACITIES,
-  type PublishingCapacityValue,
-} from "@/lib/product-validation";
 
 export const metadata: Metadata = {
-  title: "Publier : édition de livres ou vente de PDF",
+  title: "Publier : édition à compte d'auteur ou vente de PDF",
   robots: { index: false, follow: false },
 };
 
 export const dynamic = "force-dynamic";
 
-const QUERY_KEYS: Record<PublishingCapacityValue, string> = {
-  AUTHOR: "auteur",
-  INDEPENDENT_PUBLISHER: "editeur",
-  THIRD_PARTY_SELLER: "vendeur",
-};
-
 const ERRORS: Record<string, string> = {
   nom: "Le nom d'auteur ou d'éditeur doit contenir au moins 2 caractères.",
   technique: "Une erreur est survenue. Réessayez dans un instant.",
 };
+
+const CAPACITY_OPTIONS = [
+  {
+    key: "auteur",
+    label: "Auteur",
+    description: "Vous avez écrit l'ouvrage et vous en détenez les droits.",
+  },
+  {
+    key: "vendeur",
+    label: "Titulaire des droits (ayant droit)",
+    description:
+      "Vous n'êtes pas l'auteur, mais vous détenez les droits d'édition et de diffusion, avec son autorisation écrite.",
+  },
+] as const;
 
 function formatXof(amount: number): string {
   return `${amount.toLocaleString("fr-FR")} FCFA`;
@@ -74,42 +78,44 @@ export default async function PublierPage({
         {profile && profile.status === "ACTIVE" && (
           <div className="grid gap-6 lg:grid-cols-2">
             <section className="card flex flex-col">
-              <h2 className="text-xl font-semibold">Édition de livres</h2>
+              <h2 className="text-xl font-semibold">Édition à compte d&apos;auteur</h2>
               <p className="mt-2 text-sm text-slate-600">
-                Faire éditer et publier un livre sur TechLibrairie, maison d&apos;édition numérique.
+                Faire éditer et publier votre livre par TechLibrairie Édition.
               </p>
               <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-700">
                 <li>
-                  Vous renseignez votre livre et envoyez votre PDF.{" "}
                   {user.role === "ADMIN" ? (
-                    <>
-                      <strong>Aucune contribution n&apos;est demandée à l&apos;administrateur.</strong>
-                    </>
+                    <strong>Aucun forfait n&apos;est demandé à l&apos;administrateur.</strong>
                   ) : (
                     <>
-                      <strong>À la dernière étape, juste avant la publication</strong>, une contribution unique de{" "}
-                      {formatXof(contribution.amountXof)} est demandée pour cet ouvrage. Aucun paiement n&apos;est
-                      demandé avant.
+                      <strong>Forfait d&apos;édition de {formatXof(contribution.amountXof)}</strong> pour chaque
+                      nouveau livre, réglé par Mobile Money <strong>juste après le dépôt</strong> de votre PDF.
                     </>
                   )}
                 </li>
                 <li>
-                  Cette contribution sert exclusivement de participation au soutien technique et à
-                  l&apos;hébergement du site. Elle n&apos;a <strong>aucun effet sur vos redevances</strong> : les
-                  pourcentages et commissions que vous percevez sur les ventes restent totalement inchangés.
+                  Il couvre le contrôle, la mise en page et la publication. Vous validez un{" "}
+                  <strong>bon à tirer</strong> : rien n&apos;est publié sans votre accord.
                 </li>
                 <li>
-                  Numéro ISBN facultatif, et <strong>certification de vos droits</strong> (auteur ou titulaire
-                  des droits, responsabilité face au BBDA et au dépôt légal).
+                  <strong>Vous gardez vos droits et 100 % de vos gains</strong> : aucune commission. Les frais
+                  d&apos;impression d&apos;un exemplaire imprimé sont à votre charge, déduits de la vente.
+                </li>
+                <li>
+                  Vous acceptez un <strong>contrat</strong> au dépôt, et déclarez détenir les droits.{" "}
+                  <Link href="/contrat-edition" className="font-semibold text-brand-700 hover:underline">
+                    Lire le contrat
+                  </Link>
+                  .
                 </li>
               </ul>
 
-              <p className="mt-4 text-sm font-semibold">Vous publiez en tant que :</p>
+              <p className="mt-4 text-sm font-semibold">Vous déposez en tant que :</p>
               <div className="mt-2 flex flex-col gap-2">
-                {PUBLISHING_CAPACITIES.map((option) => (
+                {CAPACITY_OPTIONS.map((option) => (
                   <Link
-                    key={option.value}
-                    href={`/vendeur/produits/nouveau?service=edition&profil=${QUERY_KEYS[option.value]}`}
+                    key={option.key}
+                    href={`/vendeur/produits/nouveau?service=edition&profil=${option.key}`}
                     className="btn-primary"
                   >
                     {option.label}
@@ -126,11 +132,11 @@ export default async function PublierPage({
               </p>
               <ul className="mt-3 flex-1 list-disc space-y-2 pl-5 text-sm text-slate-700">
                 <li>
-                  Publication <strong>immédiate</strong>, sans contribution de participation.
+                  Publication <strong>immédiate</strong>, sans forfait d&apos;édition.
                 </li>
                 <li>
                   Ce service obéit à sa propre logique de distribution : il ne doit pas être confondu avec
-                  l&apos;édition de livres. Vos documents ne portent ni ISBN ni statut d&apos;édition.
+                  l&apos;édition à compte d&apos;auteur. Vos documents ne portent ni ISBN ni statut d&apos;édition.
                 </li>
                 <li>La commission de la boutique s&apos;applique sur chaque vente.</li>
               </ul>
@@ -168,13 +174,13 @@ export default async function PublierPage({
               Votre compte actuel est un compte acheteur. Indiquez le nom sous lequel vous publiez : votre
               espace de publication est créé sur ce même compte. Vous serez ensuite déconnecté, puis il
               suffira de vous reconnecter avec les mêmes identifiants. Vous pourrez alors choisir entre
-              l&apos;édition de livres et la vente de PDF.
+              l&apos;édition à compte d&apos;auteur et la vente de PDF.
             </p>
 
             <form action={activatePublishingAction} className="mt-5 space-y-4">
               <div>
                 <label htmlFor="displayName" className="label">
-                  Nom d&apos;auteur ou d&apos;éditeur (affiché au public)
+                  Nom d&apos;auteur (affiché au public)
                 </label>
                 <input
                   id="displayName"
@@ -191,16 +197,16 @@ export default async function PublierPage({
               <fieldset>
                 <legend className="label">Votre qualité habituelle</legend>
                 <div className="space-y-2">
-                  {PUBLISHING_CAPACITIES.map((option) => (
+                  {CAPACITY_OPTIONS.map((option) => (
                     <label
-                      key={option.value}
+                      key={option.key}
                       className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 text-sm"
                     >
                       <input
                         type="radio"
                         name="profil"
-                        value={QUERY_KEYS[option.value]}
-                        defaultChecked={option.value === "AUTHOR"}
+                        value={option.key}
+                        defaultChecked={option.key === "auteur"}
                         className="mt-1"
                       />
                       <span>
@@ -227,13 +233,13 @@ export default async function PublierPage({
               2 Mo).
             </li>
             <li>
-              Vous devrez <strong>certifier</strong> être l&apos;auteur ou le titulaire des droits : cette
-              déclaration est enregistrée avec la date. Publier l&apos;ouvrage d&apos;autrui sans autorisation est
+              Vous devrez <strong>déclarer</strong> être l&apos;auteur ou le titulaire des droits : cette
+              déclaration est enregistrée avec la date. Déposer l&apos;ouvrage d&apos;autrui sans autorisation est
               interdit.
             </li>
             <li>
-              Pour l&apos;édition de livres, un <strong>numéro ISBN</strong> si vous en possédez un (facultatif).
-              TechLibrairie n&apos;en attribue pas.
+              Pour l&apos;édition à compte d&apos;auteur, un <strong>numéro ISBN</strong> si vous en possédez un
+              (facultatif).
             </li>
             <li>
               Les règles complètes figurent dans les{" "}
@@ -247,4 +253,4 @@ export default async function PublierPage({
       </div>
     </div>
   );
-}
+            }
