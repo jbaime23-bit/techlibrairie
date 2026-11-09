@@ -1,7 +1,7 @@
 // src/components/vendeur/product-form.tsx
 // Formulaire de dépôt d'un ouvrage. Il s'adapte au service choisi :
-// - Édition de livres : qualité du déposant, auteur, ISBN, certification BBDA ; la contribution unique
-//   n'est demandée qu'à la dernière étape (page de règlement), juste avant la publication ;
+// - Édition de livres à compte d'auteur : qualité du déposant, auteur, ISBN, déclaration des droits, puis
+//   acceptation du contrat avec signature ; le forfait est à régler aussitôt après le dépôt ;
 // - Vente de PDF : titre, description, prix, publication immédiate.
 "use client";
 
@@ -29,6 +29,13 @@ interface CategoryOption {
   name: string;
 }
 
+export interface EditionFormTerms {
+  contractVersion: string;
+  warrantyText: string;
+  acceptanceText: string;
+  startText: string;
+}
+
 function FieldError({ messages }: { messages?: string[] }) {
   if (!messages || messages.length === 0) return null;
   return <p className="field-error">{messages[0]}</p>;
@@ -51,6 +58,20 @@ function formatXof(amount: number): string {
   return `${amount.toLocaleString("fr-FR")} FCFA`;
 }
 
+// À compte d'auteur, seuls l'auteur et le titulaire des droits peuvent déposer.
+const EDITION_CAPACITIES = PUBLISHING_CAPACITIES.filter(
+  (option) => option.value !== "INDEPENDENT_PUBLISHER"
+).map((option) =>
+  option.value === "THIRD_PARTY_SELLER"
+    ? {
+        value: option.value,
+        label: "Titulaire des droits (ayant droit)",
+        description:
+          "Vous n'êtes pas l'auteur, mais vous détenez les droits d'édition et de diffusion, avec son autorisation écrite.",
+      }
+    : { value: option.value, label: option.label, description: option.description }
+);
+
 export function ProductForm({
   sellerId,
   sellerName,
@@ -59,6 +80,7 @@ export function ProductForm({
   kind,
   initialCapacity,
   contributionXof,
+  terms,
 }: {
   sellerId: string;
   sellerName: string;
@@ -66,12 +88,16 @@ export function ProductForm({
   commissionPercent: number;
   kind: ProductKindValue;
   initialCapacity: PublishingCapacityValue;
-  // Contribution à régler à la dernière étape ; null si aucune (vente de PDF ou administrateur)
+  // Forfait d'édition à régler aussitôt après le dépôt ; null si aucun (vente de PDF ou administrateur)
   contributionXof: number | null;
+  // Textes du contrat et des déclarations (édition de livres) ; null pour la vente de PDF
+  terms: EditionFormTerms | null;
 }) {
   const router = useRouter();
   const isEdition = kind === "BOOK_EDITION";
-  const certificationText = certificationTextFor(kind);
+  const requiresContract = isEdition && contributionXof !== null && terms !== null;
+  const certificationText =
+    isEdition && terms ? terms.warrantyText : certificationTextFor(kind);
 
   const [capacity, setCapacity] = useState<PublishingCapacityValue>(initialCapacity);
   const [values, setValues] = useState({
@@ -83,8 +109,11 @@ export function ProductForm({
     pageCount: "",
     authorName: isEdition && initialCapacity === "AUTHOR" ? sellerName : "",
     isbn: "",
+    signerName: "",
   });
   const [rightsAccepted, setRightsAccepted] = useState(false);
+  const [contractAccepted, setContractAccepted] = useState(false);
+  const [startRequested, setStartRequested] = useState(false);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -140,7 +169,23 @@ export function ProductForm({
     }
 
     if (!rightsAccepted) {
-      localErrors.rightsAccepted = ["Vous devez cocher cette case de certification pour publier."];
+      localErrors.rightsAccepted = ["Vous devez cocher cette case de déclaration pour continuer."];
+    }
+
+    if (requiresContract) {
+      if (!contractAccepted) {
+        localErrors.contractAccepted = ["Vous devez accepter le contrat pour déposer votre livre."];
+      }
+      if (!startRequested) {
+        localErrors.serviceStartRequested = [
+          "Cette demande est nécessaire pour que la prestation puisse commencer.",
+        ];
+      }
+      if (values.signerName.trim().length < 3) {
+        localErrors.signerName = [
+          "Tapez votre nom et prénom : il vaut signature du contrat.",
+        ];
+      }
     }
 
     if (!pdfFile) {
@@ -218,6 +263,11 @@ export function ProductForm({
         if (values.isbn.trim()) formData.append("isbn", values.isbn.trim());
       }
       formData.append("rightsAccepted", "true");
+      if (requiresContract) {
+        formData.append("contractAccepted", "true");
+        formData.append("serviceStartRequested", "true");
+        formData.append("signerName", values.signerName.trim());
+      }
       formData.append("pdfStorageKey", pdfPathname);
       formData.append("pdfFileName", pdfFile.name);
       formData.append("pdfSizeBytes", String(pdfFile.size));
@@ -262,11 +312,9 @@ export function ProductForm({
     }
   }
 
-  const needsContribution = isEdition && contributionXof !== null;
-
   const submitLabel = isEdition
-    ? needsContribution
-      ? "Continuer vers la dernière étape"
+    ? requiresContract
+      ? "Déposer mon livre et passer au règlement du forfait"
       : "Publier le livre"
     : "Publier le document";
 
@@ -274,21 +322,33 @@ export function ProductForm({
     <form onSubmit={handleSubmit} className="space-y-6" noValidate>
       {globalError && <div className="alert-error">{globalError}</div>}
 
-      {needsContribution && contributionXof !== null && (
+      {requiresContract && contributionXof !== null && (
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-          <p className="font-semibold">Comment se déroule la publication</p>
+          <p className="font-semibold">Édition à compte d&apos;auteur : comment ça se passe</p>
           <ol className="mt-2 list-decimal space-y-1 pl-5">
-            <li>Vous renseignez votre livre et vous envoyez votre PDF (cette page).</li>
             <li>
-              <strong>Dernière étape avant la publication</strong> : une contribution unique de{" "}
-              {formatXof(contributionXof)}, à régler par Mobile Money.
+              Vous déposez votre livre et vous acceptez le contrat (cette page).
             </li>
-            <li>Votre livre est publié dès la validation de votre paiement.</li>
+            <li>
+              <strong>Juste après le dépôt</strong>, vous réglez le forfait d&apos;édition de{" "}
+              {formatXof(contributionXof)} par Mobile Money.
+            </li>
+            <li>TechLibrairie Édition contrôle votre livre puis réalise sa mise en page.</li>
+            <li>Vous approuvez le bon à tirer : rien n&apos;est publié sans votre accord.</li>
+            <li>Votre livre est publié.</li>
           </ol>
           <p className="mt-2 text-xs text-slate-600">
-            Cette contribution sert exclusivement de participation au soutien technique et à
-            l&apos;hébergement du site. Elle n&apos;a aucun effet sur vos redevances : la commission de{" "}
-            {commissionPercent} % sur vos ventes reste inchangée.
+            Vous financez l&apos;édition et vous gardez vos droits. Les frais d&apos;impression des exemplaires
+            imprimés sont à votre charge, déduits de chaque vente : aucune avance n&apos;est demandée.{" "}
+            <a
+              href="/contrat-edition"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-brand-700 underline"
+            >
+              Lire le contrat
+            </a>
+            .
           </p>
         </div>
       )}
@@ -297,19 +357,19 @@ export function ProductForm({
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
           <p className="font-semibold">Vente de PDF</p>
           <p className="mt-1">
-            Votre document est mis en vente dès l&apos;envoi du formulaire, sans contribution de
-            participation. La commission de {commissionPercent} % s&apos;applique sur chaque vente. Ce service
-            est distinct de l&apos;édition de livres.
+            Votre document est mis en vente dès l&apos;envoi du formulaire, sans forfait d&apos;édition.
+            La commission de {commissionPercent} % s&apos;applique sur chaque vente. Ce service est distinct
+            de l&apos;édition de livres.
           </p>
         </div>
       )}
 
       {isEdition && (
         <fieldset className="space-y-3">
-          <legend className="label">Vous publiez en tant que</legend>
+          <legend className="label">Vous déposez en tant que</legend>
 
           <div className="space-y-2">
-            {PUBLISHING_CAPACITIES.map((option) => (
+            {EDITION_CAPACITIES.map((option) => (
               <label
                 key={option.value}
                 className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm ${
@@ -338,8 +398,7 @@ export function ProductForm({
 
           {capacity !== "AUTHOR" && (
             <p className="text-xs text-slate-600">
-              Vous devez détenir l&apos;autorisation écrite de l&apos;auteur ou de l&apos;éditeur de cet
-              ouvrage. Conservez-la : elle peut vous être demandée.
+              Conservez l&apos;autorisation écrite de l&apos;auteur : elle peut vous être demandée.
             </p>
           )}
         </fieldset>
@@ -418,8 +477,8 @@ export function ProductForm({
             disabled={busy}
           />
           <p className="mt-1 text-xs text-slate-500">
-            10 ou 13 chiffres, tirets acceptés. TechLibrairie n&apos;attribue pas d&apos;ISBN : saisissez
-            uniquement celui que vous avez obtenu pour cet ouvrage.
+            10 ou 13 chiffres, tirets acceptés. Ne saisissez que l&apos;ISBN qui vous a été attribué pour cette
+            édition. Sans ISBN, TechLibrairie Édition peut en attribuer un selon le contrat.
           </p>
           <FieldError messages={fieldErrors.isbn} />
         </div>
@@ -515,8 +574,10 @@ export function ProductForm({
       <p className="text-xs text-slate-500">
         Le prix est fixé en FCFA. Pour les paiements par carte bancaire, il est
         converti automatiquement en euros ou en dollars au moment du paiement.
-        Aucune taxe n&apos;est ajoutée. La boutique prélève une commission de{" "}
-        {commissionPercent} % sur chaque vente ; le reste vous revient.
+        Aucune taxe n&apos;est ajoutée.{" "}
+        {isEdition
+          ? "À compte d'auteur, la boutique ne prélève aucune commission sur vos ventes."
+          : `La boutique prélève une commission de ${commissionPercent} % sur chaque vente ; le reste vous revient.`}
       </p>
 
       <div>
@@ -569,6 +630,75 @@ export function ProductForm({
         </p>
       </div>
 
+      {requiresContract && terms && (
+        <div className="space-y-4 rounded-lg border border-slate-300 bg-slate-50 p-4">
+          <p className="text-sm font-semibold">
+            Contrat d&apos;édition à compte d&apos;auteur (version {terms.contractVersion})
+          </p>
+
+          <div>
+            <label className="flex cursor-pointer items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                name="contractAccepted"
+                checked={contractAccepted}
+                onChange={(event) => setContractAccepted(event.target.checked)}
+                className="mt-1"
+                disabled={busy}
+              />
+              <span>
+                {terms.acceptanceText}{" "}
+                <a
+                  href="/contrat-edition"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-brand-700 underline"
+                >
+                  Lire le contrat
+                </a>
+              </span>
+            </label>
+            <FieldError messages={fieldErrors.contractAccepted} />
+          </div>
+
+          <div>
+            <label className="flex cursor-pointer items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                name="serviceStartRequested"
+                checked={startRequested}
+                onChange={(event) => setStartRequested(event.target.checked)}
+                className="mt-1"
+                disabled={busy}
+              />
+              <span>{terms.startText}</span>
+            </label>
+            <FieldError messages={fieldErrors.serviceStartRequested} />
+          </div>
+
+          <div>
+            <label htmlFor="signerName" className="label">
+              Signature : tapez votre nom et prénom
+            </label>
+            <input
+              id="signerName"
+              name="signerName"
+              type="text"
+              autoComplete="name"
+              value={values.signerName}
+              onChange={handleChange}
+              className="input"
+              disabled={busy}
+            />
+            <FieldError messages={fieldErrors.signerName} />
+            <p className="mt-1 text-xs text-slate-500">
+              Le contrat est conservé avec la date, votre nom et votre adresse électronique. Vous pouvez en
+              obtenir un exemplaire sur demande.
+            </p>
+          </div>
+        </div>
+      )}
+
       {step === "uploading" && (
         <div aria-live="polite">
           <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
@@ -592,4 +722,4 @@ export function ProductForm({
       </button>
     </form>
   );
-    }
+}
