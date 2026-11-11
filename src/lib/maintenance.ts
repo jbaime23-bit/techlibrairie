@@ -137,12 +137,23 @@ async function handleExpiredRecords(
   report.oldDownloadTokensDeleted = (await prisma.downloadToken.deleteMany({ where: downloadsWhere })).count;
 }
 
-/** Cherche les PDF du stockage privé qui ne sont rattachés à aucun produit (depuis plus de 7 jours). */
+/**
+ * Cherche les PDF du stockage privé qui ne sont rattachés à aucun produit (depuis plus de 7 jours).
+ * Sont rattachés : le PDF de chaque produit ET le manuscrit de chaque édition à compte d'auteur
+ * (le manuscrit n'est plus le fichier du produit une fois l'épreuve approuvée, mais il est conservé).
+ */
 async function scanOrphanPdfs(
   deadline: number
 ): Promise<{ orphans: string[]; status: OrphanScanStatus }> {
-  const products = await prisma.product.findMany({ select: { pdfStorageKey: true } });
-  const referenced = new Set(products.map((product) => product.pdfStorageKey));
+  const [products, editions] = await Promise.all([
+    prisma.product.findMany({ select: { pdfStorageKey: true } }),
+    prisma.editionProject.findMany({ select: { manuscriptStorageKey: true } }),
+  ]);
+
+  const referenced = new Set<string>([
+    ...products.map((product) => product.pdfStorageKey),
+    ...editions.map((edition) => edition.manuscriptStorageKey),
+  ]);
   const cutoff = new Date(Date.now() - ORPHAN_PDF_MIN_AGE_DAYS * DAY_MS);
 
   const orphans: string[] = [];
@@ -239,4 +250,4 @@ export async function runMaintenance(options: {
 
   report.durationMs = Date.now() - startedAt;
   return report;
-              }
+                                                                        }
