@@ -7,7 +7,8 @@ import { requireAdminForSetup } from "@/lib/admin";
 const LINKS = [
   { href: "/admin", label: "Tableau de bord" },
   { href: "/admin/alertes", label: "Alertes" },
-  { href: "/admin/publications", label: "Publications" },
+  { href: "/admin/publications", label: "Forfaits d'édition" },
+  { href: "/admin/editions", label: "Éditions" },
   { href: "/admin/statistiques", label: "Statistiques" },
   { href: "/admin/rapports", label: "Rapports mensuels" },
   { href: "/admin/export", label: "Export comptable" },
