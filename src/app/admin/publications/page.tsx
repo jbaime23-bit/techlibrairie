@@ -11,7 +11,7 @@ import {
 import { formatDate, formatFileSize, formatPrice } from "@/lib/utils";
 
 export const metadata: Metadata = {
-  title: "Éditions et forfaits d'édition",
+  title: "Forfaits d'édition",
 };
 
 export const dynamic = "force-dynamic";
@@ -145,7 +145,7 @@ export default async function AdminPublicationsPage({
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Éditions et forfaits d&apos;édition</h1>
+        <h1 className="text-2xl font-bold">Forfaits d&apos;édition</h1>
         <p className="mt-1 text-sm text-slate-600">
           À compte d&apos;auteur, l&apos;auteur règle le forfait d&apos;édition juste après le dépôt, par Mobile Money,
           puis déclare sa référence ici. Vérifiez la réception sur votre application avant de valider : le
@@ -360,9 +360,12 @@ export default async function AdminPublicationsPage({
             n&apos;apparaît ni dans le catalogue ni dans le plan du site.
           </li>
           <li>
-            L&apos;onglet « En maquette » liste les livres dont le forfait est validé : téléchargez le
-            manuscrit pour la mise en page. Les outils de dépôt de l&apos;épreuve et d&apos;approbation en ligne
-            arrivent à l&apos;étape suivante.
+            Après validation du forfait, le travail se poursuit dans{" "}
+            <Link href="/admin/editions" className="font-semibold text-brand-700 hover:underline">
+              Administration, Éditions
+            </Link>{" "}
+            : manuscrit à télécharger, dépôt de l&apos;épreuve, suivi du bon à tirer et refus éventuel d&apos;une
+            œuvre.
           </li>
           <li>Vos propres ouvrages (compte administrateur) sont publiés sans contrat ni forfait.</li>
           <li>Chaque validation et chaque rejet sont inscrits dans le Journal.</li>
@@ -370,4 +373,4 @@ export default async function AdminPublicationsPage({
       </section>
     </div>
   );
-                      }
+                  }
