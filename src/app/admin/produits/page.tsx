@@ -23,7 +23,7 @@ const STATUS_LABELS: Record<ProductStatus, string> = {
   PUBLISHED: "En vente",
   UNPUBLISHED: "Retiré",
   SUSPENDED: "Suspendu",
-  PENDING_PAYMENT: "Frais à régler",
+  PENDING_PAYMENT: "Édition en cours",
 };
 
 const STATUS_STYLES: Record<ProductStatus, string> = {
@@ -35,8 +35,8 @@ const STATUS_STYLES: Record<ProductStatus, string> = {
 
 const CAPACITY_LABELS: Record<PublishingCapacity, string> = {
   AUTHOR: "Auteur",
-  INDEPENDENT_PUBLISHER: "Éditeur indépendant",
-  THIRD_PARTY_SELLER: "Vendeur tiers",
+  INDEPENDENT_PUBLISHER: "Éditeur indépendant (ancien)",
+  THIRD_PARTY_SELLER: "Titulaire des droits (ayant droit)",
 };
 
 const STATUSES: ProductStatus[] = [
@@ -182,8 +182,8 @@ export default async function AdminProduitsPage({
                         }`}
                       >
                         {product.rightsCertifiedAt
-                          ? `Droits certifiés le ${formatDate(product.rightsCertifiedAt)}`
-                          : "Droits non certifiés (publié avant la certification)"}
+                          ? `Droits déclarés le ${formatDate(product.rightsCertifiedAt)}`
+                          : "Droits non déclarés (publié avant la déclaration)"}
                       </p>
                       {product.status === "PUBLISHED" && (
                         <Link
@@ -209,10 +209,10 @@ export default async function AdminProduitsPage({
                     <td className="px-4 py-3">
                       {pending ? (
                         <Link
-                          href="/admin/publications"
+                          href="/admin/editions"
                           className="text-xs font-semibold text-brand-700 hover:underline"
                         >
-                          Voir Publications
+                          Voir Éditions
                         </Link>
                       ) : (
                         <form action={setProductStatusAction}>
@@ -244,4 +244,4 @@ export default async function AdminProduitsPage({
       />
     </div>
   );
-              }
+        }
