@@ -19,7 +19,7 @@ const STATUS_LABELS: Record<ProductStatus, string> = {
   PUBLISHED: "En vente",
   UNPUBLISHED: "Retiré",
   SUSPENDED: "Suspendu",
-  PENDING_PAYMENT: "Frais à régler",
+  PENDING_PAYMENT: "Édition en cours",
 };
 
 const STATUS_STYLES: Record<ProductStatus, string> = {
@@ -55,9 +55,9 @@ export default async function ProduitsPage() {
 
       {pendingCount > 0 && (
         <div className="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-900">
-          {pendingCount} ouvrage{pendingCount > 1 ? "s sont" : " est"} en attente du règlement des frais de
-          publication : {pendingCount > 1 ? "ils seront publiés" : "il sera publié"} dès la validation de
-          votre paiement.
+          {pendingCount} ouvrage{pendingCount > 1 ? "s sont" : " est"} en cours d&apos;édition : suivez les
+          étapes (forfait, mise en page, bon à tirer) avec le bouton « Suivre mon édition ».{" "}
+          {pendingCount > 1 ? "Ils seront publiés" : "Il sera publié"} après votre approbation du bon à tirer.
         </div>
       )}
 
@@ -128,12 +128,14 @@ export default async function ProduitsPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-col items-start gap-2">
-                      <Link
-                        href={`/vendeur/produits/${product.id}/modifier`}
-                        className="btn-secondary px-3 py-1 text-xs"
-                      >
-                        Modifier
-                      </Link>
+                      {product.status !== "PENDING_PAYMENT" && (
+                        <Link
+                          href={`/vendeur/produits/${product.id}/modifier`}
+                          className="btn-secondary px-3 py-1 text-xs"
+                        >
+                          Modifier
+                        </Link>
+                      )}
 
                       {product.status === "SUSPENDED" ? (
                         <span className="text-xs text-slate-500">
@@ -144,7 +146,7 @@ export default async function ProduitsPage() {
                           href={`/vendeur/publication/${product.id}`}
                           className="btn-primary px-3 py-1 text-xs"
                         >
-                          Régler les frais
+                          Suivre mon édition
                         </Link>
                       ) : (
                         <ProductStatusToggle
@@ -162,4 +164,4 @@ export default async function ProduitsPage() {
       )}
     </div>
   );
-                        }
+                  }
