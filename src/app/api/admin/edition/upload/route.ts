@@ -1,14 +1,14 @@
 // src/app/api/admin/edition/upload/route.ts
-// Jetons d'envoi direct (navigateur vers le stockage privé) des épreuves de mise en page.
-// Réservé aux administrateurs ; les fichiers sont rangés dans le dossier privé "edition/<ouvrage>/".
+// Génère les jetons d'envoi direct (navigateur vers Vercel Blob) pour les épreuves (bons à tirer).
+// Réservé aux administrateurs ; fichiers rangés dans edition/<produit>/ et seulement pour une édition en cours.
 
 import { NextResponse } from "next/server";
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
-import { getAdminOrNull } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
+import { getAdminOrNull } from "@/lib/admin";
+import { productIdFromEditionPath } from "@/lib/edition-files";
 import { getPrivateBlobToken } from "@/lib/storage";
 import { MAX_PDF_SIZE_BYTES } from "@/lib/product-validation";
-import { productIdFromProofKey } from "@/lib/edition-proof";
 
 const OPEN_STAGES = ["IN_LAYOUT", "CHANGES_REQUESTED", "PROOF_PENDING"];
 
@@ -27,11 +27,12 @@ export async function POST(request: Request): Promise<NextResponse> {
       token: getPrivateBlobToken(),
       onBeforeGenerateToken: async (pathname) => {
         const admin = await getAdminOrNull();
+
         if (!admin) {
           throw new Error("Accès refusé : réservé aux administrateurs.");
         }
 
-        const productId = productIdFromProofKey(pathname);
+        const productId = productIdFromEditionPath(pathname);
         if (!productId) {
           throw new Error("Chemin de fichier non autorisé.");
         }
@@ -40,8 +41,9 @@ export async function POST(request: Request): Promise<NextResponse> {
           where: { productId },
           select: { stage: true },
         });
+
         if (!project || !OPEN_STAGES.includes(project.stage)) {
-          throw new Error("Cet ouvrage n'est pas en phase de mise en page.");
+          throw new Error("Cette édition n'est pas en cours de mise en page.");
         }
 
         return {
@@ -59,4 +61,4 @@ export async function POST(request: Request): Promise<NextResponse> {
       { status: 400 }
     );
   }
-      }
+}
