@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { loadSellerPage } from "@/lib/seller";
 import { SellerUnavailable } from "@/components/vendeur/seller-unavailable";
 import { ProductStatusToggle } from "@/components/vendeur/product-status-toggle";
+import { EDITION_STAGE_LABELS, EDITION_STAGE_STYLES } from "@/lib/edition-labels";
 import { formatDate, formatFileSize, formatPrice } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -42,7 +43,25 @@ export default async function ProduitsPage() {
     include: { category: { select: { name: true } } },
   });
 
-  const pendingCount = products.filter((product) => product.status === "PENDING_PAYMENT").length;
+  const pendingIds = products
+    .filter((product) => product.status === "PENDING_PAYMENT")
+    .map((product) => product.id);
+
+  const projects = pendingIds.length
+    ? await prisma.editionProject.findMany({
+        where: { productId: { in: pendingIds } },
+        select: { productId: true, stage: true },
+      })
+    : [];
+  const stageByProduct = new Map(projects.map((project) => [project.productId, project.stage]));
+
+  const actionCount = products.filter((product) => {
+    const stage = stageByProduct.get(product.id);
+    return (
+      product.status === "PENDING_PAYMENT" &&
+      (stage === undefined || stage === "FEE_PENDING" || stage === "PROOF_PENDING")
+    );
+  }).length;
 
   return (
     <div className="space-y-6">
@@ -53,11 +72,10 @@ export default async function ProduitsPage() {
         </Link>
       </div>
 
-      {pendingCount > 0 && (
+      {actionCount > 0 && (
         <div className="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-900">
-          {pendingCount} ouvrage{pendingCount > 1 ? "s sont" : " est"} en cours d&apos;édition : suivez les
-          étapes (forfait, mise en page, bon à tirer) avec le bouton « Suivre mon édition ».{" "}
-          {pendingCount > 1 ? "Ils seront publiés" : "Il sera publié"} après votre approbation du bon à tirer.
+          {actionCount} édition{actionCount > 1 ? "s attendent" : " attend"} une action de votre part :
+          règlement du forfait ou relecture d&apos;une épreuve (bon à tirer).
         </div>
       )}
 
@@ -86,82 +104,95 @@ export default async function ProduitsPage() {
               </tr>
             </thead>
             <tbody>
-              {products.map((product) => (
-                <tr key={product.id} className="border-b border-slate-100 align-top">
-                  <td className="px-4 py-3">
-                    <div className="flex items-start gap-3">
-                      {product.coverImageUrl ? (
-                        <Image
-                          src={product.coverImageUrl}
-                          alt={`Couverture de ${product.title}`}
-                          width={40}
-                          height={56}
-                          className="h-14 w-10 rounded object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-14 w-10 items-center justify-center rounded bg-slate-100 text-xs text-slate-400">
-                          PDF
-                        </div>
-                      )}
-                      <div>
-                        <p className="font-medium">{product.title}</p>
-                        <p className="text-xs text-slate-500">
-                          {product.category?.name ?? "Sans catégorie"} ·{" "}
-                          {formatFileSize(product.pdfSizeBytes)}
-                        </p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    {formatPrice(product.priceAmount, product.currency)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`inline-block rounded-full px-2 py-1 text-xs font-semibold ${STATUS_STYLES[product.status]}`}
-                    >
-                      {STATUS_LABELS[product.status]}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">{product.salesCount}</td>
-                  <td className="px-4 py-3">
-                    {product.status === "PENDING_PAYMENT" ? "-" : formatDate(product.publishedAt)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-col items-start gap-2">
-                      {product.status !== "PENDING_PAYMENT" && (
-                        <Link
-                          href={`/vendeur/produits/${product.id}/modifier`}
-                          className="btn-secondary px-3 py-1 text-xs"
-                        >
-                          Modifier
-                        </Link>
-                      )}
+              {products.map((product) => {
+                const pending = product.status === "PENDING_PAYMENT";
+                const stage = stageByProduct.get(product.id);
 
-                      {product.status === "SUSPENDED" ? (
-                        <span className="text-xs text-slate-500">
-                          Contactez l&apos;administration
-                        </span>
-                      ) : product.status === "PENDING_PAYMENT" ? (
-                        <Link
-                          href={`/vendeur/publication/${product.id}`}
-                          className="btn-primary px-3 py-1 text-xs"
-                        >
-                          Suivre mon édition
-                        </Link>
-                      ) : (
-                        <ProductStatusToggle
-                          productId={product.id}
-                          status={product.status}
-                        />
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                return (
+                  <tr key={product.id} className="border-b border-slate-100 align-top">
+                    <td className="px-4 py-3">
+                      <div className="flex items-start gap-3">
+                        {product.coverImageUrl ? (
+                          <Image
+                            src={product.coverImageUrl}
+                            alt={`Couverture de ${product.title}`}
+                            width={40}
+                            height={56}
+                            className="h-14 w-10 rounded object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-14 w-10 items-center justify-center rounded bg-slate-100 text-xs text-slate-400">
+                            PDF
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-medium">{product.title}</p>
+                          <p className="text-xs text-slate-500">
+                            {product.category?.name ?? "Sans catégorie"} ·{" "}
+                            {formatFileSize(product.pdfSizeBytes)}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {formatPrice(product.priceAmount, product.currency)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`inline-block rounded-full px-2 py-1 text-xs font-semibold ${
+                          pending && stage ? EDITION_STAGE_STYLES[stage] : STATUS_STYLES[product.status]
+                        }`}
+                      >
+                        {pending && stage ? EDITION_STAGE_LABELS[stage] : STATUS_LABELS[product.status]}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">{product.salesCount}</td>
+                    <td className="px-4 py-3">{pending ? "-" : formatDate(product.publishedAt)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col items-start gap-2">
+                        {!pending && (
+                          <Link
+                            href={`/vendeur/produits/${product.id}/modifier`}
+                            className="btn-secondary px-3 py-1 text-xs"
+                          >
+                            Modifier
+                          </Link>
+                        )}
+
+                        {product.status === "SUSPENDED" ? (
+                          <span className="text-xs text-slate-500">
+                            Contactez l&apos;administration
+                          </span>
+                        ) : pending ? (
+                          <Link
+                            href={`/vendeur/publication/${product.id}`}
+                            className={`px-3 py-1 text-xs ${
+                              stage === undefined || stage === "FEE_PENDING" || stage === "PROOF_PENDING"
+                                ? "btn-primary"
+                                : "btn-secondary"
+                            }`}
+                          >
+                            {stage === "PROOF_PENDING"
+                              ? "Relire l'épreuve"
+                              : stage === undefined || stage === "FEE_PENDING"
+                                ? "Régler le forfait"
+                                : "Suivre mon édition"}
+                          </Link>
+                        ) : (
+                          <ProductStatusToggle
+                            productId={product.id}
+                            status={product.status}
+                          />
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
     </div>
   );
-                  }
+                            }
