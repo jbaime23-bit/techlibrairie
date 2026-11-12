@@ -21,7 +21,7 @@ export const ACTION_LABELS: Record<string, string> = {
   "produit.statut_modifie": "Statut d'un produit modifié",
   "publication.validee": "Forfait d'édition validé",
   "publication.rejetee": "Paiement du forfait d'édition rejeté",
-  "edition.manuscrit_telecharge": "Manuscrit d'un auteur téléchargé",
+  "edition.manuscrit_telecharge": "Manuscrit d'une édition téléchargé",
   "edition.epreuve_deposee": "Épreuve (bon à tirer) déposée",
   "edition.refusee": "Œuvre refusée pour l'édition",
   "avis.masque": "Avis masqué",
