@@ -6,6 +6,10 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { assertAdminAction } from "@/lib/admin";
 import { recordAdminAction } from "@/lib/audit";
+import {
+  notifyAuthorFeeRejected,
+  notifyAuthorFeeValidated,
+} from "@/lib/edition-notifications";
 
 const BACK = "/admin/publications";
 
@@ -54,6 +58,16 @@ export async function validatePublicationAction(formData: FormData): Promise<voi
     redirect(BACK);
   }
 
+  const project = await prisma.editionProject.findUnique({
+    where: { productId: fee.productId },
+    select: { id: true, stage: true },
+  });
+
+  // Une œuvre refusée ne peut plus avancer.
+  if (project?.stage === "REFUSED") {
+    redirect(`${BACK}?erreur=etat`);
+  }
+
   // Verrou logique : seule la première validation d'un paiement déclaré est prise en compte.
   const claimed = await prisma.publicationFee.updateMany({
     where: { id: fee.id, status: "SUBMITTED" },
@@ -68,11 +82,6 @@ export async function validatePublicationAction(formData: FormData): Promise<voi
   if (claimed.count === 0) {
     redirect(`${BACK}?erreur=etat`);
   }
-
-  const project = await prisma.editionProject.findUnique({
-    where: { productId: fee.productId },
-    select: { id: true },
-  });
 
   if (project) {
     await prisma.editionProject.updateMany({
@@ -97,6 +106,10 @@ export async function validatePublicationAction(formData: FormData): Promise<voi
       suite: project ? "maquette" : "publication",
     },
   });
+
+  if (project) {
+    await notifyAuthorFeeValidated(fee.productId);
+  }
 
   revalidateAll();
   redirect(`${BACK}?message=${project ? "validee-maquette" : "validee"}`);
@@ -151,6 +164,8 @@ export async function rejectPublicationAction(formData: FormData): Promise<void>
       motif: reason,
     },
   });
+
+  await notifyAuthorFeeRejected(fee.productId, reason);
 
   revalidateAll();
   redirect(`${BACK}?message=rejetee`);
