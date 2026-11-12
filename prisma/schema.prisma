@@ -901,3 +901,47 @@ model EditionProject {
   @@index([stage, updatedAt])
   @@index([sellerId])
 }
+
+// ---------------------------------------------------------------------------
+// ÉDITION À COMPTE D'AUTEUR : format imprimé à la demande (livre physique)
+// ---------------------------------------------------------------------------
+
+enum PrintFormatStatus {
+  // Configuration en cours par l'administration (code d'impression, fichiers ou coût manquants)
+  DRAFT
+  // Prêt : l'auteur peut fixer le prix public d'un exemplaire imprimé
+  READY
+  // Proposé à l'achat : l'auteur a fixé un prix supérieur ou égal au prix plancher
+  ACTIVE
+  // Retiré de la vente par l'administration
+  DISABLED
+}
+
+model PrintEdition {
+  id        String            @id @default(cuid())
+  // Ouvrage concerné (référence simple : une seule configuration d'impression par ouvrage)
+  productId String            @unique
+  status    PrintFormatStatus @default(DRAFT)
+
+  // Code d'impression du prestataire (27 caractères) : format, papier, reliure
+  podPackageId String?
+  pageCount    Int?
+
+  // PDF prêts à imprimer, rangés dans le dossier privé lulu/<ouvrage>/
+  interiorStorageKey String?
+  interiorFileName   String?
+  coverStorageKey    String?
+  coverFileName      String?
+
+  // Coût de fabrication d'un exemplaire (FCFA, hors livraison), d'après le tarif du prestataire
+  printCostXof Int?
+  // ISBN du format imprimé (distinct de l'ISBN du PDF)
+  isbnPrint    String?
+  // Prix public d'un exemplaire imprimé, fixé par l'auteur (au moins le prix plancher)
+  retailPriceXof Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+}
