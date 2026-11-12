@@ -261,4 +261,4 @@ export default async function AdminProduitsPage({
       />
     </div>
   );
-            }
+        }
