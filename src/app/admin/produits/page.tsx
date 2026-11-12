@@ -11,6 +11,7 @@ import {
 } from "@/lib/admin";
 import { Pagination } from "@/components/admin/pagination";
 import { setProductStatusAction } from "@/app/admin/actions";
+import { EDITION_STAGE_LABELS, EDITION_STAGE_STYLES } from "@/lib/edition-labels";
 import { formatDate, formatPrice } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -91,6 +92,19 @@ export default async function AdminProduitsPage({
     },
   });
 
+  // Étape d'édition des ouvrages dont la publication est en attente.
+  const pendingIds = products
+    .filter((product) => product.status === "PENDING_PAYMENT")
+    .map((product) => product.id);
+
+  const projects = pendingIds.length
+    ? await prisma.editionProject.findMany({
+        where: { productId: { in: pendingIds } },
+        select: { productId: true, stage: true },
+      })
+    : [];
+  const stageByProduct = new Map(projects.map((project) => [project.productId, project.stage]));
+
   function filterHref(value?: ProductStatus): string {
     const search = new URLSearchParams();
     if (q) search.set("q", q);
@@ -158,6 +172,7 @@ export default async function AdminProduitsPage({
               {products.map((product) => {
                 const suspended = product.status === "SUSPENDED";
                 const pending = product.status === "PENDING_PAYMENT";
+                const stage = stageByProduct.get(product.id);
 
                 return (
                   <tr key={product.id} className="border-b border-slate-100 align-top">
@@ -201,15 +216,17 @@ export default async function AdminProduitsPage({
                     <td className="px-4 py-3">{product.salesCount}</td>
                     <td className="px-4 py-3">
                       <span
-                        className={`inline-block rounded-full px-2 py-1 text-xs font-semibold ${STATUS_STYLES[product.status]}`}
+                        className={`inline-block rounded-full px-2 py-1 text-xs font-semibold ${
+                          pending && stage ? EDITION_STAGE_STYLES[stage] : STATUS_STYLES[product.status]
+                        }`}
                       >
-                        {STATUS_LABELS[product.status]}
+                        {pending && stage ? EDITION_STAGE_LABELS[stage] : STATUS_LABELS[product.status]}
                       </span>
                     </td>
                     <td className="px-4 py-3">
                       {pending ? (
                         <Link
-                          href="/admin/editions"
+                          href="/admin/publications"
                           className="text-xs font-semibold text-brand-700 hover:underline"
                         >
                           Voir Éditions
@@ -244,4 +261,4 @@ export default async function AdminProduitsPage({
       />
     </div>
   );
-        }
+            }
