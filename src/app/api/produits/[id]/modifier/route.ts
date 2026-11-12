@@ -1,9 +1,12 @@
 // src/app/api/produits/[id]/modifier/route.ts
 // Modification d'un produit par son vendeur (publiée immédiatement).
+// Garde-fous de l'édition à compte d'auteur : un livre en cours d'édition ne peut pas être modifié, et le
+// fichier d'un livre édité par TechLibrairie Édition (la maquette approuvée) ne peut pas être remplacé ici.
 
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth";
 import { getSellerContext } from "@/lib/seller";
 import { productEditSchema } from "@/lib/product-edit-validation";
 import {
@@ -64,6 +67,20 @@ export async function POST(
     return NextResponse.json({ error: "Produit introuvable." }, { status: 404 });
   }
 
+  // Un livre en cours d'édition (forfait, maquette, bon à tirer) n'est pas modifiable avant sa publication.
+  if (product.status === "PENDING_PAYMENT") {
+    return NextResponse.json(
+      {
+        error:
+          "Votre livre est en cours d'édition : il ne peut pas être modifié avant sa publication. Contactez TechLibrairie Édition pour toute demande.",
+      },
+      { status: 403 }
+    );
+  }
+
+  const user = await getCurrentUser();
+  const isAdmin = user?.role === "ADMIN";
+
   let formData: FormData;
   try {
     formData = await request.formData();
@@ -97,6 +114,27 @@ export async function POST(
   }
 
   const fields = parsed.data;
+
+  // Le fichier d'un livre édité par TechLibrairie Édition est la maquette approuvée : il ne se remplace pas ici.
+  if (
+    fields.newPdfStorageKey &&
+    fields.newPdfStorageKey !== product.pdfStorageKey &&
+    product.kind === "BOOK_EDITION" &&
+    !isAdmin
+  ) {
+    if (isOwnedPdfKey(fields.newPdfStorageKey, seller.id)) {
+      await deletePrivateFile(fields.newPdfStorageKey).catch(() => undefined);
+    }
+
+    return validationError(
+      {
+        pdf: [
+          "Le fichier d'un livre édité par TechLibrairie Édition ne peut pas être remplacé ici : la mise en page est réalisée par TechLibrairie Édition. Contactez-nous pour des corrections.",
+        ],
+      },
+      403
+    );
+  }
 
   if (fields.categoryId) {
     const category = await prisma.category.findUnique({
@@ -210,4 +248,4 @@ export async function POST(
   revalidatePath(`/catalogue/${product.slug}`);
 
   return NextResponse.json({ ok: true });
-  }
+    }
