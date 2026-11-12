@@ -478,3 +478,26 @@ export default async function AdminPublicationsPage({
       <section className="card text-sm text-slate-600">
         <h2 className="text-lg font-semibold text-slate-900">À savoir</h2>
         <ul className="mt-3 list-disc space-y-2 pl-5">
+          <li>
+            Ne validez qu&apos;un paiement que vous avez <strong>vu arriver</strong> sur votre compte Mobile
+            Money, au bon montant. Une référence de transaction ne peut servir qu&apos;une fois.
+          </li>
+          <li>
+            À l&apos;approbation du bon à tirer, le fichier vendu devient <strong>l&apos;épreuve</strong> que vous
+            avez déposée ; le manuscrit reste archivé et téléchargeable ici.
+          </li>
+          <li>
+            Contrat : l&apos;auteur dispose de 15 jours pour répondre à une épreuve, et de deux séries de
+            corrections incluses. Au-delà, un devis de corrections est à établir avec lui.
+          </li>
+          <li>
+            Un ouvrage dont le forfait n&apos;est pas validé, ou dont le bon à tirer n&apos;est pas approuvé,
+            n&apos;apparaît ni dans le catalogue ni dans le plan du site.
+          </li>
+          <li>Vos propres ouvrages (compte administrateur) sont publiés sans contrat ni forfait.</li>
+          <li>Chaque validation, rejet, refus et dépôt d&apos;épreuve est inscrit dans le Journal.</li>
+        </ul>
+      </section>
+    </div>
+  );
+}
