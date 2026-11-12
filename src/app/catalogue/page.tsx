@@ -1,7 +1,7 @@
 // src/app/catalogue/page.tsx
 import type { Metadata } from "next";
 import Link from "next/link";
-import type { Currency, Prisma } from "@prisma/client";
+import type { Currency, Prisma, ProductKind } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ProductCard } from "@/components/produits/product-card";
 import { PRODUCT_CURRENCIES } from "@/lib/product-validation";
@@ -9,7 +9,7 @@ import { PRODUCT_CURRENCIES } from "@/lib/product-validation";
 export const metadata: Metadata = {
   title: "Catalogue",
   description:
-    "Parcourez les livres et guides techniques au format PDF publiés par nos auteurs et éditeurs.",
+    "Parcourez les livres édités par TechLibrairie Édition et les documents PDF publiés par nos auteurs et vendeurs.",
 };
 
 export const dynamic = "force-dynamic";
@@ -27,6 +27,13 @@ const SORTS = [
 type SortValue = (typeof SORTS)[number]["value"];
 
 const CURRENCY_VALUES: Currency[] = ["XOF", "EUR", "USD"];
+
+type ServiceValue = "edition" | "document";
+
+const SERVICE_KINDS: Record<ServiceValue, ProductKind> = {
+  edition: "BOOK_EDITION",
+  document: "PDF_DOCUMENT",
+};
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -59,6 +66,10 @@ export default async function CataloguePage({
   const q = (first(sp.q) ?? "").trim().slice(0, 100);
   const categorySlug = (first(sp.categorie) ?? "").trim().slice(0, 100);
 
+  const rawService = first(sp.service);
+  const service: ServiceValue | undefined =
+    rawService === "edition" || rawService === "document" ? rawService : undefined;
+
   const rawCurrency = first(sp.devise);
   const currency = CURRENCY_VALUES.find((value) => value === rawCurrency);
 
@@ -74,7 +85,12 @@ export default async function CataloguePage({
   const safeRequestedPage =
     Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
 
-  const where: Prisma.ProductWhereInput = {
+  // Un numéro ISBN complet (10 ou 13 caractères, avec ou sans tirets) retrouve directement le livre.
+  const isbnQuery = q.replace(/[\s-]/g, "").toUpperCase();
+  const isIsbnSearch = /^(\d{13}|\d{9}[\dX])$/.test(isbnQuery);
+
+  // Filtres communs, sans le service : ils servent aussi à compter les ouvrages de chaque onglet.
+  const baseWhere: Prisma.ProductWhereInput = {
     status: "PUBLISHED",
     seller: { status: "ACTIVE" },
     ...(currency ? { currency } : {}),
@@ -84,19 +100,35 @@ export default async function CataloguePage({
           OR: [
             { title: { contains: q, mode: "insensitive" } },
             { description: { contains: q, mode: "insensitive" } },
+            { authorName: { contains: q, mode: "insensitive" } },
             { seller: { displayName: { contains: q, mode: "insensitive" } } },
+            ...(isIsbnSearch ? [{ isbn: isbnQuery }] : []),
           ],
         }
       : {}),
   };
 
-  const [total, categories] = await Promise.all([
+  const where: Prisma.ProductWhereInput = {
+    ...baseWhere,
+    ...(service ? { kind: SERVICE_KINDS[service] } : {}),
+  };
+
+  const [total, categories, kindGroups] = await Promise.all([
     prisma.product.count({ where }),
     prisma.category.findMany({
       orderBy: { name: "asc" },
       select: { id: true, name: true, slug: true },
     }),
+    prisma.product.groupBy({
+      by: ["kind"],
+      where: baseWhere,
+      _count: { _all: true },
+    }),
   ]);
+
+  const countByKind = new Map(kindGroups.map((group) => [group.kind, group._count._all]));
+  const editionCount = countByKind.get("BOOK_EDITION") ?? 0;
+  const documentCount = countByKind.get("PDF_DOCUMENT") ?? 0;
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const page = Math.min(safeRequestedPage, totalPages);
@@ -112,10 +144,11 @@ export default async function CataloguePage({
     },
   });
 
-  function buildHref(targetPage: number): string {
+  function buildHref(targetPage: number, targetService: ServiceValue | undefined = service): string {
     const params = new URLSearchParams();
     if (q) params.set("q", q);
     if (categorySlug) params.set("categorie", categorySlug);
+    if (targetService) params.set("service", targetService);
     if (currency) params.set("devise", currency);
     if (sort !== "recent") params.set("tri", sort);
     if (targetPage > 1) params.set("page", String(targetPage));
@@ -123,15 +156,21 @@ export default async function CataloguePage({
     return query ? `/catalogue?${query}` : "/catalogue";
   }
 
+  const tabs: { key: ServiceValue | undefined; label: string; count: number }[] = [
+    { key: undefined, label: "Tout", count: editionCount + documentCount },
+    { key: "edition", label: "Livres édités", count: editionCount },
+    { key: "document", label: "Documents PDF", count: documentCount },
+  ];
+
   const unavailable = first(sp.erreur) === "produit-indisponible";
-  const hasFilters = Boolean(q || categorySlug || currency);
+  const hasFilters = Boolean(q || categorySlug || currency || service);
 
   return (
     <div className="container-page py-8">
       <h1 className="text-3xl font-bold">Catalogue</h1>
       <p className="mt-1 text-sm text-slate-600">
-        Livres et guides techniques au format PDF, téléchargeables immédiatement
-        après paiement.
+        Les livres édités par TechLibrairie Édition et les documents PDF mis en vente par leurs auteurs,
+        téléchargeables immédiatement après paiement.
       </p>
 
       {unavailable && (
@@ -140,11 +179,25 @@ export default async function CataloguePage({
         </div>
       )}
 
+      <nav aria-label="Services" className="mt-6 flex flex-wrap gap-2 text-sm">
+        {tabs.map((tab) => (
+          <Link
+            key={tab.label}
+            href={buildHref(1, tab.key)}
+            className={service === tab.key ? "btn-primary" : "btn-secondary"}
+          >
+            {tab.label} ({tab.count})
+          </Link>
+        ))}
+      </nav>
+
       <form
         method="get"
         action="/catalogue"
-        className="card mt-6 grid gap-4 md:grid-cols-5"
+        className="card mt-4 grid gap-4 md:grid-cols-5"
       >
+        {service && <input type="hidden" name="service" value={service} />}
+
         <div className="md:col-span-2">
           <label htmlFor="q" className="label">
             Recherche
@@ -154,7 +207,7 @@ export default async function CataloguePage({
             name="q"
             type="search"
             defaultValue={q}
-            placeholder="Titre, mot-clé ou auteur"
+            placeholder="Titre, auteur, mot-clé ou ISBN"
             className="input"
           />
         </div>
@@ -266,4 +319,4 @@ export default async function CataloguePage({
       )}
     </div>
   );
-}
+    }
