@@ -1,52 +1,52 @@
 // src/app/admin/publications/page.tsx
 import type { Metadata } from "next";
 import Link from "next/link";
-import type { EditionStage, PublicationFeeStatus, PublishingCapacity } from "@prisma/client";
+import type {
+  EditionStage,
+  Prisma,
+  PublicationFeeStatus,
+  PublishingCapacity,
+} from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { firstParam, requireAdmin } from "@/lib/admin";
 import {
   rejectPublicationAction,
   validatePublicationAction,
 } from "@/app/admin/publications/actions";
+import { refuseEditionAction } from "@/app/admin/edition/actions";
+import { EditionProofForm } from "@/components/admin/edition-proof-form";
+import { EDITION_STAGE_LABELS, EDITION_STAGE_STYLES } from "@/lib/edition-labels";
 import { formatDate, formatFileSize, formatPrice } from "@/lib/utils";
 
 export const metadata: Metadata = {
-  title: "Forfaits d'édition",
+  title: "Éditions à compte d'auteur",
 };
 
 export const dynamic = "force-dynamic";
 
-type Tab = PublicationFeeStatus | "MAQUETTE";
+type TabKey = "paiement" | "maquette" | "bat" | "attente" | "publiees" | "refusees";
 
-const TABS: { value: Tab; label: string }[] = [
-  { value: "SUBMITTED", label: "Paiement à vérifier" },
-  { value: "MAQUETTE", label: "En maquette" },
-  { value: "AWAITING_PAYMENT", label: "En attente du paiement" },
-  { value: "REJECTED", label: "Paiement rejeté" },
-  { value: "VALIDATED", label: "Forfait validé" },
+const TABS: { value: TabKey; label: string }[] = [
+  { value: "paiement", label: "Paiement à vérifier" },
+  { value: "maquette", label: "En maquette" },
+  { value: "bat", label: "Bon à tirer" },
+  { value: "attente", label: "En attente du paiement" },
+  { value: "publiees", label: "Publiées" },
+  { value: "refusees", label: "Refusées" },
 ];
 
-const STATUS_LABELS: Record<PublicationFeeStatus, string> = {
+const FEE_STATUS_LABELS: Record<PublicationFeeStatus, string> = {
   SUBMITTED: "Paiement à vérifier",
   AWAITING_PAYMENT: "En attente du paiement",
   REJECTED: "Paiement rejeté",
   VALIDATED: "Forfait validé",
 };
 
-const STATUS_STYLES: Record<PublicationFeeStatus, string> = {
+const FEE_STATUS_STYLES: Record<PublicationFeeStatus, string> = {
   SUBMITTED: "bg-yellow-100 text-yellow-800",
   AWAITING_PAYMENT: "bg-slate-100 text-slate-700",
   REJECTED: "bg-red-100 text-red-800",
   VALIDATED: "bg-green-100 text-green-800",
-};
-
-const STAGE_LABELS: Record<EditionStage, string> = {
-  FEE_PENDING: "Forfait à régler",
-  IN_LAYOUT: "En maquette",
-  PROOF_PENDING: "Bon à tirer à valider",
-  CHANGES_REQUESTED: "Corrections demandées",
-  PUBLISHED: "Publié",
-  REFUSED: "Refusé",
 };
 
 const METHOD_LABELS: Record<string, string> = {
@@ -65,13 +65,17 @@ const MESSAGES: Record<string, string> = {
   "validee-maquette":
     "Paiement validé : l'ouvrage passe en maquette. Il sera publié après le bon à tirer approuvé par l'auteur.",
   rejetee: "Paiement rejeté : l'auteur peut le déclarer à nouveau.",
+  refusee:
+    "Œuvre refusée : l'auteur est prévenu. Si un forfait a été versé, remboursez-le et conservez la preuve du remboursement.",
 };
 
 const ERRORS: Record<string, string> = {
   confirmation: "Cochez la case de confirmation pour valider.",
-  motif: "Indiquez le motif du rejet (3 caractères au minimum).",
-  etat: "Cette demande a déjà été traitée ou n'est plus à vérifier.",
+  motif: "Indiquez le motif (3 caractères au minimum).",
+  etat: "Cette demande a déjà été traitée ou n'est plus dans cet état.",
 };
+
+const OPEN_STAGES: EditionStage[] = ["FEE_PENDING", "IN_LAYOUT", "PROOF_PENDING", "CHANGES_REQUESTED"];
 
 export default async function AdminPublicationsPage({
   searchParams,
@@ -83,22 +87,54 @@ export default async function AdminPublicationsPage({
   await requireAdmin("/admin/publications");
 
   const rawTab = firstParam(sp.statut);
-  const tab: Tab = TABS.find((item) => item.value === rawTab)?.value ?? "SUBMITTED";
+  const tab: TabKey = TABS.find((item) => item.value === rawTab)?.value ?? "paiement";
 
-  const [groups, layoutProjects] = await Promise.all([
-    prisma.publicationFee.groupBy({ by: ["status"], _count: { _all: true } }),
-    prisma.editionProject.findMany({
-      where: { stage: "IN_LAYOUT" },
-      select: { productId: true },
-    }),
-  ]);
+  const allProjects = await prisma.editionProject.findMany({
+    select: { productId: true, stage: true },
+  });
 
-  const countByStatus = new Map(groups.map((group) => [group.status, group._count._all]));
-  const layoutIds = layoutProjects.map((project) => project.productId);
+  function idsAt(stages: EditionStage[]): string[] {
+    return allProjects.filter((project) => stages.includes(project.stage)).map((project) => project.productId);
+  }
+
+  const refusedIds = idsAt(["REFUSED"]);
+  const maquetteIds = idsAt(["IN_LAYOUT", "CHANGES_REQUESTED"]);
+  const batIds = idsAt(["PROOF_PENDING"]);
+  const publishedIds = idsAt(["PUBLISHED"]);
+
+  function whereFor(key: TabKey): Prisma.PublicationFeeWhereInput {
+    switch (key) {
+      case "paiement":
+        return { status: "SUBMITTED", productId: { notIn: refusedIds } };
+      case "maquette":
+        return { productId: { in: maquetteIds } };
+      case "bat":
+        return { productId: { in: batIds } };
+      case "attente":
+        return {
+          status: { in: ["AWAITING_PAYMENT", "REJECTED"] },
+          productId: { notIn: refusedIds },
+        };
+      case "publiees":
+        return {
+          OR: [
+            { productId: { in: publishedIds } },
+            { status: "VALIDATED", product: { status: "PUBLISHED" } },
+          ],
+        };
+      case "refusees":
+        return { productId: { in: refusedIds } };
+    }
+  }
+
+  const counts = await Promise.all(
+    TABS.map((item) => prisma.publicationFee.count({ where: whereFor(item.value) }))
+  );
+  const countByTab = new Map(TABS.map((item, index) => [item.value, counts[index]]));
 
   const fees = await prisma.publicationFee.findMany({
-    where: tab === "MAQUETTE" ? { productId: { in: layoutIds } } : { status: tab },
-    orderBy: tab === "SUBMITTED" ? { submittedAt: "asc" } : { createdAt: "desc" },
+    where: whereFor(tab),
+    orderBy: tab === "paiement" ? { submittedAt: "asc" } : { createdAt: "desc" },
     take: 50,
     include: {
       product: {
@@ -129,6 +165,14 @@ export default async function AdminPublicationsPage({
       contractAcceptedAt: true,
       signerName: true,
       serviceStartRequested: true,
+      proofVersion: true,
+      proofUploadedAt: true,
+      correctionRounds: true,
+      changeRequest: true,
+      refusalReason: true,
+      approvedAt: true,
+      approvedByName: true,
+      approvedProofVersion: true,
     },
   });
   const projectByProduct = new Map(projects.map((project) => [project.productId, project]));
@@ -138,18 +182,14 @@ export default async function AdminPublicationsPage({
   const message = messageKey ? MESSAGES[messageKey] : undefined;
   const error = errorKey ? ERRORS[errorKey] : undefined;
 
-  function countFor(value: Tab): number {
-    return value === "MAQUETTE" ? layoutIds.length : (countByStatus.get(value) ?? 0);
-  }
-
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Forfaits d&apos;édition</h1>
+        <h1 className="text-2xl font-bold">Éditions à compte d&apos;auteur</h1>
         <p className="mt-1 text-sm text-slate-600">
-          À compte d&apos;auteur, l&apos;auteur règle le forfait d&apos;édition juste après le dépôt, par Mobile Money,
-          puis déclare sa référence ici. Vérifiez la réception sur votre application avant de valider : le
-          livre passe alors en maquette (il n&apos;est publié qu&apos;après le bon à tirer de l&apos;auteur).
+          Parcours : l&apos;auteur dépose son livre et accepte le contrat, règle le forfait (vous le validez ici),
+          vous réalisez la maquette et déposez l&apos;épreuve, l&apos;auteur approuve le bon à tirer : le livre est
+          alors publié. Rien n&apos;est publié sans cette approbation.
         </p>
       </div>
 
@@ -167,7 +207,7 @@ export default async function AdminPublicationsPage({
             href={`/admin/publications?statut=${item.value}`}
             className={tab === item.value ? "btn-primary" : "btn-secondary"}
           >
-            {item.label} ({countFor(item.value)})
+            {item.label} ({countByTab.get(item.value) ?? 0})
           </Link>
         ))}
       </div>
@@ -178,6 +218,11 @@ export default async function AdminPublicationsPage({
         <ul className="space-y-4">
           {fees.map((fee) => {
             const project = projectByProduct.get(fee.productId);
+            const stage = project?.stage;
+            const inLayoutWork =
+              stage === "IN_LAYOUT" || stage === "CHANGES_REQUESTED" || stage === "PROOF_PENDING";
+            const refundDue =
+              stage === "REFUSED" && (fee.status === "VALIDATED" || fee.status === "SUBMITTED");
 
             return (
               <li key={fee.id} className="card">
@@ -189,22 +234,24 @@ export default async function AdminPublicationsPage({
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {project && (
-                      <span className="inline-block rounded-full bg-brand-100 px-2 py-1 text-xs font-semibold text-brand-800">
-                        {STAGE_LABELS[project.stage]}
+                    {stage && (
+                      <span
+                        className={`inline-block rounded-full px-2 py-1 text-xs font-semibold ${EDITION_STAGE_STYLES[stage]}`}
+                      >
+                        {EDITION_STAGE_LABELS[stage]}
                       </span>
                     )}
                     <span
-                      className={`inline-block rounded-full px-2 py-1 text-xs font-semibold ${STATUS_STYLES[fee.status]}`}
+                      className={`inline-block rounded-full px-2 py-1 text-xs font-semibold ${FEE_STATUS_STYLES[fee.status]}`}
                     >
-                      {STATUS_LABELS[fee.status]}
+                      {FEE_STATUS_LABELS[fee.status]}
                     </span>
                   </div>
                 </div>
 
                 <dl className="mt-3 grid gap-x-4 gap-y-1 text-sm sm:grid-cols-2">
                   <div>
-                    <dt className="text-xs text-slate-500">Forfait à recevoir</dt>
+                    <dt className="text-xs text-slate-500">Forfait</dt>
                     <dd className="font-semibold">{formatPrice(fee.amountXof, "XOF")}</dd>
                   </div>
                   <div>
@@ -229,7 +276,7 @@ export default async function AdminPublicationsPage({
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-500">Fichier PDF déposé</dt>
+                    <dt className="text-xs text-slate-500">Manuscrit déposé</dt>
                     <dd>{formatFileSize(fee.product.pdfSizeBytes)}</dd>
                   </div>
                   <div>
@@ -266,6 +313,10 @@ export default async function AdminPublicationsPage({
                   </div>
                 )}
 
+                {fee.status === "REJECTED" && fee.rejectionReason && (
+                  <p className="mt-3 text-sm text-red-700">Motif du rejet : {fee.rejectionReason}</p>
+                )}
+
                 {project && (
                   <p className="mt-3 text-sm">
                     <a
@@ -277,28 +328,7 @@ export default async function AdminPublicationsPage({
                   </p>
                 )}
 
-                {fee.status === "REJECTED" && fee.rejectionReason && (
-                  <p className="mt-3 text-sm text-red-700">Motif du rejet : {fee.rejectionReason}</p>
-                )}
-
-                {fee.status === "VALIDATED" && (
-                  <p className="mt-3 text-sm text-slate-600">
-                    Validé le {fee.validatedAt ? formatDate(fee.validatedAt) : "-"}
-                    {fee.validatedBy ? ` par ${fee.validatedBy}` : ""}.{" "}
-                    {fee.product.status === "PUBLISHED" ? (
-                      <Link
-                        href={`/catalogue/${fee.product.slug}`}
-                        className="font-semibold text-brand-700 hover:underline"
-                      >
-                        Voir la page
-                      </Link>
-                    ) : (
-                      "L'ouvrage n'est pas encore publié."
-                    )}
-                  </p>
-                )}
-
-                {fee.status === "SUBMITTED" && (
+                {fee.status === "SUBMITTED" && stage !== "REFUSED" && (
                   <div className="mt-4 space-y-4">
                     <form action={validatePublicationAction} className="space-y-3">
                       <input type="hidden" name="feeId" value={fee.id} />
@@ -338,6 +368,107 @@ export default async function AdminPublicationsPage({
                     </form>
                   </div>
                 )}
+
+                {project && inLayoutWork && (
+                  <div className="mt-4 space-y-3 rounded-lg border border-slate-300 p-4">
+                    <p className="font-semibold">Mise en page et bon à tirer</p>
+
+                    {stage === "CHANGES_REQUESTED" && project.changeRequest && (
+                      <div className="rounded border border-orange-200 bg-orange-50 p-3 text-sm text-orange-900">
+                        <p className="font-semibold">
+                          Corrections demandées par l&apos;auteur (série {project.correctionRounds}) :
+                        </p>
+                        <p className="mt-1 whitespace-pre-line">{project.changeRequest}</p>
+                      </div>
+                    )}
+
+                    {project.proofVersion > 0 && (
+                      <p className="text-sm text-slate-700">
+                        Épreuve actuelle : version {project.proofVersion}
+                        {project.proofUploadedAt ? `, déposée le ${formatDate(project.proofUploadedAt)}` : ""}.{" "}
+                        <a
+                          href={`/api/edition/${fee.productId}/epreuve`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-semibold text-brand-700 hover:underline"
+                        >
+                          Ouvrir
+                        </a>
+                      </p>
+                    )}
+
+                    {fee.status === "VALIDATED" ? (
+                      <EditionProofForm productId={fee.productId} currentVersion={project.proofVersion} />
+                    ) : (
+                      <p className="text-sm text-slate-600">
+                        Validez d&apos;abord le forfait pour déposer une épreuve.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {project && OPEN_STAGES.includes(project.stage) && (
+                  <form action={refuseEditionAction} className="mt-4 space-y-2">
+                    <input type="hidden" name="productId" value={fee.productId} />
+                    <label htmlFor={`refuse-${fee.id}`} className="label">
+                      Refuser cette œuvre (non-conformité) : motif transmis à l&apos;auteur
+                    </label>
+                    <input
+                      id={`refuse-${fee.id}`}
+                      name="reason"
+                      type="text"
+                      required
+                      minLength={3}
+                      maxLength={300}
+                      className="input"
+                    />
+                    <p className="text-xs text-slate-500">
+                      Si un forfait a été versé, il est à rembourser intégralement (hors du site).
+                    </p>
+                    <button type="submit" className="btn-secondary text-red-700">
+                      Refuser l&apos;œuvre
+                    </button>
+                  </form>
+                )}
+
+                {stage === "PUBLISHED" && project && (
+                  <p className="mt-3 text-sm text-slate-600">
+                    Bon à tirer (version {project.approvedProofVersion ?? "-"}) approuvé le{" "}
+                    {project.approvedAt ? formatDate(project.approvedAt) : "-"} par{" "}
+                    {project.approvedByName ?? "-"}.{" "}
+                    <Link
+                      href={`/catalogue/${fee.product.slug}`}
+                      className="font-semibold text-brand-700 hover:underline"
+                    >
+                      Voir la page
+                    </Link>
+                  </p>
+                )}
+
+                {stage === "REFUSED" && project && (
+                  <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+                    <p className="font-semibold">Œuvre refusée</p>
+                    {project.refusalReason && <p className="mt-1">Motif : {project.refusalReason}</p>}
+                    {refundDue && (
+                      <p className="mt-1 font-semibold">
+                        Forfait à rembourser : {formatPrice(fee.amountXof, "XOF")} (référence{" "}
+                        {fee.paymentReference ?? "-"}, numéro {fee.payerPhone ?? "-"}).
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {!project && fee.status === "VALIDATED" && fee.product.status === "PUBLISHED" && (
+                  <p className="mt-3 text-sm text-slate-600">
+                    Ancien dépôt publié.{" "}
+                    <Link
+                      href={`/catalogue/${fee.product.slug}`}
+                      className="font-semibold text-brand-700 hover:underline"
+                    >
+                      Voir la page
+                    </Link>
+                  </p>
+                )}
               </li>
             );
           })}
@@ -347,30 +478,3 @@ export default async function AdminPublicationsPage({
       <section className="card text-sm text-slate-600">
         <h2 className="text-lg font-semibold text-slate-900">À savoir</h2>
         <ul className="mt-3 list-disc space-y-2 pl-5">
-          <li>
-            Ne validez qu&apos;un paiement que vous avez <strong>vu arriver</strong> sur votre compte Mobile
-            Money, au bon montant. Comparez la référence et le numéro de l&apos;expéditeur.
-          </li>
-          <li>
-            Une référence de transaction ne peut servir qu&apos;une fois : un auteur ne peut pas la réutiliser
-            pour un autre ouvrage.
-          </li>
-          <li>
-            Un ouvrage dont le forfait n&apos;est pas validé, ou dont le bon à tirer n&apos;est pas approuvé,
-            n&apos;apparaît ni dans le catalogue ni dans le plan du site.
-          </li>
-          <li>
-            Après validation du forfait, le travail se poursuit dans{" "}
-            <Link href="/admin/editions" className="font-semibold text-brand-700 hover:underline">
-              Administration, Éditions
-            </Link>{" "}
-            : manuscrit à télécharger, dépôt de l&apos;épreuve, suivi du bon à tirer et refus éventuel d&apos;une
-            œuvre.
-          </li>
-          <li>Vos propres ouvrages (compte administrateur) sont publiés sans contrat ni forfait.</li>
-          <li>Chaque validation et chaque rejet sont inscrits dans le Journal.</li>
-        </ul>
-      </section>
-    </div>
-  );
-                  }
