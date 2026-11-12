@@ -14,6 +14,16 @@ import { ProductCard } from "@/components/produits/product-card";
 import { RatingStars } from "@/components/produits/rating-stars";
 import { ShareButtons } from "@/components/partage/share-buttons";
 import { getSiteUrl } from "@/lib/site-url";
+import {
+  DOCUMENT_NOTE,
+  EDITION_NOTE,
+  KIND_BADGE_STYLES,
+  KIND_LABELS,
+  PUBLISHER_NAME,
+  buildProductJsonLd,
+  displayAuthorName,
+  serializeJsonLd,
+} from "@/lib/product-display";
 import { MAX_REVIEW_LENGTH, publicReviewerName } from "@/lib/reviews";
 import { formatDate, formatFileSize, formatPrice } from "@/lib/utils";
 
@@ -204,10 +214,41 @@ export default async function ProductPage({
 
   const countByRating = new Map(distribution.map((row) => [row.rating, row._count._all]));
   const canReview = Boolean(purchase) && !isAuthor;
-  const shareUrl = `${getSiteUrl()}/catalogue/${product.slug}`;
+  const siteUrl = getSiteUrl();
+  const shareUrl = `${siteUrl}/catalogue/${product.slug}`;
+
+  const isEdition = product.kind === "BOOK_EDITION";
+  const author = displayAuthorName(product);
+  const sameName =
+    author.trim().toLowerCase() === product.seller.displayName.trim().toLowerCase();
+
+  const jsonLd = buildProductJsonLd(
+    {
+      title: product.title,
+      description: product.description,
+      slug: product.slug,
+      coverImageUrl: product.coverImageUrl,
+      language: product.language,
+      pageCount: product.pageCount,
+      priceAmount: product.priceAmount,
+      currency: product.currency,
+      isbn: product.isbn,
+      kind: product.kind,
+      authorName: author,
+      publishedAt: product.publishedAt,
+      ratingAverage: product.ratingAverage,
+      ratingCount: product.ratingCount,
+    },
+    siteUrl
+  );
 
   return (
     <div className="container-page py-8">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
+      />
+
       <nav className="mb-6 text-sm text-slate-500">
         <Link href="/catalogue" className="hover:text-brand-700">
           Catalogue
@@ -254,16 +295,40 @@ export default async function ProductPage({
         </div>
 
         <div>
-          <h1 className="text-3xl font-bold">{product.title}</h1>
-          <p className="mt-2 text-slate-600">
-            par{" "}
-            <Link
-              href={`/auteurs/${product.seller.slug}`}
-              className="font-semibold text-brand-700 hover:underline"
-            >
-              {product.seller.displayName}
-            </Link>
-          </p>
+          <span
+            className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${KIND_BADGE_STYLES[product.kind]}`}
+          >
+            {KIND_LABELS[product.kind]}
+          </span>
+
+          <h1 className="mt-2 text-3xl font-bold">{product.title}</h1>
+
+          {sameName ? (
+            <p className="mt-2 text-slate-600">
+              par{" "}
+              <Link
+                href={`/auteurs/${product.seller.slug}`}
+                className="font-semibold text-brand-700 hover:underline"
+              >
+                {author}
+              </Link>
+            </p>
+          ) : (
+            <div className="mt-2 space-y-1 text-slate-600">
+              <p>
+                Auteur : <strong>{author}</strong>
+              </p>
+              <p className="text-sm">
+                Mis en vente par{" "}
+                <Link
+                  href={`/auteurs/${product.seller.slug}`}
+                  className="font-semibold text-brand-700 hover:underline"
+                >
+                  {product.seller.displayName}
+                </Link>
+              </p>
+            </div>
+          )}
 
           {product.ratingCount > 0 && (
             <p className="mt-2 flex items-center gap-2 text-sm text-slate-600">
@@ -317,7 +382,21 @@ export default async function ProductPage({
 
           <dl className="mt-8 grid max-w-md grid-cols-2 gap-x-4 gap-y-2 text-sm">
             <dt className="text-slate-500">Format</dt>
-            <dd>PDF ({formatFileSize(product.pdfSizeBytes)})</dd>
+            <dd>PDF numérique ({formatFileSize(product.pdfSizeBytes)})</dd>
+
+            {isEdition && (
+              <>
+                <dt className="text-slate-500">Éditeur</dt>
+                <dd>{PUBLISHER_NAME}</dd>
+              </>
+            )}
+
+            {isEdition && product.isbn && (
+              <>
+                <dt className="text-slate-500">ISBN (PDF)</dt>
+                <dd>{product.isbn}</dd>
+              </>
+            )}
 
             <dt className="text-slate-500">Langue</dt>
             <dd>{LANGUAGE_LABELS[product.language] ?? product.language}</dd>
@@ -332,6 +411,16 @@ export default async function ProductPage({
             <dt className="text-slate-500">Publié le</dt>
             <dd>{formatDate(product.publishedAt)}</dd>
           </dl>
+
+          <p
+            className={`mt-6 max-w-xl rounded-lg border px-4 py-3 text-sm ${
+              isEdition
+                ? "border-brand-200 bg-brand-50 text-brand-900"
+                : "border-slate-200 bg-slate-50 text-slate-600"
+            }`}
+          >
+            {isEdition ? EDITION_NOTE : DOCUMENT_NOTE}
+          </p>
 
           <h2 className="mt-8 text-lg font-semibold">Description</h2>
           <p className="mt-2 whitespace-pre-line text-slate-700">
@@ -550,4 +639,5 @@ export default async function ProductPage({
       )}
     </div>
   );
-    }
+}
+       
