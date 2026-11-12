@@ -248,4 +248,4 @@ export async function POST(
   revalidatePath(`/catalogue/${product.slug}`);
 
   return NextResponse.json({ ok: true });
-    }
+}
