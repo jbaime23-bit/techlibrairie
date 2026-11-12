@@ -107,6 +107,7 @@ export default async function ProduitsPage() {
               {products.map((product) => {
                 const pending = product.status === "PENDING_PAYMENT";
                 const stage = stageByProduct.get(product.id);
+                const printable = product.kind === "BOOK_EDITION" && product.status === "PUBLISHED";
 
                 return (
                   <tr key={product.id} className="border-b border-slate-100 align-top">
@@ -159,6 +160,15 @@ export default async function ProduitsPage() {
                           </Link>
                         )}
 
+                        {printable && (
+                          <Link
+                            href={`/vendeur/impression/${product.id}`}
+                            className="btn-secondary px-3 py-1 text-xs"
+                          >
+                            Version imprimée
+                          </Link>
+                        )}
+
                         {product.status === "SUSPENDED" ? (
                           <span className="text-xs text-slate-500">
                             Contactez l&apos;administration
@@ -195,4 +205,4 @@ export default async function ProduitsPage() {
       )}
     </div>
   );
-                            }
+                    }
