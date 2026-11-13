@@ -164,7 +164,7 @@ export default async function ProductPage({
   const favoriteSuccess = favoriteKey ? FAVORITE_SUCCESS[favoriteKey] : undefined;
   const favoriteError = favoriteKey ? FAVORITE_ERRORS[favoriteKey] : undefined;
 
-  const [moreFromSeller, reviews, distribution, purchase, ownReview, favorite] =
+  const [moreFromSeller, reviews, distribution, purchase, ownReview, favorite, printEdition] =
     await Promise.all([
       prisma.product.findMany({
         where: {
@@ -210,6 +210,12 @@ export default async function ProductPage({
             select: { id: true },
           })
         : Promise.resolve(null),
+      product.kind === "BOOK_EDITION"
+        ? prisma.printEdition.findUnique({
+            where: { productId: product.id },
+            select: { status: true, retailPriceXof: true, isbnPrint: true },
+          })
+        : Promise.resolve(null),
     ]);
 
   const countByRating = new Map(distribution.map((row) => [row.rating, row._count._all]));
@@ -221,6 +227,12 @@ export default async function ProductPage({
   const author = displayAuthorName(product);
   const sameName =
     author.trim().toLowerCase() === product.seller.displayName.trim().toLowerCase();
+
+  // Format imprimé proposé à l'achat : prix fixé par l'auteur, au moins égal au prix plancher.
+  const printOffer =
+    printEdition && printEdition.status === "ACTIVE" && printEdition.retailPriceXof !== null
+      ? { price: printEdition.retailPriceXof, isbn: printEdition.isbnPrint }
+      : null;
 
   const jsonLd = buildProductJsonLd(
     {
@@ -343,7 +355,7 @@ export default async function ProductPage({
             {formatPrice(product.priceAmount, product.currency)}
           </p>
           <p className="mt-1 text-xs text-slate-500">
-            Aucune taxe supplémentaire. Téléchargement immédiat après paiement.
+            Version numérique (PDF). Aucune taxe supplémentaire. Téléchargement immédiat après paiement.
           </p>
 
           <div className="mt-6 max-w-sm space-y-3">
@@ -372,6 +384,23 @@ export default async function ProductPage({
             />
           </div>
 
+          {printOffer && (
+            <section className="mt-6 max-w-sm rounded-lg border border-slate-200 p-4 text-sm">
+              <h2 className="font-semibold">Livre imprimé</h2>
+              <p className="mt-1 text-2xl font-bold">{formatPrice(printOffer.price, "XOF")}</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Fabriqué à la commande, sans stock. Les frais de livraison sont calculés selon le pays, à l&apos;étape
+                suivante.
+              </p>
+              {printOffer.isbn && (
+                <p className="mt-1 text-xs text-slate-500">ISBN (livre imprimé) : {printOffer.isbn}</p>
+              )}
+              <Link href={`/commander-imprime/${product.slug}`} className="btn-secondary mt-3 w-full">
+                {isAuthor ? "Commander mes exemplaires d'auteur" : "Commander un exemplaire imprimé"}
+              </Link>
+            </section>
+          )}
+
           <div className="mt-6">
             <ShareButtons
               url={shareUrl}
@@ -382,7 +411,10 @@ export default async function ProductPage({
 
           <dl className="mt-8 grid max-w-md grid-cols-2 gap-x-4 gap-y-2 text-sm">
             <dt className="text-slate-500">Format</dt>
-            <dd>PDF numérique ({formatFileSize(product.pdfSizeBytes)})</dd>
+            <dd>
+              PDF numérique ({formatFileSize(product.pdfSizeBytes)})
+              {printOffer ? " · livre imprimé à la demande" : ""}
+            </dd>
 
             {isEdition && (
               <>
@@ -640,4 +672,3 @@ export default async function ProductPage({
     </div>
   );
 }
-       
