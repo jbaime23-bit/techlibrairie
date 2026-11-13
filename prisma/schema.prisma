@@ -945,3 +945,95 @@ model PrintEdition {
 
   @@index([status])
 }
+
+// ---------------------------------------------------------------------------
+// COMMANDES D'EXEMPLAIRES IMPRIMÉS À LA DEMANDE (livres de l'édition à compte d'auteur)
+// ---------------------------------------------------------------------------
+
+enum PrintOrderStatus {
+  // À régler : l'acheteur n'a pas encore déclaré son paiement
+  AWAITING_PAYMENT
+  // Paiement déclaré : à vérifier par l'administration
+  PAYMENT_SUBMITTED
+  // Paiement validé : envoi à effectuer (ou envoi automatique désactivé)
+  PAID
+  // Envoi à Lulu en cours (état transitoire)
+  SENDING
+  // Commande d'impression créée chez Lulu
+  SENT_TO_LULU
+  // Livraison au Burkina Faso : envoi automatique bloqué, à traiter localement
+  LOCAL_PENDING
+  SHIPPED
+  DELIVERED
+  // Envoi à Lulu échoué : à corriger puis relancer
+  ERROR
+  CANCELED
+}
+
+model PrintOrder {
+  id        String @id @default(cuid())
+  // Numéro lisible, ex. LI-7K2M9QXD
+  number    String @unique
+
+  // Références simples (aucune relation) : acheteur, ouvrage et vendeur
+  buyerId    String
+  buyerEmail String
+  productId  String
+  sellerId   String
+  // Instantané du titre au moment de la commande
+  productTitle String
+
+  // Exemplaires commandés par l'auteur lui-même : prix de fabrication, aucun gain
+  isAuthorCopy Boolean @default(false)
+  quantity     Int
+
+  // Montants figés à la commande (FCFA)
+  unitPriceXof Int
+  printCostXof Int
+  shippingXof  Int
+  totalXof     Int
+  // Gain de l'auteur : (prix - coût de fabrication) x quantité ; 0 pour ses propres exemplaires
+  authorNetXof Int
+
+  // Adresse de livraison
+  shipName     String
+  shipStreet1  String
+  shipStreet2  String?
+  shipCity     String
+  shipState    String?
+  shipPostcode String
+  // Code pays ISO 3166-1 alpha-2
+  shipCountry  String
+  shipPhone    String
+
+  // Voie de traitement : LOCAL_MANUAL (Burkina Faso) ou LULU_AUTO (étranger)
+  route  String
+  status PrintOrderStatus @default(AWAITING_PAYMENT)
+
+  // Paiement déclaré par l'acheteur (Mobile Money ou autre moyen), vérifié par l'administration
+  paymentMethod          String?
+  payerPhone             String?
+  paymentReference       String?   @unique
+  paymentSubmittedAt     DateTime?
+  paymentRejectionReason String?
+  paidAt                 DateTime?
+  paidValidatedBy        String?
+
+  // Suivi de l'envoi
+  luluPrintJobId   Int?
+  luluStatus       String?
+  trackingUrls     String?   @db.Text
+  fulfilmentNote   String?   @db.Text
+  lastDispatchError String?  @db.Text
+  dispatchedAt     DateTime?
+  shippedAt        DateTime?
+  deliveredAt      DateTime?
+  canceledReason   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([buyerId, createdAt])
+  @@index([productId])
+}
