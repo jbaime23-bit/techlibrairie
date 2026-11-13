@@ -9,6 +9,7 @@ import {
   getDefaultCommissionRateBps,
   resolveCommissionRateBps,
 } from "@/lib/commission";
+import { PRINT_EARNED_STATUSES } from "@/lib/payouts";
 import { formatDate, formatPrice } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -27,7 +28,7 @@ export default async function VendeurPage() {
   const { seller } = context;
   const paidFilter = { sellerId: seller.id, order: { status: "PAID" as const } };
 
-  const [productCounts, salesByCurrency, recentSales, defaultRateBps] =
+  const [productCounts, salesByCurrency, recentSales, defaultRateBps, printTotals] =
     await Promise.all([
       prisma.product.groupBy({
         by: ["status"],
@@ -47,6 +48,11 @@ export default async function VendeurPage() {
         include: { order: { select: { number: true, paidAt: true } } },
       }),
       getDefaultCommissionRateBps(),
+      prisma.printOrder.aggregate({
+        where: { sellerId: seller.id, status: { in: PRINT_EARNED_STATUSES }, isAuthorCopy: false },
+        _sum: { authorNetXof: true, quantity: true },
+        _count: { _all: true },
+      }),
     ]);
 
   const totalProducts = productCounts.reduce((sum, row) => sum + row._count._all, 0);
@@ -57,12 +63,17 @@ export default async function VendeurPage() {
     resolveCommissionRateBps(seller.commissionRateBps, defaultRateBps)
   );
 
+  const printOrdersCount = printTotals._count._all;
+  const printCopies = printTotals._sum.quantity ?? 0;
+  const printGain = printTotals._sum.authorNetXof ?? 0;
+
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold">Bonjour, {seller.displayName}</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Commission de la boutique sur vos ventes : {commissionPercent} %.
+          Commission de la boutique sur vos ventes de documents : {commissionPercent} %. Sur vos livres édités
+          à compte d&apos;auteur, la boutique ne prélève aucune commission.
         </p>
       </div>
 
@@ -121,6 +132,23 @@ export default async function VendeurPage() {
             </table>
           </div>
         )}
+
+        {printOrdersCount > 0 && (
+          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
+            <p className="font-semibold">Livres imprimés</p>
+            <p className="mt-1 text-slate-700">
+              {printCopies} exemplaire{printCopies > 1 ? "s" : ""} vendu{printCopies > 1 ? "s" : ""} en{" "}
+              {printOrdersCount} commande{printOrdersCount > 1 ? "s" : ""} · vos gains :{" "}
+              <strong>{formatPrice(printGain, "XOF")}</strong> (sans commission, frais de fabrication déduits).
+            </p>
+            <Link
+              href="/vendeur/revenus"
+              className="mt-2 inline-block font-semibold text-brand-700 hover:underline"
+            >
+              Voir mes revenus et le détail
+            </Link>
+          </div>
+        )}
       </section>
 
       <section className="card">
@@ -160,4 +188,4 @@ export default async function VendeurPage() {
       </section>
     </div>
   );
-}
+      }
