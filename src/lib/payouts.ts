@@ -1,12 +1,28 @@
 // src/lib/payouts.ts
 // Versements aux vendeurs : solde, libellés et outils de validation.
 // Les versements se font en FCFA (XOF) ; les prix sont fixés en FCFA depuis l'étape 12.
+// Le solde comprend les ventes de livres numériques (PDF) et les gains des exemplaires imprimés.
 
-import type { PayoutStatus, Prisma } from "@prisma/client";
+import type { PayoutStatus, PrintOrderStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 // Délai avant que les gains d'une commande puissent être retirés.
 export const PAYOUT_HOLD_DAYS = 3;
+
+// Commandes d'exemplaires imprimés dont le paiement est validé et qui ne sont pas annulées :
+// les gains de l'auteur sont acquis (en attente de déblocage, ou retirables).
+export const PRINT_EARNED_STATUSES: PrintOrderStatus[] = [
+  "PAID",
+  "SENDING",
+  "SENT_TO_LULU",
+  "LOCAL_PENDING",
+  "SHIPPED",
+  "DELIVERED",
+  "ERROR",
+];
+
+// Commandes d'exemplaires imprimés expédiées : leurs gains peuvent être retirés (après le délai ci-dessus).
+export const PRINT_RELEASED_STATUSES: PrintOrderStatus[] = ["SHIPPED", "DELIVERED"];
 
 export const PAYOUT_OPERATORS = [
   { value: "ORANGE_MONEY", label: "Orange Money" },
@@ -63,9 +79,10 @@ export function formatMobileNumber(digits: string): string {
 }
 
 export interface SellerBalanceXof {
-  // Total des gains (commandes payées)
+  // Total des gains (commandes payées, livres numériques et imprimés)
   earned: number;
-  // Gains retirables (commandes payées depuis plus de PAYOUT_HOLD_DAYS jours)
+  // Gains retirables (livres numériques payés depuis plus de PAYOUT_HOLD_DAYS jours ;
+  // livres imprimés expédiés et payés depuis plus de PAYOUT_HOLD_DAYS jours)
   released: number;
   // Gains encore en attente de déblocage
   onHold: number;
@@ -75,6 +92,9 @@ export interface SellerBalanceXof {
   open: number;
   // Montant que le vendeur peut demander maintenant
   available: number;
+  // Part des gains venant des exemplaires imprimés (déjà comprise dans earned et released)
+  printEarned: number;
+  printReleased: number;
 }
 
 /** Calcule le solde en FCFA d'un vendeur (utilisable dans une transaction). */
@@ -98,6 +118,20 @@ export async function getSellerBalanceXof(
     _sum: { sellerAmount: true },
   });
 
+  const printEarnedRow = await client.printOrder.aggregate({
+    where: { sellerId, status: { in: PRINT_EARNED_STATUSES } },
+    _sum: { authorNetXof: true },
+  });
+
+  const printReleasedRow = await client.printOrder.aggregate({
+    where: {
+      sellerId,
+      status: { in: PRINT_RELEASED_STATUSES },
+      paidAt: { lte: threshold },
+    },
+    _sum: { authorNetXof: true },
+  });
+
   const payoutRows = await client.payout.groupBy({
     by: ["status"],
     where: { sellerId, currency: "XOF" },
@@ -109,8 +143,11 @@ export async function getSellerBalanceXof(
       .filter((row) => statuses.includes(row.status))
       .reduce((sum, row) => sum + (row._sum.amount ?? 0), 0);
 
-  const earned = earnedRow._sum.sellerAmount ?? 0;
-  const released = releasedRow._sum.sellerAmount ?? 0;
+  const printEarned = printEarnedRow._sum.authorNetXof ?? 0;
+  const printReleased = printReleasedRow._sum.authorNetXof ?? 0;
+
+  const earned = (earnedRow._sum.sellerAmount ?? 0) + printEarned;
+  const released = (releasedRow._sum.sellerAmount ?? 0) + printReleased;
   const paid = sumFor("PAID");
   const open = sumFor("PENDING", "PROCESSING");
 
@@ -121,5 +158,7 @@ export async function getSellerBalanceXof(
     paid,
     open,
     available: Math.max(0, released - paid - open),
+    printEarned,
+    printReleased,
   };
-  }
+    }
