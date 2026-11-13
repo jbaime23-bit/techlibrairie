@@ -14,10 +14,12 @@ import {
   PAYOUT_OPERATORS,
   PAYOUT_STATUS_LABELS,
   PAYOUT_STATUS_STYLES,
+  PRINT_EARNED_STATUSES,
   formatMobileNumber,
   getSellerBalanceXof,
   operatorLabel,
 } from "@/lib/payouts";
+import { BUYER_STATUS_LABELS } from "@/lib/print-shipping";
 import { formatDate, formatPrice } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -48,7 +50,7 @@ export default async function RevenusPage({
 
   const { seller } = context;
 
-  const [balance, settings, payouts, otherCurrencies] = await Promise.all([
+  const [balance, settings, payouts, otherCurrencies, printOrders] = await Promise.all([
     getSellerBalanceXof(seller.id),
     prisma.platformSetting.findUnique({
       where: { id: "global" },
@@ -67,6 +69,21 @@ export default async function RevenusPage({
         order: { status: "PAID" },
       },
       _sum: { sellerAmount: true },
+    }),
+    prisma.printOrder.findMany({
+      where: { sellerId: seller.id },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+      select: {
+        id: true,
+        number: true,
+        productTitle: true,
+        quantity: true,
+        status: true,
+        isAuthorCopy: true,
+        authorNetXof: true,
+        createdAt: true,
+      },
     }),
   ]);
 
@@ -120,7 +137,8 @@ export default async function RevenusPage({
           <p className="text-sm text-slate-600">En attente de déblocage</p>
           <p className="mt-1 text-2xl font-bold">{formatPrice(balance.onHold, "XOF")}</p>
           <p className="text-xs text-slate-500">
-            Disponible {PAYOUT_HOLD_DAYS} jours après chaque vente
+            Disponible {PAYOUT_HOLD_DAYS} jours après chaque vente (livres imprimés : à partir de
+            l&apos;expédition)
           </p>
         </div>
         <div className="card">
@@ -132,6 +150,14 @@ export default async function RevenusPage({
           <p className="mt-1 text-2xl font-bold">{formatPrice(balance.paid, "XOF")}</p>
         </div>
       </div>
+
+      {balance.printEarned > 0 && (
+        <p className="text-sm text-slate-600">
+          Ces montants comprennent {formatPrice(balance.printEarned, "XOF")} de gains sur vos exemplaires
+          imprimés, dont {formatPrice(balance.printReleased, "XOF")} déjà débloqués (expédiés et payés depuis
+          plus de {PAYOUT_HOLD_DAYS} jours).
+        </p>
+      )}
 
       {otherCurrencies.length > 0 && (
         <div className="card border-yellow-200 bg-yellow-50 text-sm text-yellow-900">
@@ -275,6 +301,53 @@ export default async function RevenusPage({
         </section>
       </div>
 
+      {printOrders.length > 0 && (
+        <section className="card">
+          <h2 className="text-lg font-semibold">Livres imprimés : commandes récentes</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Votre gain par exemplaire est le prix de vente moins le coût de fabrication. Il entre dans votre
+            solde dès le paiement validé, et devient retirable après l&apos;expédition ({PAYOUT_HOLD_DAYS} jours
+            après le paiement au minimum).
+          </p>
+
+          <ul className="mt-4 divide-y divide-slate-100 text-sm">
+            {printOrders.map((order) => {
+              const counted = PRINT_EARNED_STATUSES.includes(order.status);
+
+              return (
+                <li
+                  key={order.id}
+                  className="flex flex-wrap items-center justify-between gap-3 py-3"
+                >
+                  <div>
+                    <p className="font-medium">{order.productTitle}</p>
+                    <p className="text-xs text-slate-500">
+                      {order.number} · {order.quantity} exemplaire{order.quantity > 1 ? "s" : ""} ·{" "}
+                      {formatDate(order.createdAt)}
+                    </p>
+                    <span className="mt-1 inline-block rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
+                      {BUYER_STATUS_LABELS[order.status]}
+                    </span>
+                  </div>
+
+                  <div className="text-right">
+                    {order.isAuthorCopy ? (
+                      <p className="text-xs text-slate-500">Exemplaires d&apos;auteur : aucun gain</p>
+                    ) : counted ? (
+                      <p className="font-semibold">{formatPrice(order.authorNetXof, "XOF")}</p>
+                    ) : (
+                      <p className="text-xs text-slate-500">
+                        {order.status === "CANCELED" ? "Annulée : aucun gain" : "Gain après paiement"}
+                      </p>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
       <section className="card">
         <h2 className="text-lg font-semibold">Historique des versements</h2>
 
@@ -322,4 +395,4 @@ export default async function RevenusPage({
       </section>
     </div>
   );
-}
+        }
