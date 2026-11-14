@@ -56,7 +56,7 @@ export async function POST(
 
   const project = await prisma.editionProject.findUnique({
     where: { productId: id },
-    select: { id: true, stage: true, proofStorageKey: true, product: { select: { title: true } } },
+    select: { id: true, stage: true, proofStorageKey: true },
   });
 
   const productInfo = await prisma.product.findUnique({
@@ -106,7 +106,7 @@ export async function POST(
     action: "edition.epreuve_deposee",
     targetType: "produit",
     targetId: id,
-    details: { titre: productInfo?.title ?? project.product.title, version: updated.proofVersion },
+    details: { titre: productInfo?.title ?? "", version: updated.proofVersion },
   });
 
   await notifyAuthorProofReady(id, updated.proofVersion);
@@ -168,4 +168,4 @@ export async function GET(
       "X-Robots-Tag": "noindex, nofollow",
     },
   });
-}
+      }
