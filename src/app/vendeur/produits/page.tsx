@@ -109,6 +109,12 @@ export default async function ProduitsPage() {
                 const stage = stageByProduct.get(product.id);
                 const printable = product.kind === "BOOK_EDITION" && product.status === "PUBLISHED";
 
+                // Statut transmis au bouton « Publier / Retirer » : il n'existe que pour ces deux états.
+                const toggleStatus =
+                  product.status === "PUBLISHED" || product.status === "UNPUBLISHED"
+                    ? product.status
+                    : null;
+
                 return (
                   <tr key={product.id} className="border-b border-slate-100 align-top">
                     <td className="px-4 py-3">
@@ -188,12 +194,12 @@ export default async function ProduitsPage() {
                                 ? "Régler le forfait"
                                 : "Suivre mon édition"}
                           </Link>
-                        ) : (
+                        ) : toggleStatus ? (
                           <ProductStatusToggle
                             productId={product.id}
-                            status={product.status}
+                            status={toggleStatus}
                           />
-                        )}
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -205,4 +211,4 @@ export default async function ProduitsPage() {
       )}
     </div>
   );
-       }
+                            }
