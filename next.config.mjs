@@ -5,7 +5,7 @@ const isProduction = process.env.NODE_ENV === "production";
 // Politique de sécurité du contenu pour les pages SANS publicité.
 // Elle interdit le chargement de scripts, d'images et de connexions provenant
 // d'un autre domaine que le site, avec une exception : le stockage de fichiers de Vercel,
-// nécessaire à l'envoi des PDF depuis l'administration (page /admin/gratuit).
+// nécessaire à l'envoi des PDF depuis l'administration (PDF gratuits, épreuves, fichiers d'impression).
 const strictContentSecurityPolicy = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline'",
@@ -41,10 +41,11 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
 
-  // TEMPORAIRE : permet de mettre le site en ligne même si le code contient des erreurs de
-  // typage ou de style que je n'ai pas pu détecter. À retirer dès que le site fonctionne
-  // et que les erreurs ont été corrigées.
-  typescript: { ignoreBuildErrors: true },
+  // Les erreurs de typage font échouer le déploiement : la version en ligne reste alors intacte.
+  // Le contrôle complet se lit dans l'onglet Actions de GitHub (« Vérification du code »).
+  typescript: { ignoreBuildErrors: false },
+
+  // Le style de code n'a jamais été contrôlé : il ne bloque pas le déploiement.
   eslint: { ignoreDuringBuilds: true },
 
   images: {
