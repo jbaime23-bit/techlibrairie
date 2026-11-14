@@ -1,6 +1,6 @@
 # .github/workflows/typecheck.yml
 # Vérification des types du code (n'affecte ni le site ni la base de données).
-# Se lance toute seule quand ce fichier est enregistré, puis à la demande
+# Se lance toute seule après chaque enregistrement sur la branche principale, ou à la demande
 # (onglet Actions, "Vérification du code", bouton "Run workflow").
 
 name: Vérification du code
@@ -8,8 +8,13 @@ name: Vérification du code
 on:
   workflow_dispatch:
   push:
-    paths:
-      - ".github/workflows/typecheck.yml"
+    branches:
+      - main
+
+# Une nouvelle exécution annule celle qui est encore en cours pour la même branche.
+concurrency:
+  group: typecheck-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   typecheck:
