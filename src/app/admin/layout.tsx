@@ -7,6 +7,7 @@ import { requireAdminForSetup } from "@/lib/admin";
 const LINKS = [
   { href: "/admin", label: "Tableau de bord" },
   { href: "/admin/alertes", label: "Alertes" },
+  { href: "/admin/manuscrits", label: "Manuscrits" },
   { href: "/admin/publications", label: "Éditions" },
   { href: "/admin/impression", label: "Impression" },
   { href: "/admin/impressions", label: "Commandes imprimées" },
@@ -57,4 +58,4 @@ export default async function AdminLayout({
       {children}
     </div>
   );
-            }
+}
