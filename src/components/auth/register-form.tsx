@@ -14,9 +14,23 @@ function FieldError({ messages }: { messages?: string[] }) {
   return <p className="field-error">{messages[0]}</p>;
 }
 
-export function RegisterForm() {
+export function RegisterForm({
+  fixedType,
+  redirectTo = "/",
+  displayNameLabel = "Nom d'auteur ou d'éditeur (affiché publiquement)",
+  sellerNote = "Les PDF que vous soumettez sont publiés automatiquement sur la boutique. Une commission est prélevée sur chaque vente.",
+  submitLabel = "Créer mon compte",
+}: {
+  // Type de compte imposé par l'espace d'inscription (auteur, acheteur ou vendeur) : le choix est alors masqué
+  fixedType?: AccountType;
+  // Page affichée après l'inscription
+  redirectTo?: string;
+  displayNameLabel?: string;
+  sellerNote?: string;
+  submitLabel?: string;
+}) {
   const router = useRouter();
-  const [accountType, setAccountType] = useState<AccountType>("BUYER");
+  const [accountType, setAccountType] = useState<AccountType>(fixedType ?? "BUYER");
   const [values, setValues] = useState({
     name: "",
     email: "",
@@ -74,15 +88,14 @@ export function RegisterForm() {
         redirect: false,
       });
 
-      setLoading(false);
-
       if (!login || login.error) {
+        setLoading(false);
         router.push("/connexion");
         return;
       }
 
-      router.push("/");
-      router.refresh();
+      // Rechargement complet : le menu du haut affiche aussitôt le compte connecté.
+      window.location.assign(redirectTo);
     } catch {
       setGlobalError(
         "Impossible de contacter le serveur. Vérifiez votre connexion et réessayez."
@@ -97,52 +110,56 @@ export function RegisterForm() {
     <form onSubmit={handleSubmit} className="space-y-4" noValidate>
       {globalError && <div className="alert-error">{globalError}</div>}
 
-      <fieldset className="grid grid-cols-2 gap-3" disabled={loading}>
-        <legend className="label">Type de compte</legend>
+      {!fixedType && (
+        <>
+          <fieldset className="grid grid-cols-2 gap-3" disabled={loading}>
+            <legend className="label">Type de compte</legend>
 
-        <label
-          className={`cursor-pointer rounded-lg border p-3 text-sm ${
-            !isSeller
-              ? "border-brand-500 bg-brand-50"
-              : "border-slate-300 bg-white"
-          }`}
-        >
-          <input
-            type="radio"
-            name="accountType"
-            value="BUYER"
-            checked={!isSeller}
-            onChange={() => setAccountType("BUYER")}
-            className="sr-only"
-          />
-          <span className="block font-semibold">Acheteur</span>
-          <span className="block text-slate-600">
-            J&apos;achète des livres et guides.
-          </span>
-        </label>
+            <label
+              className={`cursor-pointer rounded-xl border p-3 text-sm ${
+                !isSeller
+                  ? "border-brand-500 bg-brand-50"
+                  : "border-slate-300 bg-white"
+              }`}
+            >
+              <input
+                type="radio"
+                name="accountType"
+                value="BUYER"
+                checked={!isSeller}
+                onChange={() => setAccountType("BUYER")}
+                className="sr-only"
+              />
+              <span className="block font-semibold">Acheteur</span>
+              <span className="block text-slate-600">
+                J&apos;achète des livres et guides.
+              </span>
+            </label>
 
-        <label
-          className={`cursor-pointer rounded-lg border p-3 text-sm ${
-            isSeller
-              ? "border-brand-500 bg-brand-50"
-              : "border-slate-300 bg-white"
-          }`}
-        >
-          <input
-            type="radio"
-            name="accountType"
-            value="SELLER"
-            checked={isSeller}
-            onChange={() => setAccountType("SELLER")}
-            className="sr-only"
-          />
-          <span className="block font-semibold">Vendeur</span>
-          <span className="block text-slate-600">
-            Auteur ou éditeur, je vends mes PDF.
-          </span>
-        </label>
-      </fieldset>
-      <FieldError messages={fieldErrors.accountType} />
+            <label
+              className={`cursor-pointer rounded-xl border p-3 text-sm ${
+                isSeller
+                  ? "border-brand-500 bg-brand-50"
+                  : "border-slate-300 bg-white"
+              }`}
+            >
+              <input
+                type="radio"
+                name="accountType"
+                value="SELLER"
+                checked={isSeller}
+                onChange={() => setAccountType("SELLER")}
+                className="sr-only"
+              />
+              <span className="block font-semibold">Vendeur ou auteur</span>
+              <span className="block text-slate-600">
+                Je publie ou je vends mes PDF.
+              </span>
+            </label>
+          </fieldset>
+          <FieldError messages={fieldErrors.accountType} />
+        </>
+      )}
 
       <div>
         <label htmlFor="name" className="label">
@@ -165,7 +182,7 @@ export function RegisterForm() {
       {isSeller && (
         <div>
           <label htmlFor="displayName" className="label">
-            Nom d&apos;auteur ou d&apos;éditeur (affiché publiquement)
+            {displayNameLabel}
           </label>
           <input
             id="displayName"
@@ -178,10 +195,7 @@ export function RegisterForm() {
             disabled={loading}
           />
           <FieldError messages={fieldErrors.displayName} />
-          <p className="mt-1 text-xs text-slate-500">
-            Les PDF que vous soumettez sont publiés automatiquement sur la
-            boutique. Une commission est prélevée sur chaque vente.
-          </p>
+          {sellerNote && <p className="mt-1 text-xs text-slate-500">{sellerNote}</p>}
         </div>
       )}
 
@@ -295,8 +309,8 @@ export function RegisterForm() {
       </div>
 
       <button type="submit" className="btn-primary w-full" disabled={loading}>
-        {loading ? "Création du compte..." : "Créer mon compte"}
+        {loading ? "Création du compte..." : submitLabel}
       </button>
     </form>
   );
-                                           }
+          }
