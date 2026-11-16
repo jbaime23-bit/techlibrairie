@@ -56,7 +56,8 @@ function accountLinks(user: HeaderUser): NavItem[] {
     links.push({ href: "/admin", label: "Administration", external: true });
   }
   if (user.role === "SELLER" || user.role === "ADMIN") {
-    links.push({ href: "/vendeur", label: "Espace vendeur" });
+    links.push({ href: "/edition/espace", label: "Mon espace auteur" });
+    links.push({ href: "/vendeur", label: "Espace vendeur (boutique)" });
     links.push({ href: "/vendeur/produits", label: "Mes livres et documents" });
   }
 
@@ -112,6 +113,8 @@ export function SiteHeader({
     setAccountOpen(false);
   }, [pathname]);
 
+  const isAuthorSpace = user !== null && (user.role === "SELLER" || user.role === "ADMIN");
+
   const subNav: NavItem[] =
     section === "edition"
       ? [
@@ -119,14 +122,15 @@ export function SiteHeader({
           { href: "/edition#etapes", label: "Comment ça marche" },
           { href: "/edition/deposer", label: "Déposer mon manuscrit" },
           { href: "/contrat-edition", label: "Le contrat" },
+          isAuthorSpace
+            ? { href: "/edition/espace", label: "Mon espace auteur" }
+            : { href: "/edition/connexion", label: "Espace auteur" },
         ]
       : [
           { href: "/boutique", label: "La boutique" },
           { href: "/catalogue", label: "Catalogue" },
           { href: "/gratuit", label: "PDF gratuits" },
-          ...(user && (user.role === "SELLER" || user.role === "ADMIN")
-            ? [{ href: "/vendeur", label: "Espace vendeur" }]
-            : []),
+          ...(isAuthorSpace ? [{ href: "/vendeur", label: "Espace vendeur" }] : []),
           ...(user ? [{ href: "/acheteur", label: "Mes achats" }] : []),
         ];
 
@@ -395,4 +399,4 @@ export function SiteHeader({
       )}
     </header>
   );
-}
+                             }
