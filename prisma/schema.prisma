@@ -1037,3 +1037,59 @@ model PrintOrder {
   @@index([buyerId, createdAt])
   @@index([productId])
 }
+
+// ---------------------------------------------------------------------------
+// ÉDITION À COMPTE D'ÉDITEUR : manuscrits soumis à l'examen éditorial (sans paiement ni contrat à la soumission)
+// ---------------------------------------------------------------------------
+
+enum ManuscriptStatus {
+  // Reçu, pas encore examiné
+  SUBMITTED
+  // En cours d'examen par l'équipe éditoriale
+  IN_REVIEW
+  // Retenu : un contrat d'édition sera proposé à l'auteur
+  ACCEPTED
+  // Refusé, avec un message à l'auteur
+  REJECTED
+}
+
+model ManuscriptSubmission {
+  id       String @id @default(cuid())
+  // Références simples (aucune relation) : profil vendeur de l'auteur et son compte
+  sellerId String
+  userId   String
+
+  title       String
+  description String  @db.Text
+  language    String  @default("fr")
+  pageCount   Int?
+  // Catégorie souhaitée (référence simple)
+  categoryId  String?
+  authorName  String
+  // Qualité du déposant : AUTHOR ou THIRD_PARTY_SELLER (titulaire des droits)
+  capacity    PublishingCapacity
+
+  // Manuscrit rangé dans le dossier privé manuscrits/<vendeur>/
+  manuscriptStorageKey String
+  manuscriptFileName   String
+  manuscriptSizeBytes  Int
+  coverImageUrl        String?
+
+  status ManuscriptStatus @default(SUBMITTED)
+
+  // Preuves des déclarations cochées au dépôt : date et texte exact accepté
+  rightsAcceptedAt DateTime
+  rightsText       String   @db.Text
+  reviewConsentAt  DateTime
+
+  // Décision de l'équipe éditoriale
+  decisionMessage String?   @db.Text
+  decidedAt       DateTime?
+  decidedBy       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([sellerId, createdAt])
+}
