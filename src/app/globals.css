@@ -4,15 +4,30 @@
 
 @layer base {
   html {
-    @apply antialiased;
+    @apply scroll-smooth antialiased;
   }
 
   body {
     @apply bg-slate-50 text-slate-900;
   }
 
+  h1,
+  h2,
+  h3 {
+    @apply tracking-tight;
+  }
+
   a {
     @apply transition-colors;
+  }
+
+  :focus-visible {
+    outline: 2px solid #6366f1;
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    @apply bg-brand-200 text-brand-950;
   }
 }
 
@@ -22,15 +37,31 @@
   }
 
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-brand-300 disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-brand-300 disabled:cursor-not-allowed disabled:opacity-60;
   }
 
   .btn-primary {
-    @apply btn bg-brand-600 text-white hover:bg-brand-700;
+    @apply btn bg-gradient-to-r from-brand-600 to-violet-600 text-white shadow-sm hover:from-brand-700 hover:to-violet-700 hover:shadow-md;
   }
 
   .btn-secondary {
-    @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-100;
+    @apply btn border border-brand-200 bg-white text-brand-800 hover:bg-brand-50;
+  }
+
+  .btn-accent {
+    @apply btn bg-accent-500 text-slate-950 shadow-sm hover:bg-accent-400 hover:shadow-md;
+  }
+
+  .btn-teal {
+    @apply btn bg-teal-700 text-white shadow-sm hover:bg-teal-800 hover:shadow-md;
+  }
+
+  .btn-light {
+    @apply btn bg-white text-brand-800 shadow-sm hover:bg-brand-50;
+  }
+
+  .btn-outline-light {
+    @apply btn border border-white/50 text-white hover:bg-white/10;
   }
 
   .label {
@@ -38,7 +69,7 @@
   }
 
   .input {
-    @apply block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200 disabled:opacity-60;
+    @apply block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm shadow-sm placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200 disabled:opacity-60;
   }
 
   .field-error {
@@ -46,10 +77,22 @@
   }
 
   .alert-error {
-    @apply rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700;
+    @apply rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700;
   }
 
   .card {
-    @apply rounded-xl border border-slate-200 bg-white p-6 shadow-sm;
+    @apply rounded-2xl border border-slate-200 bg-white p-6 shadow-sm;
   }
-    }
+
+  .card-hover {
+    @apply transition duration-200 hover:-translate-y-0.5 hover:shadow-soft;
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold;
+  }
+
+  .eyebrow {
+    @apply text-xs font-bold uppercase tracking-widest;
+  }
+}
