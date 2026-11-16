@@ -38,42 +38,21 @@ export async function Footer() {
   })).filter((item): item is { label: string; href: string } => item.href !== null);
 
   return (
-    <footer className="border-t border-slate-200 bg-white">
-      <div className="container-page grid gap-10 py-10 lg:grid-cols-3">
-        <div>
-          <p className="text-xl font-bold text-brand-700">TechLibrairie</p>
-          <p className="mt-2 text-sm text-slate-600">
-            La plateforme multi-vendeurs de livres et guides techniques au
-            format PDF. {summary}, téléchargement immédiat.
-          </p>
+    <footer className="mt-16 bg-white">
+      <div className="h-1 bg-gradient-to-r from-brand-600 via-violet-500 to-accent-500" />
 
-          <ul className="mt-4 space-y-1 text-sm">
-            <li>
-              <Link href="/catalogue" className="text-slate-700 hover:text-brand-700">
-                Catalogue
-              </Link>
-            </li>
-            <li>
-              <Link href="/gratuit" className="text-slate-700 hover:text-brand-700">
-                Téléchargements gratuits
-              </Link>
-            </li>
-            <li>
-              <Link href="/a-propos" className="text-slate-700 hover:text-brand-700">
-                À propos
-              </Link>
-            </li>
-            <li>
-              <Link href="/inscription" className="text-slate-700 hover:text-brand-700">
-                Devenir vendeur
-              </Link>
-            </li>
-            <li>
-              <Link href="/connexion" className="text-slate-700 hover:text-brand-700">
-                Connexion
-              </Link>
-            </li>
-          </ul>
+      <div className="container-page grid gap-10 py-12 md:grid-cols-4">
+        <div className="md:col-span-2">
+          <p className="flex items-center gap-2">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-600 via-violet-600 to-fuchsia-500 text-lg font-extrabold text-white">
+              T
+            </span>
+            <span className="text-xl font-extrabold text-brand-900">TechLibrairie Édition</span>
+          </p>
+          <p className="mt-3 max-w-md text-sm text-slate-600">
+            Maison d&apos;édition numérique et boutique de livres et guides techniques. {summary}, téléchargement
+            immédiat.
+          </p>
 
           {socials.length > 0 && (
             <div className="mt-5">
@@ -96,50 +75,114 @@ export async function Footer() {
           )}
         </div>
 
-        <div id="contact">
-          <h2 className="text-lg font-semibold">Contact</h2>
-          <ul className="mt-3 space-y-3 text-sm">
-            {contact.email && (
-              <li>
-                <span className="block text-slate-500">Email</span>
-                <a
-                  href={`mailto:${contact.email}`}
-                  className="font-medium text-brand-700 hover:underline"
-                >
-                  {contact.email}
-                </a>
-              </li>
-            )}
-
-            {contact.whatsappNumber && (
-              <li>
-                <span className="block text-slate-500">WhatsApp</span>
-                <a
-                  href={buildWhatsAppLink(
-                    contact.whatsappNumber,
-                    "Bonjour TechLibrairie, j'ai une question."
-                  )}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-1 inline-flex items-center rounded-lg bg-green-600 px-4 py-2 font-semibold text-white hover:bg-green-700"
-                >
-                  Discuter sur WhatsApp
-                </a>
-              </li>
-            )}
-
-            {!contact.email && !contact.whatsappNumber && (
-              <li className="text-slate-500">
-                Utilisez le formulaire pour nous écrire.
-              </li>
-            )}
+        <div>
+          <p className="eyebrow text-brand-700">Édition</p>
+          <ul className="mt-3 space-y-2 text-sm">
+            <li>
+              <Link href="/edition" className="text-slate-700 hover:text-brand-700">
+                Nos formules d&apos;édition
+              </Link>
+            </li>
+            <li>
+              <Link href="/edition/deposer" className="text-slate-700 hover:text-brand-700">
+                Déposer un manuscrit
+              </Link>
+            </li>
+            <li>
+              <Link href="/contrat-edition" className="text-slate-700 hover:text-brand-700">
+                Le contrat d&apos;édition
+              </Link>
+            </li>
+            <li>
+              <Link href="/edition/connexion" className="text-slate-700 hover:text-brand-700">
+                Espace auteur
+              </Link>
+            </li>
+            <li>
+              <Link href="/a-propos" className="text-slate-700 hover:text-brand-700">
+                À propos
+              </Link>
+            </li>
           </ul>
         </div>
 
         <div>
-          <h2 className="text-lg font-semibold">Écrivez-nous</h2>
-          <div className="mt-3">
-            <ContactForm />
+          <p className="eyebrow text-teal-700">Boutique</p>
+          <ul className="mt-3 space-y-2 text-sm">
+            <li>
+              <Link href="/boutique" className="text-slate-700 hover:text-teal-700">
+                La boutique
+              </Link>
+            </li>
+            <li>
+              <Link href="/catalogue" className="text-slate-700 hover:text-teal-700">
+                Catalogue
+              </Link>
+            </li>
+            <li>
+              <Link href="/gratuit" className="text-slate-700 hover:text-teal-700">
+                Téléchargements gratuits
+              </Link>
+            </li>
+            <li>
+              <Link href="/boutique/acheteur/connexion" className="text-slate-700 hover:text-teal-700">
+                Espace acheteur
+              </Link>
+            </li>
+            <li>
+              <Link href="/boutique/vendeur/connexion" className="text-slate-700 hover:text-teal-700">
+                Espace vendeur
+              </Link>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <div id="contact" className="border-t border-slate-200 bg-slate-50">
+        <div className="container-page grid gap-10 py-10 md:grid-cols-2">
+          <div>
+            <h2 className="text-lg font-semibold">Contact</h2>
+            <ul className="mt-3 space-y-3 text-sm">
+              {contact.email && (
+                <li>
+                  <span className="block text-slate-500">Email</span>
+                  <a
+                    href={`mailto:${contact.email}`}
+                    className="font-medium text-brand-700 hover:underline"
+                  >
+                    {contact.email}
+                  </a>
+                </li>
+              )}
+
+              {contact.whatsappNumber && (
+                <li>
+                  <span className="block text-slate-500">WhatsApp</span>
+                  <a
+                    href={buildWhatsAppLink(
+                      contact.whatsappNumber,
+                      "Bonjour TechLibrairie, j'ai une question."
+                    )}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-1 inline-flex items-center rounded-xl bg-green-600 px-4 py-2 font-semibold text-white hover:bg-green-700"
+                  >
+                    Discuter sur WhatsApp
+                  </a>
+                </li>
+              )}
+
+              {!contact.email && !contact.whatsappNumber && (
+                <li className="text-slate-500">Utilisez le formulaire pour nous écrire.</li>
+              )}
+            </ul>
+          </div>
+
+          <div>
+            <h2 className="text-lg font-semibold">Écrivez-nous</h2>
+            <div className="mt-3">
+              <ContactForm />
+            </div>
           </div>
         </div>
       </div>
@@ -163,4 +206,4 @@ export async function Footer() {
       </div>
     </footer>
   );
-}
+      }
