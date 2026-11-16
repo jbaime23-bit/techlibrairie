@@ -1,5 +1,5 @@
 // src/app/layout.tsx
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
@@ -10,15 +10,21 @@ import { getSiteUrl } from "@/lib/site-url";
 export const metadata: Metadata = {
   metadataBase: new URL(getSiteUrl()),
   title: {
-    default: "TechLibrairie - Livres et guides techniques en PDF",
+    default: "TechLibrairie Édition | Maison d'édition numérique et boutique de livres PDF",
     template: "%s | TechLibrairie",
   },
   description:
-    "La plateforme multi-vendeurs de livres et guides techniques au format PDF. Paiement en ligne sécurisé, téléchargement immédiat.",
+    "TechLibrairie Édition accompagne les auteurs francophones : mise en page professionnelle, publication en PDF et en livre imprimé à la demande, et boutique de livres et guides techniques.",
   // Vérification de propriété du site pour Google AdSense (n'affiche aucune publicité).
   other: {
     "google-adsense-account": "ca-pub-3883537883013867",
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#4f46e5",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default async function RootLayout({
