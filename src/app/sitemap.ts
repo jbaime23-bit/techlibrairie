@@ -14,8 +14,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const entries: MetadataRoute.Sitemap = [
     { url: base, lastModified: now, changeFrequency: "daily", priority: 1 },
+    { url: `${base}/edition`, lastModified: now, changeFrequency: "weekly", priority: 0.95 },
+    { url: `${base}/boutique`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
     { url: `${base}/catalogue`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
     { url: `${base}/gratuit`, lastModified: now, changeFrequency: "daily", priority: 0.8 },
+    { url: `${base}/contrat-edition`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
     { url: `${base}/a-propos`, lastModified: now, changeFrequency: "monthly", priority: 0.4 },
     { url: `${base}/conditions`, lastModified: now, changeFrequency: "yearly", priority: 0.2 },
     { url: `${base}/mentions-legales`, lastModified: now, changeFrequency: "yearly", priority: 0.2 },
@@ -84,4 +87,4 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
 
   return entries;
-                 }
+}
