@@ -35,8 +35,7 @@ jobs:
           node-version: 20
 
       - name: Installer les dépendances
-        run: |
-          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+        run: npm install --no-audit --no-fund
 
       - name: Générer le client de base de données
         run: npx prisma generate
