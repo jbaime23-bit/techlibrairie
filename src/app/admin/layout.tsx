@@ -6,6 +6,7 @@ import { requireAdminForSetup } from "@/lib/admin";
 
 const LINKS = [
   { href: "/admin", label: "Tableau de bord" },
+  { href: "/admin/assemblage", label: "Assemblage éditeur" },
   { href: "/admin/alertes", label: "Alertes" },
   { href: "/admin/manuscrits", label: "Manuscrits" },
   { href: "/admin/publications", label: "Éditions" },
