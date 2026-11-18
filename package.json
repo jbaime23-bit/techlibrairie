@@ -49,3 +49,7 @@
     "node": ">=18.18.0"
   }
 }
+"jspdf": "^3.0.1",
+"jsbarcode": "^3.11.6",
+"mammoth": "^1.8.0",
+"lucide-react": "latest"
