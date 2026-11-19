@@ -1,5 +1,5 @@
 // src/lib/assembly/image-utils.ts
-// Images côté navigateur : chargement, lecture de fichier, recadrage et couleurs.
+// Images côté navigateur : chargement, lecture de fichier, recadrage (rectangle et cercle) et couleurs.
 
 export function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -106,4 +106,31 @@ export async function cropImageToCover(
   context.drawImage(image, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
 
   return canvas.toDataURL("image/jpeg", 0.92);
-  }
+}
+
+/**
+ * Découpe une photo en cercle (PNG à fond transparent). Pour un portrait en hauteur, le cadrage est remonté
+ * vers le haut de l'image, là où se trouve le visage.
+ */
+export async function cropImageToCircle(src: string, sizePx = 640): Promise<string> {
+  const image = await loadImage(src);
+
+  const side = Math.min(image.naturalWidth, image.naturalHeight);
+  const sx = (image.naturalWidth - side) / 2;
+  const sy = Math.max(0, (image.naturalHeight - side) * 0.3);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = sizePx;
+  canvas.height = sizePx;
+
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Le navigateur ne peut pas traiter l'image.");
+
+  context.beginPath();
+  context.arc(sizePx / 2, sizePx / 2, sizePx / 2, 0, Math.PI * 2);
+  context.closePath();
+  context.clip();
+  context.drawImage(image, sx, sy, side, side, 0, 0, sizePx, sizePx);
+
+  return canvas.toDataURL("image/png");
+}
