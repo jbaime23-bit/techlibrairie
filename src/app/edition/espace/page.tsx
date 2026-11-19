@@ -1,11 +1,12 @@
 // src/app/edition/espace/page.tsx
-// Espace auteur : éditions à compte d'auteur et manuscrits soumis à l'examen éditorial.
+// Espace auteur : photo, éditions à compte d'auteur et manuscrits soumis à l'examen éditorial.
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { firstParam } from "@/lib/admin";
+import { AuthorPhotoCard } from "@/components/edition/author-photo-card";
 import { EDITION_STAGE_LABELS, EDITION_STAGE_STYLES } from "@/lib/edition-labels";
 import { MANUSCRIPT_STATUS_LABELS, MANUSCRIPT_STATUS_STYLES } from "@/lib/manuscript-validation";
 import { formatDate } from "@/lib/utils";
@@ -31,7 +32,7 @@ export default async function EspaceAuteurPage({
 
   const seller = await prisma.sellerProfile.findUnique({
     where: { userId: user.id },
-    select: { id: true, displayName: true, status: true },
+    select: { id: true, displayName: true, status: true, avatarUrl: true },
   });
 
   if (!seller) {
@@ -106,6 +107,8 @@ export default async function EspaceAuteurPage({
             </p>
           </div>
         )}
+
+        <AuthorPhotoCard currentUrl={seller.avatarUrl} displayName={seller.displayName} />
 
         <section>
           <h2 className="text-xl font-extrabold">Éditions à compte d&apos;auteur</h2>
@@ -221,4 +224,4 @@ export default async function EspaceAuteurPage({
       </div>
     </div>
   );
-      }
+    }
