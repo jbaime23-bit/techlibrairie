@@ -1,6 +1,7 @@
 // src/app/auteurs/[slug]/page.tsx
 import { cache } from "react";
 import type { Metadata } from "next";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { ProductCard } from "@/components/produits/product-card";
@@ -70,12 +71,22 @@ export default async function AuteurPage({
   return (
     <div className="container-page py-8">
       <header className="card flex flex-col gap-4 sm:flex-row sm:items-start">
-        <div
-          aria-hidden="true"
-          className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-brand-100 text-3xl font-bold text-brand-700"
-        >
-          {initial}
-        </div>
+        {seller.avatarUrl ? (
+          <Image
+            src={seller.avatarUrl}
+            alt={`Photo de ${seller.displayName}`}
+            width={96}
+            height={96}
+            className="h-24 w-24 shrink-0 rounded-full border border-slate-200 object-cover"
+          />
+        ) : (
+          <div
+            aria-hidden="true"
+            className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full bg-brand-100 text-4xl font-bold text-brand-700"
+          >
+            {initial}
+          </div>
+        )}
 
         <div>
           <h1 className="text-3xl font-bold">{seller.displayName}</h1>
@@ -112,4 +123,4 @@ export default async function AuteurPage({
       </section>
     </div>
   );
-      }
+}
