@@ -23,9 +23,11 @@ const ERRORS: Record<string, string> = {
   admin: "Ce compte est administrateur : retirez-lui d'abord ce rôle (page Administrateurs).",
   "deja-efface": "Ce compte a déjà été effacé.",
   "solde-vendeur":
-    "Ce vendeur a encore de l'argent à recevoir. Réglez ses versements (page Versements) avant l'effacement.",
+    "Ce vendeur ou auteur a encore de l'argent à recevoir (ventes de PDF ou d'exemplaires imprimés). Réglez ses versements (page Versements) avant l'effacement.",
   "versement-en-cours":
     "Ce vendeur a un versement en cours. Traitez-le (page Versements) avant l'effacement.",
+  "commande-imprimee-en-cours":
+    "Ce compte a une commande de livre imprimé en cours. Son adresse de livraison est encore nécessaire : attendez la livraison ou annulez la commande (page Commandes imprimées) avant l'effacement.",
 };
 
 export default async function AdminEffacementPage({
@@ -73,17 +75,27 @@ export default async function AdminEffacementPage({
             comptabilité, mais sans lien avec une adresse email.
           </li>
           <li>
-            Pour un vendeur : son profil public est effacé et ses ouvrages sont retirés de la vente.
-            Les acheteurs qui les ont déjà achetés gardent leur accès.
+            Les <strong>commandes de livres imprimés</strong> sont conservées sans le nom, l&apos;adresse, le
+            téléphone ni l&apos;email du destinataire.
           </li>
           <li>
-            <strong>L&apos;effacement est refusé</strong> si le compte est administrateur, ou si un
-            vendeur a de l&apos;argent à recevoir ou un versement en cours.
+            Pour un vendeur ou un auteur : son profil public et sa photo sont effacés, ses ouvrages sont
+            retirés de la vente, et ses <strong>manuscrits soumis</strong> sont supprimés avec leurs fichiers.
+            Les acheteurs qui ont déjà acheté ses ouvrages gardent leur accès.
+          </li>
+          <li>
+            Les <strong>preuves de contrat à compte d&apos;auteur</strong> (version, date, signature) sont
+            conservées pour nos obligations légales.
+          </li>
+          <li>
+            <strong>L&apos;effacement est refusé</strong> si le compte est administrateur, si un vendeur a de
+            l&apos;argent à recevoir ou un versement en cours, ou si une commande de livre imprimé est en cours.
           </li>
           <li>
             <strong>Il est irréversible.</strong> Les sauvegardes de la base (Neon) peuvent contenir les
             anciennes données jusqu&apos;à leur expiration, et les emails déjà envoyés ne peuvent pas être
-            repris.
+            repris. Les commandes envoyées au prestataire d&apos;impression (Lulu) y restent conservées selon sa
+            propre politique.
           </li>
         </ul>
       </section>
@@ -166,4 +178,4 @@ export default async function AdminEffacementPage({
       </section>
     </div>
   );
-}
+                  }
