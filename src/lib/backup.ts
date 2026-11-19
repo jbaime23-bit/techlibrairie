@@ -823,3 +823,8 @@ export const BACKUP_DATASETS: BackupDataset[] = [
 export function findDataset(key: string | null): BackupDataset | null {
   return BACKUP_DATASETS.find((item) => item.key === key) ?? null;
 }
+
+
+// Jeux de données de l'édition et de l'impression à la demande (fichier séparé).
+import { PRINT_BACKUP_DATASETS } from "@/lib/backup-print";
+BACKUP_DATASETS.push(...PRINT_BACKUP_DATASETS);
