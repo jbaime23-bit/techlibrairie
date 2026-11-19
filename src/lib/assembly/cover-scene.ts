@@ -100,6 +100,8 @@ export interface CoverParams {
     band: boolean;
   };
   frontImage: CoverImageInfo | null;
+  // Photo de l'auteur, déjà découpée en cercle (PNG carré à fond transparent), placée sur la 4e de couverture
+  authorPhoto: { dataUrl: string } | null;
   logoFull: PlacedImage | null;
   logoIcon: PlacedImage | null;
   // Fond blanc derrière le logo (logo importé, posé sur un fond sombre)
@@ -117,6 +119,13 @@ function imageFormat(dataUrl: string): "PNG" | "JPEG" {
 interface FitResult {
   pt: number;
   lines: string[];
+}
+
+interface BackLayout {
+  summary: string[];
+  bio: string[];
+  step: number;
+  height: number;
 }
 
 export function buildCoverScene(p: CoverParams): CoverScene {
@@ -438,8 +447,18 @@ export function buildCoverScene(p: CoverParams): CoverScene {
     .map((line) => line.trim())
     .filter(Boolean);
   const bioText = p.info.bio.replace(/\s+/g, " ").trim();
+  const authorName = p.info.author.trim();
 
-  const layoutBack = (pt: number): { summary: string[]; bio: string[]; step: number; height: number } => {
+  // Photo de l'auteur : cercle à gauche de la biographie, nom de l'auteur en gras à sa droite
+  const photoD = p.authorPhoto ? 24 * s : 0;
+  const photoGap = 4 * s;
+  const bioWidth = photoD > 0 ? backW - photoD - photoGap : backW;
+  const nameRows = photoD > 0 && authorName ? 1 : 0;
+
+  const bioBlockHeight = (bioLines: number, step: number): number =>
+    photoD > 0 || bioLines > 0 ? Math.max(photoD, (bioLines + nameRows) * step) : 0;
+
+  const layoutBack = (pt: number): BackLayout => {
     const step = stepOf(pt, 1.35);
     m.setFont(family, "normal");
     m.setFontSize(pt);
@@ -450,11 +469,13 @@ export function buildCoverScene(p: CoverParams): CoverScene {
       summary.push(...m.splitTextToSize(paragraph.replace(/\s+/g, " "), backW));
     });
 
-    const bio = bioText ? m.splitTextToSize(bioText, backW) : [];
+    const bio = bioText ? m.splitTextToSize(bioText, bioWidth) : [];
 
     let height = 0;
     for (const line of summary) height += line === "" ? step * 0.5 : step;
-    if (bio.length > 0) height += step * 1.2 + step + bio.length * step;
+
+    const block = bioBlockHeight(bio.length, step);
+    if (block > 0) height += step * 1.2 + step + block;
 
     return { summary, bio, step, height };
   };
@@ -471,15 +492,18 @@ export function buildCoverScene(p: CoverParams): CoverScene {
     warnings.push("Le texte de la 4e de couverture est trop long : il a été raccourci. Réduisez le résumé ou la biographie.");
 
     const step = back.step;
-    let remaining = available;
-    const keptSummary: string[] = [];
-    const keptBio: string[] = [];
+    let keptBio: string[] = [];
+    let reserved = 0;
 
-    if (back.bio.length > 0) {
-      const bioBudgetLines = Math.max(2, Math.floor((available * 0.3) / step) - 2);
-      keptBio.push(...back.bio.slice(0, bioBudgetLines));
-      remaining -= step * 2.2 + keptBio.length * step;
+    if (bioBlockHeight(back.bio.length, step) > 0) {
+      const minLines = photoD > 0 ? 0 : 2;
+      const maxBioLines = Math.max(minLines, Math.floor((available * 0.3) / step) - 2);
+      keptBio = back.bio.slice(0, maxBioLines);
+      reserved = step * 2.2 + bioBlockHeight(keptBio.length, step);
     }
+
+    let remaining = available - reserved;
+    const keptSummary: string[] = [];
 
     for (const line of back.summary) {
       const cost = line === "" ? step * 0.5 : step;
@@ -508,11 +532,52 @@ export function buildCoverScene(p: CoverParams): CoverScene {
     cursor += back.step;
   });
 
-  if (back.bio.length > 0) {
+  const blockHeight = bioBlockHeight(back.bio.length, back.step);
+
+  if (blockHeight > 0) {
     cursor += back.step * 1.2;
     emitLines(["À propos de l'auteur"], backX, cursor, backPt, "bold", "left", color, 1.35);
     cursor += back.step;
-    emitLines(back.bio, backX, cursor, backPt, "normal", "left", color, 1.35);
+
+    const blockTop = cursor;
+    let textX = backX;
+
+    if (p.authorPhoto && photoD > 0) {
+      const ring = 0.9;
+
+      items.push({
+        kind: "rect",
+        x: backX - ring,
+        y: blockTop - ring,
+        w: photoD + 2 * ring,
+        h: photoD + 2 * ring,
+        fill: "#ffffff",
+        radius: (photoD + 2 * ring) / 2,
+      });
+
+      items.push({
+        kind: "image",
+        src: p.authorPhoto.dataUrl,
+        format: "PNG",
+        x: backX,
+        y: blockTop,
+        w: photoD,
+        h: photoD,
+        fit: "contain",
+      });
+
+      textX = backX + photoD + photoGap;
+    }
+
+    const rows = back.bio.length + nameRows;
+    let textY = blockTop + Math.max(0, (blockHeight - rows * back.step) / 2);
+
+    if (nameRows === 1) {
+      emitLines([authorName], textX, textY, backPt, "bold", "left", color, 1.35);
+      textY += back.step;
+    }
+
+    emitLines(back.bio, textX, textY, backPt, "normal", "left", color, 1.35);
   }
 
   if (p.logoFull && backLogoSize) {
@@ -565,4 +630,4 @@ export function buildCoverScene(p: CoverParams): CoverScene {
     items,
     warnings,
   };
-}
+  }
