@@ -1,6 +1,6 @@
 // src/components/edition/manuscript-wizard.tsx
 // Formulaire de dépôt par étapes : une question par écran, un bouton « Suivant ».
-// Étapes : titre, résumé, manuscrit, couverture, informations, validation.
+// Étapes : titre, résumé, manuscrit, couverture (et photo de l'auteur), informations, validation.
 // - Formule à compte d'auteur : création de l'édition (contrat accepté, forfait à régler ensuite).
 // - Formule à compte d'éditeur : soumission du manuscrit à l'examen éditorial.
 "use client";
@@ -54,6 +54,7 @@ const FIELD_STEP: Record<string, number> = {
   description: 1,
   pdf: 2,
   cover: 3,
+  photo: 3,
   price: 4,
   isbn: 4,
   authorName: 4,
@@ -103,6 +104,7 @@ export function ManuscriptWizard({
   feeXof,
   isAdmin,
   terms,
+  currentPhotoUrl,
 }: {
   formula: WizardFormula;
   sellerId: string;
@@ -111,6 +113,7 @@ export function ManuscriptWizard({
   feeXof: number;
   isAdmin: boolean;
   terms: WizardTerms;
+  currentPhotoUrl: string | null;
 }) {
   const router = useRouter();
   const isAuthorFormula = formula === "auteur";
@@ -138,14 +141,17 @@ export function ManuscriptWizard({
   const [coverMode, setCoverMode] = useState<CoverMode>("upload");
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [busy, setBusy] = useState<Busy>("idle");
   const [progress, setProgress] = useState(0);
 
-  // Mémorise le PDF déjà envoyé pour ne pas le renvoyer quand on revient en arrière.
+  // Mémorise le PDF et la photo déjà envoyés pour ne pas les renvoyer quand on revient en arrière.
   const uploadedRef = useRef<{ file: File; pathname: string } | null>(null);
+  const photoSentRef = useRef<File | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
 
   const current = STEPS[step];
@@ -165,6 +171,16 @@ export function ManuscriptWizard({
     setCoverPreview(url);
     return () => URL.revokeObjectURL(url);
   }, [coverFile]);
+
+  useEffect(() => {
+    if (!photoFile) {
+      setPhotoPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(photoFile);
+    setPhotoPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [photoFile]);
 
   function handleChange(
     event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -200,13 +216,23 @@ export function ManuscriptWizard({
       }
     }
 
-    if (key === "couverture" && coverMode === "upload") {
-      if (!coverFile) {
-        found.cover = "Sélectionnez une image, ou choisissez « Pas de couverture pour le moment ».";
-      } else if (!ALLOWED_COVER_TYPES.includes(coverFile.type)) {
-        found.cover = "La couverture doit être au format JPEG, PNG ou WebP.";
-      } else if (coverFile.size > MAX_COVER_SIZE_BYTES) {
-        found.cover = "La couverture dépasse la taille maximale de 2 Mo.";
+    if (key === "couverture") {
+      if (coverMode === "upload") {
+        if (!coverFile) {
+          found.cover = "Sélectionnez une image, ou choisissez « Pas de couverture pour le moment ».";
+        } else if (!ALLOWED_COVER_TYPES.includes(coverFile.type)) {
+          found.cover = "La couverture doit être au format JPEG, PNG ou WebP.";
+        } else if (coverFile.size > MAX_COVER_SIZE_BYTES) {
+          found.cover = "La couverture dépasse la taille maximale de 2 Mo.";
+        }
+      }
+
+      if (photoFile) {
+        if (!ALLOWED_COVER_TYPES.includes(photoFile.type)) {
+          found.photo = "La photo doit être au format JPEG, PNG ou WebP.";
+        } else if (photoFile.size > MAX_COVER_SIZE_BYTES) {
+          found.photo = "La photo dépasse la taille maximale de 2 Mo.";
+        }
       }
     }
 
@@ -329,6 +355,31 @@ export function ManuscriptWizard({
     setBusy("sending");
 
     try {
+      // Photo de l'auteur (facultative) : enregistrée sur le profil avant le dépôt.
+      if (photoFile && photoSentRef.current !== photoFile) {
+        const photoData = new FormData();
+        photoData.append("photo", photoFile);
+
+        const photoResponse = await fetch("/api/edition/photo", { method: "POST", body: photoData });
+
+        if (!photoResponse.ok) {
+          const photoResult = (await photoResponse.json().catch(() => null)) as {
+            error?: string;
+            fieldErrors?: Record<string, string[] | undefined>;
+          } | null;
+
+          setErrors({
+            photo: photoResult?.fieldErrors?.photo?.[0] ?? photoResult?.error ?? "Impossible d'envoyer la photo.",
+          });
+          setGlobalError("La photo de l'auteur n'a pas pu être envoyée. Corrigez-la ou retirez-la.");
+          setStep(FIELD_STEP.photo);
+          setBusy("idle");
+          return;
+        }
+
+        photoSentRef.current = photoFile;
+      }
+
       const formData = new FormData();
       formData.append("title", values.title.trim());
       formData.append("description", values.description.trim());
@@ -603,6 +654,7 @@ export function ManuscriptWizard({
                   className="input"
                 />
                 {coverPreview && (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={coverPreview}
                     alt="Aperçu de la couverture"
@@ -620,6 +672,70 @@ export function ManuscriptWizard({
                   : "Si votre manuscrit est retenu, la couverture sera définie avec vous."}
               </p>
             )}
+
+            <div className="mt-8 border-t border-slate-100 pt-6">
+              <h3 className="text-lg font-extrabold">Votre photo d&apos;auteur (facultatif)</h3>
+              <p className="mt-1 text-sm text-slate-600">
+                Elle accompagne votre biographie. <strong>Elle sera affichée publiquement</strong> sur votre page
+                d&apos;auteur : n&apos;en déposez une que si vous êtes d&apos;accord. JPEG, PNG ou WebP, 2 Mo au
+                maximum.
+              </p>
+
+              <div className="mt-4 flex flex-wrap items-center gap-4">
+                {photoPreview ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={photoPreview}
+                    alt="Aperçu de la photo"
+                    className="h-24 w-24 rounded-full border border-slate-200 object-cover"
+                  />
+                ) : currentPhotoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={currentPhotoUrl}
+                    alt="Votre photo actuelle"
+                    className="h-24 w-24 rounded-full border border-slate-200 object-cover"
+                  />
+                ) : (
+                  <div
+                    aria-hidden="true"
+                    className="flex h-24 w-24 items-center justify-center rounded-full bg-brand-100 text-4xl font-bold text-brand-700"
+                  >
+                    {(values.authorName.trim().charAt(0) || "A").toUpperCase()}
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <label htmlFor="photo" className="sr-only">
+                    Photo de l&apos;auteur
+                  </label>
+                  <input
+                    id="photo"
+                    name="photo"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    disabled={working}
+                    onChange={(event) => setPhotoFile(event.target.files?.[0] ?? null)}
+                    className="input"
+                  />
+                  {currentPhotoUrl && !photoFile && (
+                    <p className="text-xs text-slate-500">
+                      Votre photo actuelle est conservée. Choisissez un fichier pour la remplacer.
+                    </p>
+                  )}
+                  {photoFile && (
+                    <button
+                      type="button"
+                      onClick={() => setPhotoFile(null)}
+                      className="text-xs font-semibold text-red-700 hover:underline"
+                    >
+                      Ne pas envoyer cette photo
+                    </button>
+                  )}
+                </div>
+              </div>
+              <FieldError message={errors.photo} />
+            </div>
           </div>
         )}
 
@@ -827,6 +943,16 @@ export function ManuscriptWizard({
               <div>
                 <dt className="text-xs text-slate-500">Couverture</dt>
                 <dd>{coverMode === "upload" && coverFile ? coverFile.name : "Pas de couverture pour le moment"}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-slate-500">Photo de l&apos;auteur</dt>
+                <dd>
+                  {photoFile
+                    ? `${photoFile.name} (affichée publiquement)`
+                    : currentPhotoUrl
+                      ? "Photo actuelle conservée"
+                      : "Aucune"}
+                </dd>
               </div>
               <div>
                 <dt className="text-xs text-slate-500">Catégorie et langue</dt>
