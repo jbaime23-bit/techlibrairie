@@ -26,7 +26,12 @@ import {
   type TrimKey,
 } from "@/lib/assembly/constants";
 import { analyseIsbn13 } from "@/lib/assembly/isbn";
-import { luminance, prepareImageFile, type PreparedImage } from "@/lib/assembly/image-utils";
+import {
+  cropImageToCircle,
+  luminance,
+  prepareImageFile,
+  type PreparedImage,
+} from "@/lib/assembly/image-utils";
 import {
   buildFallbackLogoSet,
   clearCustomLogo,
@@ -198,6 +203,7 @@ export function AssemblyStudio() {
   const [paperKey, setPaperKey] = useState<PaperKey>("80");
   const [cover, setCover] = useState<CoverSettings>(DEFAULT_COVER);
   const [coverImage, setCoverImage] = useState<(PreparedImage & { name: string }) | null>(null);
+  const [authorPhoto, setAuthorPhoto] = useState<{ dataUrl: string; name: string } | null>(null);
 
   const [pdfCtor, setPdfCtor] = useState<PdfCtor | null>(null);
   const [measurer, setMeasurer] = useState<TextMeasurer | null>(null);
@@ -409,12 +415,13 @@ export function AssemblyStudio() {
         band: cover.band,
       },
       frontImage: coverImage ? { dataUrl: coverImage.dataUrl, width: coverImage.width, height: coverImage.height } : null,
+      authorPhoto: authorPhoto ? { dataUrl: authorPhoto.dataUrl } : null,
       logoFull: full,
       logoIcon: icon,
       logoPlate: !logoSet.recolorable && darkBackground,
       barcode: barcode ? { dataUrl: barcode.pngDataUrl, width: barcode.width, height: barcode.height } : null,
     });
-  }, [measurer, layout, logoSet, trim, spineMm, info, isbn, cover, textColor, lightInk, darkBackground, settings.fontFamily, coverImage, barcode]);
+  }, [measurer, layout, logoSet, trim, spineMm, info, isbn, cover, textColor, lightInk, darkBackground, settings.fontFamily, coverImage, authorPhoto, barcode]);
 
   const alerts = useMemo<AlertItem[]>(() => {
     const list: AlertItem[] = [];
@@ -521,6 +528,21 @@ export function AssemblyStudio() {
     }
   }
 
+  async function handlePhotoFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    try {
+      const prepared = await prepareImageFile(file, 1600);
+      const circle = await cropImageToCircle(prepared.dataUrl, 640);
+      setAuthorPhoto({ dataUrl: circle, name: file.name });
+      setProblem(null);
+    } catch (error) {
+      setProblem(error instanceof Error ? error.message : "Photo illisible.");
+    }
+  }
+
   async function handleLogoFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -560,6 +582,7 @@ export function AssemblyStudio() {
     setPaperKey("80");
     setCover(DEFAULT_COVER);
     setCoverImage(null);
+    setAuthorPhoto(null);
     setNotice("Brouillon effacé.");
   }
 
@@ -771,6 +794,55 @@ export function AssemblyStudio() {
               onChange={(event) => setCover((previous) => ({ ...previous, bgColor: event.target.value }))}
               className="h-11 w-full cursor-pointer rounded-xl border border-slate-300 bg-white p-1"
             />
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <p className="label">Photo de l&apos;auteur (4e de couverture, facultatif)</p>
+          <div className="flex flex-wrap items-center gap-4">
+            {authorPhoto ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={authorPhoto.dataUrl}
+                alt="Photo de l'auteur découpée en cercle"
+                className="h-20 w-20 rounded-full border-2 border-white bg-slate-200 shadow"
+              />
+            ) : (
+              <div
+                aria-hidden="true"
+                className="flex h-20 w-20 items-center justify-center rounded-full bg-slate-200 text-xs text-slate-500"
+              >
+                Photo
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="btn-secondary cursor-pointer px-3 py-1.5 text-xs">
+                  <ImageIcon className="h-4 w-4" aria-hidden="true" />
+                  {authorPhoto ? "Changer la photo" : "Importer une photo"}
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={(event) => void handlePhotoFile(event)}
+                    className="sr-only"
+                  />
+                </label>
+                {authorPhoto && (
+                  <button
+                    type="button"
+                    onClick={() => setAuthorPhoto(null)}
+                    className="text-xs font-semibold text-red-700 hover:underline"
+                  >
+                    Retirer
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-slate-500">
+                Découpée en cercle avec un liseré blanc, placée à côté de la biographie, sous « À propos de
+                l&apos;auteur ».
+              </p>
+            </div>
           </div>
         </div>
 
@@ -1159,4 +1231,4 @@ export function AssemblyStudio() {
       </Section>
     </div>
   );
-            }
+}
