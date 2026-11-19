@@ -2,37 +2,58 @@
 // Effacement (anonymisation) d'un compte utilisateur.
 // Le compte n'est pas supprimé de la base : les commandes passées sont conservées
 // (obligations comptables) mais ne sont plus reliées à des données personnelles.
+// Les commandes d'exemplaires imprimés sont anonymisées (adresse, téléphone) ; les manuscrits soumis
+// à l'examen éditorial et la photo d'auteur sont supprimés, fichiers compris. Les preuves du contrat
+// à compte d'auteur (version, date, signature) sont conservées pour nos obligations légales.
 
 import { randomBytes } from "crypto";
-import type { Role } from "@prisma/client";
+import type { PrintOrderStatus, Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSellerBalanceXof } from "@/lib/payouts";
 import { recomputeProductRating } from "@/lib/reviews";
 import { sendEmail } from "@/lib/email";
+import { deletePrivateFile, deletePublicCover } from "@/lib/storage";
 
 export const ERASED_EMAIL_DOMAIN = "efface.invalid";
+
+// Tant qu'une commande d'exemplaire imprimé est dans l'un de ces états, l'adresse de livraison est nécessaire.
+const PRINT_ORDER_IN_PROGRESS: PrintOrderStatus[] = [
+  "PAYMENT_SUBMITTED",
+  "PAID",
+  "SENDING",
+  "SENT_TO_LULU",
+  "LOCAL_PENDING",
+  "ERROR",
+  "SHIPPED",
+];
 
 export type ErasureFailure =
   | "introuvable"
   | "admin"
   | "deja-efface"
   | "solde-vendeur"
-  | "versement-en-cours";
+  | "versement-en-cours"
+  | "commande-imprimee-en-cours";
 
 export type ErasureResult =
-  | { ok: true; role: Role; ordersKept: number }
+  | { ok: true; role: Role; ordersKept: number; printOrdersAnonymized: number }
   | { ok: false; reason: ErasureFailure };
 
 interface ErasureOutcome {
   role: Role;
   ordersKept: number;
+  printOrdersAnonymized: number;
+  contractsKept: number;
   previousEmail: string;
   previousName: string | null;
+  // Fichiers à supprimer du stockage une fois la base à jour
+  privateKeys: string[];
+  publicUrls: string[];
 }
 
 /**
- * Anonymise un compte. Refuse si le compte est administrateur, ou si un vendeur
- * a encore de l'argent à recevoir ou un versement en cours (à régler d'abord).
+ * Anonymise un compte. Refuse si le compte est administrateur, si un vendeur a encore de l'argent
+ * à recevoir ou un versement en cours, ou si une commande d'exemplaire imprimé est en cours.
  */
 export async function eraseUserAccount(userId: string): Promise<ErasureResult> {
   const outcome = await prisma.$transaction(
@@ -44,7 +65,7 @@ export async function eraseUserAccount(userId: string): Promise<ErasureResult> {
           name: true,
           email: true,
           role: true,
-          sellerProfile: { select: { id: true } },
+          sellerProfile: { select: { id: true, avatarUrl: true } },
         },
       });
 
@@ -78,8 +99,20 @@ export async function eraseUserAccount(userId: string): Promise<ErasureResult> {
         }
       }
 
+      // Commandes d'exemplaires imprimés en cours : l'adresse de livraison est encore nécessaire.
+      const printInProgress = await tx.printOrder.count({
+        where: { buyerId: user.id, status: { in: PRINT_ORDER_IN_PROGRESS } },
+      });
+
+      if (printInProgress > 0) {
+        return { ok: false as const, reason: "commande-imprimee-en-cours" as const };
+      }
+
       const now = new Date();
       const lowerEmail = user.email.toLowerCase();
+      const placeholderEmail = `efface-${user.id}@${ERASED_EMAIL_DOMAIN}`;
+      const privateKeys: string[] = [];
+      const publicUrls: string[] = [];
 
       // Commandes en attente : annulées.
       const pendingOrders = await tx.order.findMany({
@@ -97,6 +130,43 @@ export async function eraseUserAccount(userId: string): Promise<ErasureResult> {
           where: { id: { in: ids } },
           data: { status: "CANCELED" },
         });
+      }
+
+      // Commandes d'exemplaires imprimés jamais payées : annulées.
+      await tx.printOrder.updateMany({
+        where: { buyerId: user.id, status: "AWAITING_PAYMENT" },
+        data: { status: "CANCELED", canceledReason: "Compte supprimé" },
+      });
+
+      // Commandes d'exemplaires imprimés conservées, sans adresse, téléphone ni email.
+      const printAnonymized = await tx.printOrder.updateMany({
+        where: { buyerId: user.id },
+        data: {
+          buyerEmail: placeholderEmail,
+          shipName: "Effacé",
+          shipStreet1: "Effacé",
+          shipStreet2: null,
+          shipCity: "Effacé",
+          shipState: null,
+          shipPostcode: "-",
+          shipPhone: "-",
+          payerPhone: null,
+        },
+      });
+
+      // Manuscrits soumis à l'examen éditorial : supprimés, fichiers compris.
+      const submissions = await tx.manuscriptSubmission.findMany({
+        where: { userId: user.id },
+        select: { manuscriptStorageKey: true, coverImageUrl: true },
+      });
+
+      if (submissions.length > 0) {
+        await tx.manuscriptSubmission.deleteMany({ where: { userId: user.id } });
+
+        for (const submission of submissions) {
+          privateKeys.push(submission.manuscriptStorageKey);
+          if (submission.coverImageUrl) publicUrls.push(submission.coverImageUrl);
+        }
       }
 
       // Connexions et jetons.
@@ -146,7 +216,16 @@ export async function eraseUserAccount(userId: string): Promise<ErasureResult> {
       });
 
       // Profil vendeur : informations personnelles effacées, ouvrages retirés de la vente.
+      let contractsKept = 0;
+
       if (sellerId) {
+        if (user.sellerProfile?.avatarUrl) {
+          publicUrls.push(user.sellerProfile.avatarUrl);
+        }
+
+        // Preuves des contrats à compte d'auteur : conservées (obligations légales).
+        contractsKept = await tx.editionProject.count({ where: { sellerId } });
+
         await tx.product.updateMany({
           where: { sellerId, status: "PUBLISHED" },
           data: { status: "UNPUBLISHED" },
@@ -168,7 +247,6 @@ export async function eraseUserAccount(userId: string): Promise<ErasureResult> {
       }
 
       // Commandes conservées, sans l'adresse email.
-      const placeholderEmail = `efface-${user.id}@${ERASED_EMAIL_DOMAIN}`;
       await tx.order.updateMany({
         where: { buyerId: user.id },
         data: { buyerEmail: placeholderEmail },
@@ -195,8 +273,12 @@ export async function eraseUserAccount(userId: string): Promise<ErasureResult> {
         outcome: {
           role: user.role,
           ordersKept,
+          printOrdersAnonymized: printAnonymized.count,
+          contractsKept,
           previousEmail: user.email,
           previousName: user.name,
+          privateKeys,
+          publicUrls,
         },
       };
       return result;
@@ -208,19 +290,40 @@ export async function eraseUserAccount(userId: string): Promise<ErasureResult> {
     return { ok: false, reason: outcome.reason };
   }
 
+  // Fichiers supprimés une fois la base à jour (au mieux : un échec n'annule rien).
+  for (const key of outcome.outcome.privateKeys) {
+    await deletePrivateFile(key).catch(() => undefined);
+  }
+  for (const url of outcome.outcome.publicUrls) {
+    await deletePublicCover(url).catch(() => undefined);
+  }
+
+  const paragraphs = [
+    `Bonjour${outcome.outcome.previousName ? ` ${outcome.outcome.previousName}` : ""}, votre compte TechLibrairie a été supprimé et vos données personnelles ont été effacées ou anonymisées.`,
+    "Certaines informations liées à vos commandes (numéros, montants, dates) sont conservées de façon anonyme pour nos obligations comptables.",
+  ];
+
+  if (outcome.outcome.contractsKept > 0) {
+    paragraphs.push(
+      "Les preuves de vos contrats d'édition (version, date d'acceptation et signature) sont conservées pour nos obligations légales."
+    );
+  }
+
   // Confirmation par email à l'ancienne adresse (au mieux : un échec n'annule rien).
   await sendEmail({
     to: outcome.outcome.previousEmail,
     subject: "Votre compte TechLibrairie a été supprimé",
     content: {
       title: "Compte supprimé",
-      paragraphs: [
-        `Bonjour${outcome.outcome.previousName ? ` ${outcome.outcome.previousName}` : ""}, votre compte TechLibrairie a été supprimé et vos données personnelles ont été effacées ou anonymisées.`,
-        "Certaines informations liées à vos commandes (numéros, montants, dates) sont conservées de façon anonyme pour nos obligations comptables.",
-      ],
+      paragraphs,
       note: "Si vous n'êtes pas à l'origine de cette suppression, contactez-nous immédiatement.",
     },
   });
 
-  return { ok: true, role: outcome.outcome.role, ordersKept: outcome.outcome.ordersKept };
-            }
+  return {
+    ok: true,
+    role: outcome.outcome.role,
+    ordersKept: outcome.outcome.ordersKept,
+    printOrdersAnonymized: outcome.outcome.printOrdersAnonymized,
+  };
+                                            }
