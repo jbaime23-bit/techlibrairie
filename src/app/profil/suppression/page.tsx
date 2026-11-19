@@ -21,9 +21,11 @@ const ERRORS: Record<string, string> = {
     "Un compte administrateur ne peut pas être supprimé directement : demandez à un autre administrateur de vous retirer d'abord ce rôle.",
   "deja-efface": "Ce compte a déjà été supprimé.",
   "solde-vendeur":
-    "Vous avez encore de l'argent à recevoir en tant que vendeur. Demandez et recevez vos versements (page « Mes revenus »), ou contactez le support, avant de supprimer votre compte.",
+    "Vous avez encore de l'argent à recevoir en tant que vendeur ou auteur. Demandez et recevez vos versements (page « Mes revenus »), ou contactez le support, avant de supprimer votre compte.",
   "versement-en-cours":
     "Vous avez un versement en cours de traitement. Attendez qu'il soit terminé avant de supprimer votre compte.",
+  "commande-imprimee-en-cours":
+    "Vous avez une commande de livre imprimé en cours (paiement en vérification, fabrication, expédition ou livraison). Votre adresse est nécessaire jusqu'à la livraison : attendez qu'elle soit livrée ou annulée, ou contactez-nous.",
 };
 
 export default async function SuppressionPage({
@@ -90,12 +92,24 @@ export default async function SuppressionPage({
                 continuer.
               </strong>
             </li>
-            {user.role === "SELLER" && (
-              <li>
-                Votre profil vendeur est effacé et vos ouvrages sont retirés de la vente. Les acheteurs
-                qui les ont déjà achetés gardent leur accès. Vous ne pouvez pas supprimer votre compte
-                tant qu&apos;il vous reste de l&apos;argent à recevoir.
-              </li>
+            <li>
+              Vos commandes de livres imprimés sont conservées sans votre nom, votre adresse ni votre
+              téléphone. La suppression est refusée tant qu&apos;une commande est en cours, car votre adresse
+              est nécessaire jusqu&apos;à la livraison.
+            </li>
+            {(user.role === "SELLER" || user.role === "ADMIN") && (
+              <>
+                <li>
+                  Votre profil vendeur ou auteur est effacé, votre photo est supprimée et vos ouvrages sont
+                  retirés de la vente. Les acheteurs qui les ont déjà achetés gardent leur accès. Vous ne
+                  pouvez pas supprimer votre compte tant qu&apos;il vous reste de l&apos;argent à recevoir.
+                </li>
+                <li>
+                  Vos manuscrits soumis à l&apos;examen éditorial sont supprimés, fichiers compris. Les preuves
+                  de vos contrats d&apos;édition à compte d&apos;auteur (version, date, signature) sont
+                  conservées pour nos obligations légales.
+                </li>
+              </>
             )}
             <li>
               <strong>Cette action est irréversible.</strong> Vous pourrez créer un nouveau compte
@@ -142,4 +156,4 @@ export default async function SuppressionPage({
       </div>
     </div>
   );
-}
+        }
