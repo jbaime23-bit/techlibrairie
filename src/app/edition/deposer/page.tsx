@@ -121,7 +121,7 @@ export default async function DeposerPage({
 
   const seller = await prisma.sellerProfile.findUnique({
     where: { userId: user.id },
-    select: { id: true, displayName: true, status: true },
+    select: { id: true, displayName: true, status: true, avatarUrl: true },
   });
 
   if (!seller) {
@@ -180,6 +180,7 @@ export default async function DeposerPage({
           categories={categories}
           feeXof={offers.authorFeeXof}
           isAdmin={user.role === "ADMIN"}
+          currentPhotoUrl={seller.avatarUrl}
           terms={{
             contractVersion: CONTRACT_VERSION,
             warrantyText: RIGHTS_WARRANTY_TEXT,
