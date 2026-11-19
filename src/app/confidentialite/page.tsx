@@ -9,7 +9,7 @@ import LegalPage, { LegalList, LegalSection } from "@/components/legal/legal-pag
 export const metadata: Metadata = {
   title: "Politique de confidentialité",
   description:
-    "Politique de confidentialité de TechLibrairie : données collectées, cookies et publicité, durées de conservation et vos droits.",
+    "Politique de confidentialité de TechLibrairie : données collectées, édition et livres imprimés, cookies et publicité, durées de conservation et vos droits.",
 };
 
 export const dynamic = "force-dynamic";
@@ -44,6 +44,36 @@ export default async function ConfidentialitePage() {
             <strong>Commandes et téléchargements</strong> : ouvrages achetés, montants, dates, état du
             paiement, liens de téléchargement. Finalité : exécuter votre achat, vous fournir vos fichiers,
             gérer les remboursements et nos obligations comptables.
+          </li>
+          <li>
+            <strong>Livres imprimés à la demande</strong> : si vous commandez un exemplaire imprimé, nous
+            collectons le nom du destinataire, son adresse de livraison, son téléphone (exigé par le
+            transporteur) et, si vous payez par Mobile Money, le numéro ou nom de l&apos;expéditeur et la
+            référence de la transaction. Finalité : fabriquer et livrer votre exemplaire, vérifier votre
+            paiement et gérer les réclamations. Pour une livraison à l&apos;étranger, ces informations sont
+            transmises à notre prestataire d&apos;impression à la demande, <strong>Lulu Press, Inc. (États-Unis)</strong>,
+            qui fabrique et expédie le livre. Une commande livrée au Burkina Faso est traitée localement et n&apos;est
+            pas transmise à ce prestataire.
+          </li>
+          <li>
+            <strong>Manuscrits soumis à l&apos;édition</strong> : si vous déposez un manuscrit, nous conservons le
+            fichier (en accès privé, lisible par l&apos;équipe éditoriale seulement), son titre, son résumé, votre
+            nom d&apos;auteur, vos déclarations (droits, acceptation de l&apos;examen) avec leur date, et la décision
+            prise. Finalité : examiner votre manuscrit et, s&apos;il est retenu, vous proposer un contrat
+            d&apos;édition. Vous pouvez supprimer votre compte pour les faire effacer.
+          </li>
+          <li>
+            <strong>Édition à compte d&apos;auteur</strong> : le contrat que vous acceptez est archivé avec sa
+            version, la date d&apos;acceptation, le nom que vous tapez comme signature, l&apos;adresse email de votre
+            compte et une empreinte chiffrée de votre connexion (jamais l&apos;adresse IP elle-même). Nous
+            conservons aussi votre manuscrit, les épreuves, votre approbation du bon à tirer et le paiement
+            du forfait (moyen, numéro de l&apos;expéditeur, référence de la transaction). Finalité : exécuter
+            le contrat, prouver votre accord et tenir notre comptabilité.
+          </li>
+          <li>
+            <strong>Photo d&apos;auteur</strong> : si vous en déposez une, elle est <strong>affichée publiquement</strong>{" "}
+            sur votre page d&apos;auteur. Vous pouvez la changer ou la supprimer à tout moment depuis votre espace
+            auteur ; elle est supprimée avec votre compte.
           </li>
           <li>
             <strong>Téléchargements gratuits</strong> : pour télécharger un PDF gratuit, aucun compte et
@@ -170,6 +200,21 @@ export default async function ConfidentialitePage() {
             favoris compris. Les commandes passées sont conservées de façon anonyme (numéros, montants,
             dates) pour la durée imposée par nos obligations légales et comptables.
           </li>
+          <li>
+            Commandes de livres imprimés : conservées avec l&apos;adresse de livraison tant que le compte existe,
+            pour la livraison et le traitement des réclamations. À la suppression du compte, le nom,
+            l&apos;adresse et le téléphone sont effacés ; la suppression est refusée tant qu&apos;une commande est en
+            cours, car l&apos;adresse est nécessaire jusqu&apos;à la livraison.
+          </li>
+          <li>
+            Manuscrits soumis à l&apos;examen éditorial et photo d&apos;auteur : supprimés (fichiers compris) avec le
+            compte.
+          </li>
+          <li>
+            Preuves du contrat d&apos;édition à compte d&apos;auteur (version, date d&apos;acceptation, signature saisie,
+            adresse email du compte) : conservées après la suppression du compte, pour la durée imposée par nos
+            obligations légales et la prescription applicable.
+          </li>
           <li>Panier et code promotionnel saisi : 30 jours au plus pour le panier, 7 jours pour le code (cookies sur votre appareil).</li>
           <li>Choix concernant les cookies publicitaires : 6 mois (cookie sur votre appareil).</li>
           <li>Commandes jamais payées : annulées après 48 heures.</li>
@@ -191,9 +236,10 @@ export default async function ConfidentialitePage() {
           {methods.processors.length > 0
             ? `${methods.processors.join(" et ")} (paiement), `
             : "nos prestataires de paiement, "}
-          Resend (envoi des emails) et, si vous l&apos;acceptez, les régies publicitaires (Google AdSense,
-          Adsterra) pour l&apos;affichage des annonces. Ces prestataires peuvent traiter vos données dans des pays
-          autres que le vôtre.
+          Resend (envoi des emails), Lulu Press, Inc. (impression à la demande et expédition des livres vers
+          l&apos;étranger : nom, adresse et téléphone du destinataire) et, si vous l&apos;acceptez, les régies
+          publicitaires (Google AdSense, Adsterra) pour l&apos;affichage des annonces. Ces prestataires peuvent
+          traiter vos données dans des pays autres que le vôtre, notamment aux États-Unis.
         </p>
       </LegalSection>
 
@@ -209,10 +255,11 @@ export default async function ConfidentialitePage() {
             <Link href="/profil/donnees" className="font-semibold text-brand-700 hover:underline">
               « Mon profil », « Télécharger mes données »
             </Link>
-            .
+            . Le fichier comprend vos commandes de livres imprimés et vos manuscrits soumis.
           </li>
           <li>
-            <strong>Corriger</strong> vos informations : depuis la page « Mon profil ».
+            <strong>Corriger</strong> vos informations : depuis la page « Mon profil ». Votre photo d&apos;auteur se
+            change depuis votre espace auteur.
           </li>
           <li>
             <strong>Refuser les rappels par email</strong> : décochez « Rappels par email » dans « Mon
@@ -228,7 +275,8 @@ export default async function ConfidentialitePage() {
             <Link href="/profil/suppression" className="font-semibold text-brand-700 hover:underline">
               « Mon profil », « Supprimer mon compte »
             </Link>
-            . Un vendeur doit d&apos;abord avoir reçu l&apos;argent qui lui est dû.
+            . Un vendeur ou un auteur doit d&apos;abord avoir reçu l&apos;argent qui lui est dû, et aucune commande de
+            livre imprimé ne doit être en cours.
           </li>
           <li>
             <strong>Toute autre demande</strong> (opposition à un traitement, question sur vos données) :
@@ -254,8 +302,9 @@ export default async function ConfidentialitePage() {
       <LegalSection title="Sécurité">
         <p>
           Les échanges avec le site sont chiffrés, les mots de passe sont conservés sous forme chiffrée
-          irréversible, et les fichiers PDF sont stockés en accès privé. Aucun système n&apos;étant infaillible,
-          prévenez-nous immédiatement si vous suspectez un usage frauduleux de votre compte.
+          irréversible, et les fichiers PDF (achats, manuscrits, fichiers d&apos;impression) sont stockés en accès
+          privé. Aucun système n&apos;étant infaillible, prévenez-nous immédiatement si vous suspectez un usage
+          frauduleux de votre compte.
         </p>
       </LegalSection>
 
