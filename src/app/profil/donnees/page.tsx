@@ -55,17 +55,32 @@ export default async function DonneesPage({
           <ul className="mt-3 list-disc space-y-2 pl-5">
             <li>Votre compte : nom, adresse email, téléphone, type de compte, dates.</li>
             <li>Vos commandes : ouvrages, montants, paiements.</li>
+            <li>
+              Vos commandes de livres imprimés : adresse de livraison, téléphone, paiement déclaré et suivi du
+              colis.
+            </li>
             <li>Vos conversations avec le support, réponses de l&apos;équipe comprises.</li>
             <li>Vos messages envoyés par le formulaire de contact.</li>
-            {user.role === "SELLER" && (
-              <li>Votre profil vendeur, vos ouvrages et vos versements.</li>
+            {(user.role === "SELLER" || user.role === "ADMIN") && (
+              <>
+                <li>
+                  Votre profil vendeur ou auteur (photo comprise), vos ouvrages et vos versements.
+                </li>
+                <li>
+                  Vos manuscrits soumis à l&apos;examen éditorial et vos éditions à compte d&apos;auteur : contrat
+                  accepté, forfait, bon à tirer, formats imprimés et ventes d&apos;exemplaires.
+                </li>
+              </>
             )}
           </ul>
 
           <h2 className="mt-5 text-lg font-semibold text-slate-900">Ce qu&apos;il ne contient pas</h2>
           <ul className="mt-3 list-disc space-y-2 pl-5">
             <li>Votre mot de passe et vos clés de sécurité.</li>
-            <li>Les fichiers PDF eux-mêmes : téléchargez-les depuis « Mes commandes ».</li>
+            <li>
+              Les fichiers eux-mêmes (PDF achetés, manuscrits, photo) : téléchargez vos achats depuis
+              « Mes commandes ».
+            </li>
             <li>Les données des autres utilisateurs.</li>
           </ul>
         </section>
@@ -98,4 +113,4 @@ export default async function DonneesPage({
       </div>
     </div>
   );
-      }
+        }
