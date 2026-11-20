@@ -27,6 +27,7 @@ enum SellerStatus {
 }
 
 enum ProductStatus {
+  PENDING_REVIEW
   PUBLISHED
   UNPUBLISHED
   SUSPENDED
