@@ -35,6 +35,7 @@ const STAGE_LABELS: Record<EditionStage, string> = {
   IN_LAYOUT: "En maquette",
   PROOF_PENDING: "Bon à tirer à valider",
   CHANGES_REQUESTED: "Corrections demandées",
+  READY_TO_PUBLISH: "Prêt à publier",
   PUBLISHED: "Publié",
   REFUSED: "Refusé",
 };
@@ -44,6 +45,7 @@ const STAGE_STYLES: Record<EditionStage, string> = {
   IN_LAYOUT: "bg-blue-100 text-blue-800",
   PROOF_PENDING: "bg-yellow-100 text-yellow-800",
   CHANGES_REQUESTED: "bg-orange-100 text-orange-800",
+  READY_TO_PUBLISH: "bg-indigo-100 text-indigo-800",
   PUBLISHED: "bg-green-100 text-green-800",
   REFUSED: "bg-red-100 text-red-800",
 };
@@ -234,134 +236,3 @@ export default async function AdminEditionsPage({
                         href={`/api/admin/edition/${project.productId}/epreuve`}
                         className="font-semibold underline"
                       >
-                        Télécharger l&apos;épreuve envoyée
-                      </a>
-                    </p>
-                  </div>
-                )}
-
-                {project.stage === "PUBLISHED" && (
-                  <p className="mt-3 text-sm text-slate-600">
-                    Épreuve version {project.approvedProofVersion ?? "-"} approuvée
-                    {project.approvedAt ? ` le ${formatDate(project.approvedAt)}` : ""} par{" "}
-                    {project.approvedByName ?? "-"}.{" "}
-                    {product && (
-                      <Link
-                        href={`/catalogue/${product.slug}`}
-                        className="font-semibold text-brand-700 hover:underline"
-                      >
-                        Voir la page du livre
-                      </Link>
-                    )}
-                  </p>
-                )}
-
-                {project.stage === "REFUSED" && project.refusalReason && (
-                  <p className="mt-3 text-sm text-red-700">Motif du refus : {project.refusalReason}</p>
-                )}
-
-                {project.stage !== "FEE_PENDING" && (
-                  <p className="mt-3 text-sm">
-                    <a
-                      href={`/api/admin/edition/${project.productId}/manuscrit`}
-                      className="font-semibold text-brand-700 hover:underline"
-                    >
-                      Télécharger le manuscrit déposé par l&apos;auteur
-                    </a>
-                  </p>
-                )}
-
-                {(project.stage === "IN_LAYOUT" ||
-                  project.stage === "CHANGES_REQUESTED" ||
-                  project.stage === "PROOF_PENDING") && (
-                  <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                    <ProofUploadForm
-                      productId={project.productId}
-                      nextVersion={project.proofVersion + 1}
-                    />
-                    {project.stage === "PROOF_PENDING" && (
-                      <p className="mt-2 text-xs text-slate-500">
-                        Déposer une nouvelle épreuve remplace la précédente et prévient à nouveau l&apos;auteur.
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {open && (
-                  <form action={refuseEditionAction} className="mt-4 space-y-2 border-t border-slate-100 pt-4">
-                    <input type="hidden" name="productId" value={project.productId} />
-                    <p className="text-sm font-semibold">Refuser cette œuvre (non-conformité)</p>
-
-                    <div>
-                      <label htmlFor={`reason-${project.id}`} className="label">
-                        Motif (transmis à l&apos;auteur)
-                      </label>
-                      <input
-                        id={`reason-${project.id}`}
-                        name="reason"
-                        type="text"
-                        required
-                        minLength={3}
-                        maxLength={300}
-                        className="input"
-                      />
-                    </div>
-
-                    {fee?.status === "VALIDATED" && (
-                      <div>
-                        <label htmlFor={`refund-${project.id}`} className="label">
-                          Référence du remboursement du forfait (Mobile Money, à effectuer avant de refuser)
-                        </label>
-                        <input
-                          id={`refund-${project.id}`}
-                          name="refundReference"
-                          type="text"
-                          required
-                          minLength={3}
-                          maxLength={100}
-                          className="input"
-                        />
-                      </div>
-                    )}
-
-                    <label className="flex items-start gap-2 text-sm">
-                      <input type="checkbox" name="confirm" value="oui" required className="mt-1" />
-                      <span>Je confirme le refus : l&apos;auteur en est informé et le livre ne sera pas publié.</span>
-                    </label>
-
-                    <button type="submit" className="btn-secondary text-red-700">
-                      Refuser l&apos;œuvre
-                    </button>
-                  </form>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      <section className="card text-sm text-slate-600">
-        <h2 className="text-lg font-semibold text-slate-900">À savoir</h2>
-        <ul className="mt-3 list-disc space-y-2 pl-5">
-          <li>
-            Le PDF vendu est <strong>l&apos;épreuve approuvée par l&apos;auteur</strong>, pas son manuscrit. Le
-            manuscrit est conservé séparément.
-          </li>
-          <li>
-            Le contrat prévoit {INCLUDED_CORRECTION_ROUNDS} séries de corrections incluses : au-delà,
-            l&apos;auteur est invité à vous contacter pour un devis.
-          </li>
-          <li>
-            Aucune relance automatique : repérez les épreuves restées sans réponse après {PROOF_REVIEW_DAYS} jours
-            et relancez l&apos;auteur par email.
-          </li>
-          <li>
-            Le remboursement d&apos;un forfait se fait hors du site (Mobile Money) : saisissez sa référence au
-            moment du refus.
-          </li>
-          <li>Chaque dépôt d&apos;épreuve, chaque téléchargement de manuscrit et chaque refus sont inscrits dans le Journal.</li>
-        </ul>
-      </section>
-    </div>
-  );
-  }
