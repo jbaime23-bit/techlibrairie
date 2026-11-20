@@ -1,9 +1,9 @@
 // src/components/produits/product-card.tsx
 import Image from "next/image";
 import Link from "next/link";
-import type { Currency, ProductKind } from "@prisma/client";
+import type { Currency, EditionModel, ProductKind } from "@prisma/client";
 import { RatingStars } from "@/components/produits/rating-stars";
-import { KIND_BADGE_STYLES, KIND_LABELS, displayAuthorName } from "@/lib/product-display";
+import { displayAuthorName, productBadge } from "@/lib/product-display";
 import { formatPrice } from "@/lib/utils";
 
 export interface ProductCardData {
@@ -17,14 +17,17 @@ export interface ProductCardData {
   category: { name: string } | null;
   ratingAverage?: number;
   ratingCount?: number;
-  // Service et auteur : facultatifs pour rester compatible avec les pages qui ne les chargent pas
+  // Service, badge et auteur : facultatifs pour rester compatible avec les pages qui ne les chargent pas
   kind?: ProductKind;
+  editionModel?: EditionModel | null;
   authorName?: string | null;
 }
 
 export function ProductCard({ product }: { product: ProductCardData }) {
   const ratingCount = product.ratingCount ?? 0;
-  const kind = product.kind;
+  const badge = product.kind
+    ? productBadge({ kind: product.kind, editionModel: product.editionModel })
+    : null;
 
   return (
     <Link
@@ -44,11 +47,11 @@ export function ProductCard({ product }: { product: ProductCardData }) {
           <span className="text-2xl font-bold text-slate-300">PDF</span>
         )}
 
-        {kind && (
+        {badge && (
           <span
-            className={`absolute left-2 top-2 rounded-full px-2 py-1 text-[11px] font-semibold shadow-sm ${KIND_BADGE_STYLES[kind]}`}
+            className={`absolute left-2 top-2 rounded-full px-2 py-1 text-[11px] font-semibold shadow-sm ${badge.style}`}
           >
-            {KIND_LABELS[kind]}
+            {badge.label}
           </span>
         )}
       </div>
