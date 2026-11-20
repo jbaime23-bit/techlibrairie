@@ -24,7 +24,7 @@ import {
 } from "@/lib/commission";
 
 export const metadata: Metadata = {
-  title: "Publier : édition à compte d'auteur ou vente de PDF",
+  title: "Déposer : édition à compte d'auteur ou vente de PDF",
 };
 
 export const dynamic = "force-dynamic";
@@ -73,9 +73,10 @@ export default async function NouveauProduitPage({
     return (
       <div className="mx-auto max-w-3xl space-y-6">
         <div>
-          <h1 className="text-2xl font-bold">Que souhaitez-vous publier ?</h1>
+          <h1 className="text-2xl font-bold">Que souhaitez-vous déposer ?</h1>
           <p className="mt-1 text-sm text-slate-600">
-            TechLibrairie propose deux services distincts, qui obéissent à des règles différentes.
+            TechLibrairie propose deux services distincts, qui obéissent à des règles différentes. Dans les deux
+            cas, <strong>seule TechLibrairie met un ouvrage en ligne</strong>.
           </p>
         </div>
 
@@ -83,7 +84,8 @@ export default async function NouveauProduitPage({
           <section className="card flex flex-col">
             <h2 className="text-lg font-semibold">Édition à compte d&apos;auteur</h2>
             <p className="mt-2 flex-1 text-sm text-slate-600">
-              Faire éditer votre livre par TechLibrairie Édition : contrôle, mise en page et publication.
+              Faire éditer votre livre par TechLibrairie Édition : contrôle, mise en page, puis mise en ligne par
+              nos soins après votre approbation.
               {isAdmin
                 ? " Aucun forfait n'est demandé à l'administrateur."
                 : ` Vous financez l'édition par un forfait de ${formatXof(contribution.amountXof)} par nouveau livre, réglé juste après le dépôt.`}{" "}
@@ -97,8 +99,8 @@ export default async function NouveauProduitPage({
           <section className="card flex flex-col">
             <h2 className="text-lg font-semibold">Vente de PDF</h2>
             <p className="mt-2 flex-1 text-sm text-slate-600">
-              Déposer et vendre directement des documents et ressources (cours, rapports, guides...).
-              Publication immédiate, sans forfait d&apos;édition.
+              Déposer des documents et ressources (cours, rapports, guides...). Votre PDF est vérifié par
+              TechLibrairie, puis mis en vente après sa validation. Sans forfait d&apos;édition.
             </p>
             <Link href="/vendeur/produits/nouveau?service=document" className="btn-secondary mt-4">
               Vendre un PDF
@@ -145,9 +147,9 @@ export default async function NouveauProduitPage({
         <p className="mt-1 text-sm text-slate-600">
           {isEdition
             ? contributionXof !== null
-              ? "Déposez votre livre et acceptez le contrat. Le forfait d'édition est à régler juste après le dépôt."
-              : "Déposez votre livre : il est publié dès l'envoi du formulaire."
-            : "Votre document est mis en vente dès l'envoi du formulaire."}{" "}
+              ? "Déposez votre livre et acceptez le contrat. Le forfait d'édition est à régler juste après le dépôt ; le livre n'est mis en ligne par TechLibrairie qu'après l'édition."
+              : "Déposez votre livre : il reste en attente dans Administration, Mise en ligne, où vous le publierez avec son badge."
+            : "Votre document est envoyé à TechLibrairie pour vérification. Il reste invisible dans la boutique tant qu'il n'est pas validé."}{" "}
           <Link href="/vendeur/produits/nouveau" className="font-semibold text-brand-700 hover:underline">
             Changer de service
           </Link>
