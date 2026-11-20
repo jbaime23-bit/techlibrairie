@@ -1,6 +1,6 @@
 // src/app/vendeur/publication/[id]/page.tsx
 // Suivi de l'édition d'un livre à compte d'auteur : étapes, règlement du forfait (Mobile Money, vérifié
-// par l'administration), puis relecture de l'épreuve (bon à tirer) et approbation.
+// par l'administration), relecture de l'épreuve (bon à tirer), approbation, puis mise en ligne par TechLibrairie.
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -32,6 +32,8 @@ const MESSAGES: Record<string, string> = {
   declare: "Votre paiement a été déclaré. Il est en cours de vérification par l'administration.",
   corrections:
     "Votre demande de corrections a été transmise à TechLibrairie Édition. Vous recevrez une nouvelle épreuve.",
+  approuve:
+    "Votre approbation est enregistrée. TechLibrairie Édition procède à la vérification finale, puis met votre livre en ligne. Vous serez prévenu par email.",
 };
 
 const ERRORS: Record<string, string> = {
@@ -46,7 +48,7 @@ const ERRORS: Record<string, string> = {
   confirmation: "Cochez la case de confirmation pour approuver l'épreuve.",
   "epreuve-modifiee":
     "L'épreuve a été remplacée pendant que vous la consultiez. Relisez la nouvelle version avant de la valider.",
-  forfait: "Le forfait n'est pas validé : la publication est impossible pour le moment.",
+  forfait: "Le forfait n'est pas validé : l'approbation est impossible pour le moment.",
   fichier: "Le fichier de l'épreuve est momentanément introuvable. Réessayez dans un instant.",
   message: "Décrivez les corrections demandées (10 caractères au minimum).",
   limite:
@@ -122,6 +124,7 @@ export default async function EditionTrackingPage({
       proofUploadedAt: true,
       correctionRounds: true,
       changeRequest: true,
+      approvedAt: true,
     },
   });
 
@@ -137,6 +140,7 @@ export default async function EditionTrackingPage({
   const canDeclare = !refused && (fee.status === "AWAITING_PAYMENT" || fee.status === "REJECTED");
   const verifying = !refused && fee.status === "SUBMITTED";
   const stage = project?.stage ?? "FEE_PENDING";
+  const readyToPublish = stage === "READY_TO_PUBLISH";
   const roundsLeft = Math.max(0, INCLUDED_CORRECTION_ROUNDS - (project?.correctionRounds ?? 0));
 
   const feeStep: StepState = fee.status === "VALIDATED" ? "done" : "current";
@@ -147,7 +151,12 @@ export default async function EditionTrackingPage({
         ? "todo"
         : "done";
   const proofStep: StepState =
-    stage === "PROOF_PENDING" ? "current" : stage === "PUBLISHED" ? "done" : "todo";
+    stage === "PROOF_PENDING"
+      ? "current"
+      : readyToPublish || stage === "PUBLISHED"
+        ? "done"
+        : "todo";
+  const publishStep: StepState = readyToPublish ? "current" : stage === "PUBLISHED" ? "done" : "todo";
 
   const steps: { label: string; state: StepState }[] = [
     { label: "1. Dépôt", state: "done" },
@@ -155,7 +164,7 @@ export default async function EditionTrackingPage({
     { label: "3. Forfait", state: refused ? "todo" : feeStep },
     { label: "4. Mise en page", state: refused ? "todo" : layoutStep },
     { label: "5. Bon à tirer", state: refused ? "todo" : proofStep },
-    { label: "6. Publication", state: "todo" },
+    { label: "6. Mise en ligne", state: refused ? "todo" : publishStep },
   ];
 
   const messageKey = firstParam(sp.message);
@@ -224,7 +233,10 @@ export default async function EditionTrackingPage({
               Les frais d&apos;impression des exemplaires imprimés sont à votre charge : ils sont déduits de
               chaque vente, sans avance de votre part.
             </li>
-            <li>Votre livre n&apos;est publié qu&apos;après votre approbation du bon à tirer.</li>
+            <li>
+              Votre livre est mis en ligne par TechLibrairie Édition, uniquement après votre approbation du bon à
+              tirer et notre vérification finale.
+            </li>
           </ul>
         </section>
       )}
@@ -246,7 +258,7 @@ export default async function EditionTrackingPage({
           <h2 className="text-lg font-semibold text-green-900">Forfait validé : mise en page en cours</h2>
           <p className="mt-1 text-sm text-green-900">
             TechLibrairie Édition contrôle votre livre puis réalise sa mise en page (délai indicatif de 30
-            jours). Vous recevrez l&apos;épreuve à approuver avant toute publication.
+            jours). Vous recevrez l&apos;épreuve à approuver avant toute mise en ligne.
           </p>
         </section>
       )}
@@ -265,6 +277,18 @@ export default async function EditionTrackingPage({
         </section>
       )}
 
+      {!refused && readyToPublish && (
+        <section className="card border-teal-200 bg-teal-50">
+          <h2 className="text-lg font-semibold text-teal-900">Épreuve approuvée : mise en ligne à venir</h2>
+          <p className="mt-1 text-sm text-teal-900">
+            Vous avez approuvé l&apos;épreuve
+            {project?.approvedAt ? ` le ${formatDate(project.approvedAt)}` : ""}. TechLibrairie Édition procède à la
+            vérification finale, puis met votre livre en ligne dans la boutique. Vous serez prévenu par email dès sa
+            publication. Aucune autre action n&apos;est nécessaire de votre part.
+          </p>
+        </section>
+      )}
+
       {!refused && stage === "PROOF_PENDING" && project && (
         <>
           <section className="card border-purple-200 bg-purple-50">
@@ -274,7 +298,7 @@ export default async function EditionTrackingPage({
             <p className="mt-1 text-sm text-purple-900">
               {project.proofUploadedAt ? `Déposée le ${formatDate(project.proofUploadedAt)}. ` : ""}
               Relisez-la attentivement, de la première à la dernière page : une fois approuvée, le livre est
-              publié tel quel et les erreurs qu&apos;elle contient ne peuvent pas être reprochées à
+              mis en ligne tel quel et les erreurs qu&apos;elle contient ne peuvent pas être reprochées à
               TechLibrairie Édition.
             </p>
             <div className="mt-3">
@@ -290,7 +314,7 @@ export default async function EditionTrackingPage({
           </section>
 
           <section className="card">
-            <h2 className="text-lg font-semibold">J&apos;approuve l&apos;épreuve et la publication</h2>
+            <h2 className="text-lg font-semibold">J&apos;approuve l&apos;épreuve</h2>
 
             <form action={approveProofAction} className="mt-3 space-y-4">
               <input type="hidden" name="productId" value={product.id} />
@@ -300,7 +324,8 @@ export default async function EditionTrackingPage({
                 <input type="checkbox" name="confirm" value="oui" required className="mt-1" />
                 <span>
                   Je certifie avoir relu l&apos;épreuve (version {project.proofVersion}) et j&apos;approuve sa
-                  publication en l&apos;état. Je sais que le livre sera mis en vente aussitôt.
+                  mise en ligne en l&apos;état. Je sais que TechLibrairie Édition met le livre en vente après sa
+                  vérification finale.
                 </span>
               </label>
 
@@ -321,7 +346,7 @@ export default async function EditionTrackingPage({
               </div>
 
               <button type="submit" className="btn-primary">
-                Approuver et publier mon livre
+                Approuver l&apos;épreuve
               </button>
             </form>
           </section>
@@ -482,4 +507,4 @@ export default async function EditionTrackingPage({
       )}
     </div>
   );
-  }
+}
