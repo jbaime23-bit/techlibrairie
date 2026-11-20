@@ -842,7 +842,8 @@ model PlatformSetting {
 // ---------------------------------------------------------------------------
 
 enum EditionStage {
-  // Forfait à régler ou à vérifier (le détail du paiement est dans PublicationFee)
+READY_TO_PUBLISH
+// Forfait à régler ou à vérifier (le détail du paiement est dans PublicationFee)
   FEE_PENDING
   // Forfait validé : contrôle et mise en page en cours
   IN_LAYOUT
