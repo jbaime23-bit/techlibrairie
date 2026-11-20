@@ -11,6 +11,7 @@ export const EDITION_STAGE_LABELS: Record<EditionStage, string> = {
   IN_LAYOUT: "En maquette",
   PROOF_PENDING: "Bon à tirer à valider",
   CHANGES_REQUESTED: "Corrections demandées",
+  READY_TO_PUBLISH: "Approuvé : mise en ligne par TechLibrairie",
   PUBLISHED: "Publié",
   REFUSED: "Refusé",
 };
@@ -20,6 +21,7 @@ export const EDITION_STAGE_STYLES: Record<EditionStage, string> = {
   IN_LAYOUT: "bg-blue-100 text-blue-800",
   PROOF_PENDING: "bg-purple-100 text-purple-800",
   CHANGES_REQUESTED: "bg-orange-100 text-orange-800",
+  READY_TO_PUBLISH: "bg-teal-100 text-teal-800",
   PUBLISHED: "bg-green-100 text-green-800",
   REFUSED: "bg-red-100 text-red-800",
 };
