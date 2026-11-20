@@ -1,11 +1,11 @@
 // src/lib/product-display.ts
-// Affichage commun des ouvrages : service (édition à compte d'auteur ou document PDF), nom de l'auteur,
-// mentions de transparence et données structurées pour les moteurs de recherche.
+// Affichage commun des ouvrages : badge (« Compte d'auteur », « TechLibrairie Édition » ou « Document PDF »),
+// nom de l'auteur, mentions de transparence et données structurées pour les moteurs de recherche.
 
-import type { Currency, ProductKind } from "@prisma/client";
+import type { Currency, EditionModel, ProductKind } from "@prisma/client";
 
 export const KIND_LABELS: Record<ProductKind, string> = {
-  BOOK_EDITION: "Édition à compte d'auteur",
+  BOOK_EDITION: "Compte d'auteur",
   PDF_DOCUMENT: "Document PDF",
 };
 
@@ -14,13 +14,47 @@ export const KIND_BADGE_STYLES: Record<ProductKind, string> = {
   PDF_DOCUMENT: "bg-slate-100 text-slate-700",
 };
 
+export const EDITION_MODEL_LABELS: Record<EditionModel, string> = {
+  AUTHOR_ACCOUNT: "Compte d'auteur",
+  PUBLISHER_ACCOUNT: "TechLibrairie Édition",
+};
+
+export const EDITION_MODEL_STYLES: Record<EditionModel, string> = {
+  AUTHOR_ACCOUNT: "bg-brand-100 text-brand-800",
+  PUBLISHER_ACCOUNT: "bg-accent-100 text-accent-800",
+};
+
 export const EDITION_NOTE =
   "Édition à compte d'auteur : l'auteur a financé l'édition de ce livre. TechLibrairie Édition en a assuré la mise en page. Le contenu relève de la responsabilité de l'auteur.";
 
+export const PUBLISHER_ACCOUNT_NOTE =
+  "Édition à compte d'éditeur : ce livre a été sélectionné, édité et publié par TechLibrairie Édition.";
+
 export const DOCUMENT_NOTE =
-  "Document PDF mis en vente directement par son auteur ou son vendeur : il n'a pas fait l'objet d'un travail éditorial de TechLibrairie Édition.";
+  "Document PDF mis en vente par son auteur ou son vendeur, après validation par TechLibrairie : il n'a pas fait l'objet d'un travail éditorial de TechLibrairie Édition.";
 
 export const PUBLISHER_NAME = "TechLibrairie Édition";
+
+interface BadgeSource {
+  kind: ProductKind;
+  editionModel?: EditionModel | null;
+}
+
+/** Badge d'un ouvrage : selon son service et, pour un livre édité, le modèle d'édition (compte d'auteur par défaut). */
+export function productBadge(product: BadgeSource): { label: string; style: string } {
+  if (product.kind === "BOOK_EDITION") {
+    const model: EditionModel = product.editionModel ?? "AUTHOR_ACCOUNT";
+    return { label: EDITION_MODEL_LABELS[model], style: EDITION_MODEL_STYLES[model] };
+  }
+
+  return { label: KIND_LABELS.PDF_DOCUMENT, style: KIND_BADGE_STYLES.PDF_DOCUMENT };
+}
+
+/** Mention de transparence affichée sur la page d'un ouvrage. */
+export function productNote(product: BadgeSource): string {
+  if (product.kind !== "BOOK_EDITION") return DOCUMENT_NOTE;
+  return product.editionModel === "PUBLISHER_ACCOUNT" ? PUBLISHER_ACCOUNT_NOTE : EDITION_NOTE;
+}
 
 /** Nom de l'auteur à afficher : l'auteur déclaré, à défaut le nom du vendeur. */
 export function displayAuthorName(product: {
@@ -110,4 +144,4 @@ export function buildProductJsonLd(
 /** Sérialisation sûre pour une balise script : le caractère « < » est neutralisé. */
 export function serializeJsonLd(data: Record<string, unknown>): string {
   return JSON.stringify(data).replace(/</g, "\\u003c");
-  }
+    }
