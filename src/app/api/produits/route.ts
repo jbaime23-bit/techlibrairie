@@ -1,9 +1,9 @@
 // src/app/api/produits/route.ts
-// Création d'un produit par un vendeur, selon le service choisi :
-// - Vente de PDF (PDF_DOCUMENT) : publication immédiate.
-// - Édition de livres à compte d'auteur (BOOK_EDITION) : contrat accepté au dépôt (texte archivé), forfait
-//   à régler aussitôt après le dépôt ; l'ouvrage n'est publié qu'après maquette et bon à tirer.
-//   Les ouvrages d'un administrateur sont publiés directement, sans contrat ni forfait.
+// Dépôt d'un produit par un vendeur. AUCUN ouvrage n'est publié au dépôt :
+// - Vente de PDF (PDF_DOCUMENT) : en attente de validation par TechLibrairie (PENDING_REVIEW).
+// - Édition de livres à compte d'auteur (BOOK_EDITION) : contrat accepté au dépôt (texte archivé), forfait à
+//   régler aussitôt après ; l'ouvrage suit le circuit d'édition et n'est mis en ligne que par TechLibrairie.
+//   Les livres d'un administrateur (sans contrat ni forfait) attendent aussi leur mise en ligne.
 
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
@@ -25,6 +25,7 @@ import {
 } from "@/lib/edition-contract";
 import { getContributionConfig } from "@/lib/publication-fee";
 import { hashClientIp } from "@/lib/login-throttle";
+import { notifyAdminsReviewNeeded } from "@/lib/publication-notifications";
 import {
   deletePrivateFile,
   deletePublicCover,
@@ -230,7 +231,8 @@ export async function POST(request: Request) {
           rightsCertificationText: isEdition
             ? RIGHTS_WARRANTY_TEXT
             : certificationTextFor(fields.kind),
-          status: requiresContract ? "PENDING_PAYMENT" : "PUBLISHED",
+          // Aucun dépôt n'est publié : édition d'auteur = circuit d'édition ; le reste attend la validation.
+          status: requiresContract ? "PENDING_PAYMENT" : "PENDING_REVIEW",
           ...(requiresContract
             ? {
                 publicationFee: {
@@ -265,12 +267,21 @@ export async function POST(request: Request) {
       return created;
     });
 
+    if (!requiresContract) {
+      await notifyAdminsReviewNeeded(product.id);
+    }
+
     revalidatePath("/vendeur");
     revalidatePath("/vendeur/produits");
-    revalidatePath("/catalogue");
+    revalidatePath("/admin/mise-en-ligne");
 
     return NextResponse.json(
-      { id: product.id, slug: product.slug, pendingPayment: requiresContract },
+      {
+        id: product.id,
+        slug: product.slug,
+        pendingPayment: requiresContract,
+        pendingReview: !requiresContract,
+      },
       { status: 201 }
     );
   } catch (error) {
