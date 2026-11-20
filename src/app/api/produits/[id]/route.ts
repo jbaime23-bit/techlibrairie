@@ -1,5 +1,7 @@
 // src/app/api/produits/[id]/route.ts
-// Publication / retrait d'un produit par son vendeur.
+// Retrait / remise en vente d'un produit par son vendeur.
+// Un vendeur ne peut JAMAIS publier un ouvrage que TechLibrairie n'a pas validé : il peut seulement
+// retirer un ouvrage en vente, et remettre en vente un ouvrage déjà validé qu'il avait retiré.
 
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
@@ -39,7 +41,7 @@ export async function PATCH(
 
   const product = await prisma.product.findUnique({
     where: { id },
-    select: { id: true, sellerId: true, status: true },
+    select: { id: true, sellerId: true, status: true, validatedAt: true },
   });
 
   if (!product || product.sellerId !== context.seller.id) {
@@ -60,7 +62,27 @@ export async function PATCH(
     return NextResponse.json(
       {
         error:
-          "Cet ouvrage sera publié dès la validation du règlement des frais de publication.",
+          "Cet ouvrage est en cours d'édition : TechLibrairie Édition le met en ligne une fois l'édition terminée.",
+      },
+      { status: 403 }
+    );
+  }
+
+  if (product.status === "PENDING_REVIEW") {
+    return NextResponse.json(
+      {
+        error:
+          "Cet ouvrage est en attente de validation par TechLibrairie : il sera visible dès sa validation.",
+      },
+      { status: 403 }
+    );
+  }
+
+  if (parsed.data.status === "PUBLISHED" && product.validatedAt === null) {
+    return NextResponse.json(
+      {
+        error:
+          "La mise en ligne est réservée à TechLibrairie : contactez l'administration pour remettre cet ouvrage en vente.",
       },
       { status: 403 }
     );
