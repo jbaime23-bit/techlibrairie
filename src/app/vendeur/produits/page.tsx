@@ -21,6 +21,7 @@ const STATUS_LABELS: Record<ProductStatus, string> = {
   UNPUBLISHED: "Retiré",
   SUSPENDED: "Suspendu",
   PENDING_PAYMENT: "Édition en cours",
+  PENDING_REVIEW: "En attente de validation",
 };
 
 const STATUS_STYLES: Record<ProductStatus, string> = {
@@ -28,6 +29,7 @@ const STATUS_STYLES: Record<ProductStatus, string> = {
   UNPUBLISHED: "bg-slate-100 text-slate-700",
   SUSPENDED: "bg-red-100 text-red-800",
   PENDING_PAYMENT: "bg-yellow-100 text-yellow-800",
+  PENDING_REVIEW: "bg-orange-100 text-orange-800",
 };
 
 export default async function ProduitsPage() {
@@ -63,6 +65,8 @@ export default async function ProduitsPage() {
     );
   }).length;
 
+  const reviewCount = products.filter((product) => product.status === "PENDING_REVIEW").length;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -79,14 +83,21 @@ export default async function ProduitsPage() {
         </div>
       )}
 
+      {reviewCount > 0 && (
+        <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-900">
+          {reviewCount} ouvrage{reviewCount > 1 ? "s sont" : " est"} en attente de validation par TechLibrairie.
+          Ils seront visibles dans la boutique dès leur validation.
+        </div>
+      )}
+
       {products.length === 0 ? (
         <div className="card text-center">
           <p className="text-sm text-slate-600">
-            Vous n&apos;avez encore publié aucun ouvrage.
+            Vous n&apos;avez encore déposé aucun ouvrage.
           </p>
           <div className="mt-4">
             <Link href="/vendeur/produits/nouveau" className="btn-primary">
-              Publier mon premier PDF
+              Déposer mon premier ouvrage
             </Link>
           </div>
         </div>
@@ -106,6 +117,7 @@ export default async function ProduitsPage() {
             <tbody>
               {products.map((product) => {
                 const pending = product.status === "PENDING_PAYMENT";
+                const inReview = product.status === "PENDING_REVIEW";
                 const stage = stageByProduct.get(product.id);
                 const printable = product.kind === "BOOK_EDITION" && product.status === "PUBLISHED";
 
@@ -154,7 +166,9 @@ export default async function ProduitsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3">{product.salesCount}</td>
-                    <td className="px-4 py-3">{pending ? "-" : formatDate(product.publishedAt)}</td>
+                    <td className="px-4 py-3">
+                      {pending || inReview ? "-" : formatDate(product.publishedAt)}
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col items-start gap-2">
                         {!pending && (
@@ -194,6 +208,10 @@ export default async function ProduitsPage() {
                                 ? "Régler le forfait"
                                 : "Suivre mon édition"}
                           </Link>
+                        ) : inReview ? (
+                          <span className="text-xs text-orange-700">
+                            Visible après validation par TechLibrairie
+                          </span>
                         ) : toggleStatus ? (
                           <ProductStatusToggle
                             productId={product.id}
@@ -211,4 +229,4 @@ export default async function ProduitsPage() {
       )}
     </div>
   );
-                            }
+          }
