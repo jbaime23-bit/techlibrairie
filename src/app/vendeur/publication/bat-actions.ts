@@ -9,10 +9,11 @@ import { getSellerContext } from "@/lib/seller";
 import { hashClientIp } from "@/lib/login-throttle";
 import { inspectPrivatePdf } from "@/lib/storage";
 import { INCLUDED_CORRECTION_ROUNDS } from "@/lib/edition-labels";
+import { notifyAdminsChangesRequested } from "@/lib/edition-notifications";
 import {
-  notifyAdminsChangesRequested,
-  notifyProofApproved,
-} from "@/lib/edition-notifications";
+  notifyAdminsReadyToPublish,
+  notifySellerProofApproved,
+} from "@/lib/publication-notifications";
 
 function readText(formData: FormData, name: string, max: number): string {
   const value = formData.get(name);
@@ -25,8 +26,8 @@ function readProductId(formData: FormData): string | null {
 }
 
 /**
- * L'auteur approuve le bon à tirer : l'ouvrage est publié, et le fichier vendu devient l'épreuve
- * (la maquette) ; le manuscrit reste archivé.
+ * L'auteur approuve le bon à tirer. Le livre N'EST PAS publié : il passe « prêt à publier » et seul
+ * TechLibrairie le met en ligne (Administration, Mise en ligne), avec le badge qui convient.
  */
 export async function approveProofAction(formData: FormData): Promise<void> {
   const context = await getSellerContext();
@@ -58,8 +59,6 @@ export async function approveProofAction(formData: FormData): Promise<void> {
       id: true,
       stage: true,
       proofStorageKey: true,
-      proofFileName: true,
-      proofSizeBytes: true,
       proofVersion: true,
     },
   });
@@ -86,39 +85,25 @@ export async function approveProofAction(formData: FormData): Promise<void> {
     redirect(`${back}?erreur=fichier`);
   }
 
-  const proofKey = project.proofStorageKey;
   const ipHash = hashClientIp((await headers()).get("x-forwarded-for"));
 
   let failure = false;
 
   try {
-    await prisma.$transaction(async (tx) => {
-      const claimed = await tx.editionProject.updateMany({
-        where: { id: project.id, stage: "PROOF_PENDING", proofVersion },
-        data: {
-          stage: "PUBLISHED",
-          approvedAt: new Date(),
-          approvedByName: signature,
-          approvedProofVersion: proofVersion,
-          approvedIpHash: ipHash,
-        },
-      });
-
-      if (claimed.count === 0) {
-        throw new Error("ETAT_MODIFIE");
-      }
-
-      await tx.product.update({
-        where: { id: productId },
-        data: {
-          status: "PUBLISHED",
-          publishedAt: new Date(),
-          pdfStorageKey: proofKey,
-          pdfFileName: project.proofFileName ?? "livre.pdf",
-          pdfSizeBytes: inspection.sizeBytes ?? project.proofSizeBytes ?? 0,
-        },
-      });
+    const claimed = await prisma.editionProject.updateMany({
+      where: { id: project.id, stage: "PROOF_PENDING", proofVersion },
+      data: {
+        stage: "READY_TO_PUBLISH",
+        approvedAt: new Date(),
+        approvedByName: signature,
+        approvedProofVersion: proofVersion,
+        approvedIpHash: ipHash,
+      },
     });
+
+    if (claimed.count === 0) {
+      failure = true;
+    }
   } catch (error) {
     console.error("Approbation du bon à tirer impossible :", error);
     failure = true;
@@ -128,13 +113,14 @@ export async function approveProofAction(formData: FormData): Promise<void> {
     redirect(`${back}?erreur=technique`);
   }
 
-  await notifyProofApproved(productId);
+  await notifySellerProofApproved(productId);
+  await notifyAdminsReadyToPublish(productId);
 
-  revalidatePath("/catalogue");
+  revalidatePath(back);
   revalidatePath("/vendeur/produits");
   revalidatePath("/admin/publications");
-  revalidatePath("/admin/produits");
-  redirect("/vendeur/produits");
+  revalidatePath("/admin/mise-en-ligne");
+  redirect(`${back}?message=approuve`);
 }
 
 /** L'auteur demande des corrections sur l'épreuve (deux séries incluses dans le forfait). */
@@ -193,4 +179,4 @@ export async function requestChangesAction(formData: FormData): Promise<void> {
   revalidatePath(back);
   revalidatePath("/admin/publications");
   redirect(`${back}?message=corrections`);
-}
+      }
