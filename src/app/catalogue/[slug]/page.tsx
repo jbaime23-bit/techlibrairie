@@ -15,13 +15,11 @@ import { RatingStars } from "@/components/produits/rating-stars";
 import { ShareButtons } from "@/components/partage/share-buttons";
 import { getSiteUrl } from "@/lib/site-url";
 import {
-  DOCUMENT_NOTE,
-  EDITION_NOTE,
-  KIND_BADGE_STYLES,
-  KIND_LABELS,
   PUBLISHER_NAME,
   buildProductJsonLd,
   displayAuthorName,
+  productBadge,
+  productNote,
   serializeJsonLd,
 } from "@/lib/product-display";
 import { MAX_REVIEW_LENGTH, publicReviewerName } from "@/lib/reviews";
@@ -29,6 +27,7 @@ import { formatDate, formatFileSize, formatPrice } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
+// Seuls les ouvrages publiés (validés par TechLibrairie) et dont le vendeur est actif sont visibles.
 const getPublishedProduct = cache(async (slug: string) => {
   const product = await prisma.product.findUnique({
     where: { slug },
@@ -224,6 +223,7 @@ export default async function ProductPage({
   const shareUrl = `${siteUrl}/catalogue/${product.slug}`;
 
   const isEdition = product.kind === "BOOK_EDITION";
+  const badge = productBadge(product);
   const author = displayAuthorName(product);
   const sameName =
     author.trim().toLowerCase() === product.seller.displayName.trim().toLowerCase();
@@ -308,9 +308,9 @@ export default async function ProductPage({
 
         <div>
           <span
-            className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${KIND_BADGE_STYLES[product.kind]}`}
+            className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${badge.style}`}
           >
-            {KIND_LABELS[product.kind]}
+            {badge.label}
           </span>
 
           <h1 className="mt-2 text-3xl font-bold">{product.title}</h1>
@@ -451,7 +451,7 @@ export default async function ProductPage({
                 : "border-slate-200 bg-slate-50 text-slate-600"
             }`}
           >
-            {isEdition ? EDITION_NOTE : DOCUMENT_NOTE}
+            {productNote(product)}
           </p>
 
           <h2 className="mt-8 text-lg font-semibold">Description</h2>
