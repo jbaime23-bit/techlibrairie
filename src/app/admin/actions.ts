@@ -92,9 +92,9 @@ export async function setSellerCommissionAction(formData: FormData): Promise<voi
 }
 
 /**
- * Publie, retire ou suspend un produit.
- * Un ouvrage en attente du règlement de ses frais de publication ne peut être publié que depuis
- * la page « Publications » (après validation du paiement).
+ * Retire, suspend ou rétablit un produit déjà traité.
+ * Un ouvrage en attente de validation, ou en cours d'édition, ne se publie jamais ici : il passe par
+ * la page « Mise en ligne », qui exige les vérifications et le badge (compte d'auteur ou TechLibrairie Édition).
  */
 export async function setProductStatusAction(formData: FormData): Promise<void> {
   const admin = await assertAdminAction();
@@ -115,13 +115,19 @@ export async function setProductStatusAction(formData: FormData): Promise<void> 
     select: { status: true },
   });
 
-  if (!existing || existing.status === "PENDING_PAYMENT") {
+  if (!existing || existing.status === "PENDING_PAYMENT" || existing.status === "PENDING_REVIEW") {
     return;
   }
 
+  const next = status as (typeof PRODUCT_STATUSES)[number];
+
   const result = await prisma.product.updateMany({
-    where: { id: productId, status: { not: "PENDING_PAYMENT" } },
-    data: { status: status as (typeof PRODUCT_STATUSES)[number] },
+    where: { id: productId, status: { notIn: ["PENDING_PAYMENT", "PENDING_REVIEW"] } },
+    data: {
+      status: next,
+      // Un rétablissement par l'administrateur vaut validation : le vendeur pourra le remettre en vente seul.
+      ...(next === "PUBLISHED" ? { validatedAt: new Date() } : {}),
+    },
   });
 
   if (result.count > 0) {
@@ -228,4 +234,4 @@ export async function deleteAdAction(formData: FormData): Promise<void> {
 
   revalidateTag("ads");
   revalidatePath("/admin/publicites");
-                                     }
+    }
