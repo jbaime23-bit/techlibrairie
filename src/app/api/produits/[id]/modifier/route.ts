@@ -1,7 +1,8 @@
 // src/app/api/produits/[id]/modifier/route.ts
-// Modification d'un produit par son vendeur (publiée immédiatement).
-// Garde-fous de l'édition à compte d'auteur : un livre en cours d'édition ne peut pas être modifié, et le
-// fichier d'un livre édité par TechLibrairie Édition (la maquette approuvée) ne peut pas être remplacé ici.
+// Modification d'un produit par son vendeur.
+// Garde-fous : un livre en cours d'édition ne peut pas être modifié ; le fichier d'un livre édité par
+// TechLibrairie Édition (la maquette approuvée) ne peut pas être remplacé ici ; et le remplacement du PDF
+// d'un ouvrage par son vendeur le renvoie en validation chez TechLibrairie.
 
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
@@ -9,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { getSellerContext } from "@/lib/seller";
 import { productEditSchema } from "@/lib/product-edit-validation";
+import { notifyAdminsReviewNeeded } from "@/lib/publication-notifications";
 import {
   deletePrivateFile,
   deletePublicCover,
@@ -203,6 +205,10 @@ export async function POST(
       ? Math.round(fields.price)
       : product.priceAmount;
 
+  // Un nouveau fichier déposé par le vendeur doit être revalidé par TechLibrairie : l'ouvrage en vente
+  // repasse « en attente de validation », et un ouvrage retiré ne pourra plus être remis en vente seul.
+  const backToReview = Boolean(newPdf) && !isAdmin && product.status === "PUBLISHED";
+
   try {
     await prisma.product.update({
       where: { id: product.id },
@@ -221,6 +227,8 @@ export async function POST(
               pdfSizeBytes: newPdf.size,
             }
           : {}),
+        ...(newPdf && !isAdmin ? { validatedAt: null } : {}),
+        ...(backToReview ? { status: "PENDING_REVIEW" as const } : {}),
       },
     });
   } catch (error) {
@@ -242,10 +250,15 @@ export async function POST(
     await deletePrivateFile(product.pdfStorageKey).catch(() => undefined);
   }
 
+  if (backToReview) {
+    await notifyAdminsReviewNeeded(product.id);
+  }
+
   revalidatePath("/vendeur");
   revalidatePath("/vendeur/produits");
+  revalidatePath("/admin/mise-en-ligne");
   revalidatePath("/catalogue");
   revalidatePath(`/catalogue/${product.slug}`);
 
-  return NextResponse.json({ ok: true });
-}
+  return NextResponse.json({ ok: true, backToReview });
+                              }
