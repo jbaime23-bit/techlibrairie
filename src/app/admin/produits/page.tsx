@@ -12,6 +12,7 @@ import {
 import { Pagination } from "@/components/admin/pagination";
 import { setProductStatusAction } from "@/app/admin/actions";
 import { EDITION_STAGE_LABELS, EDITION_STAGE_STYLES } from "@/lib/edition-labels";
+import { productBadge } from "@/lib/product-display";
 import { formatDate, formatPrice } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -25,6 +26,7 @@ const STATUS_LABELS: Record<ProductStatus, string> = {
   UNPUBLISHED: "Retiré",
   SUSPENDED: "Suspendu",
   PENDING_PAYMENT: "Édition en cours",
+  PENDING_REVIEW: "À valider",
 };
 
 const STATUS_STYLES: Record<ProductStatus, string> = {
@@ -32,6 +34,7 @@ const STATUS_STYLES: Record<ProductStatus, string> = {
   UNPUBLISHED: "bg-slate-100 text-slate-700",
   SUSPENDED: "bg-red-100 text-red-800",
   PENDING_PAYMENT: "bg-yellow-100 text-yellow-800",
+  PENDING_REVIEW: "bg-orange-100 text-orange-800",
 };
 
 const CAPACITY_LABELS: Record<PublishingCapacity, string> = {
@@ -41,6 +44,7 @@ const CAPACITY_LABELS: Record<PublishingCapacity, string> = {
 };
 
 const STATUSES: ProductStatus[] = [
+  "PENDING_REVIEW",
   "PUBLISHED",
   "UNPUBLISHED",
   "SUSPENDED",
@@ -172,17 +176,22 @@ export default async function AdminProduitsPage({
               {products.map((product) => {
                 const suspended = product.status === "SUSPENDED";
                 const pending = product.status === "PENDING_PAYMENT";
+                const inReview = product.status === "PENDING_REVIEW";
                 const stage = stageByProduct.get(product.id);
+                const badge = productBadge(product);
 
                 return (
                   <tr key={product.id} className="border-b border-slate-100 align-top">
                     <td className="px-4 py-3">
                       <p className="font-medium">{product.title}</p>
                       <p className="text-xs text-slate-500">
-                        {product.category?.name ?? "Sans catégorie"} · publié le{" "}
-                        {formatDate(product.publishedAt)}
+                        {product.category?.name ?? "Sans catégorie"} ·{" "}
+                        {product.status === "PUBLISHED"
+                          ? `publié le ${formatDate(product.publishedAt)}`
+                          : `déposé le ${formatDate(product.createdAt)}`}
                       </p>
-                      <p className="text-xs text-slate-500">
+                      <span className={`badge mt-1 ${badge.style}`}>{badge.label}</span>
+                      <p className="mt-1 text-xs text-slate-500">
                         {product.publishingCapacity
                           ? CAPACITY_LABELS[product.publishingCapacity]
                           : "Qualité non indiquée"}
@@ -224,7 +233,14 @@ export default async function AdminProduitsPage({
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      {pending ? (
+                      {inReview || (pending && stage === "READY_TO_PUBLISH") ? (
+                        <Link
+                          href="/admin/mise-en-ligne"
+                          className="btn-primary px-3 py-1 text-xs"
+                        >
+                          Mise en ligne
+                        </Link>
+                      ) : pending ? (
                         <Link
                           href="/admin/publications"
                           className="text-xs font-semibold text-brand-700 hover:underline"
@@ -261,4 +277,4 @@ export default async function AdminProduitsPage({
       />
     </div>
   );
-        }
+}
