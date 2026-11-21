@@ -332,6 +332,8 @@ model Category {
 }
 
 model Product {
+  editionModel EditionModel?
+  validatedAt  DateTime?
   id            String        @id @default(cuid())
   sellerId      String
   categoryId    String?
@@ -1094,6 +1096,12 @@ model ManuscriptSubmission {
 
   @@index([status, createdAt])
   @@index([sellerId, createdAt])
+}
+
+// Badge d'un livre édité : compte d'auteur ou TechLibrairie Édition (compte d'éditeur)
+enum EditionModel {
+  AUTHOR_ACCOUNT
+  PUBLISHER_ACCOUNT
 }
 
 // Badge d'un livre édité : compte d'auteur ou TechLibrairie Édition (compte d'éditeur)
