@@ -1103,9 +1103,3 @@ enum EditionModel {
   AUTHOR_ACCOUNT
   PUBLISHER_ACCOUNT
 }
-
-// Badge d'un livre édité : compte d'auteur ou TechLibrairie Édition (compte d'éditeur)
-enum EditionModel {
-  AUTHOR_ACCOUNT
-  PUBLISHER_ACCOUNT
-}
