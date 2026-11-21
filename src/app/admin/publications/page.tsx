@@ -24,12 +24,13 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-type TabKey = "paiement" | "maquette" | "bat" | "attente" | "publiees" | "refusees";
+type TabKey = "paiement" | "maquette" | "bat" | "pret" | "attente" | "publiees" | "refusees";
 
 const TABS: { value: TabKey; label: string }[] = [
   { value: "paiement", label: "Paiement à vérifier" },
   { value: "maquette", label: "En maquette" },
   { value: "bat", label: "Bon à tirer" },
+  { value: "pret", label: "Prêts à publier" },
   { value: "attente", label: "En attente du paiement" },
   { value: "publiees", label: "Publiées" },
   { value: "refusees", label: "Refusées" },
@@ -63,7 +64,7 @@ const CAPACITY_LABELS: Record<PublishingCapacity, string> = {
 const MESSAGES: Record<string, string> = {
   validee: "Paiement validé : l'ouvrage est publié.",
   "validee-maquette":
-    "Paiement validé : l'ouvrage passe en maquette. Il sera publié après le bon à tirer approuvé par l'auteur.",
+    "Paiement validé : l'ouvrage passe en maquette. Après le bon à tirer approuvé par l'auteur, vous le mettrez en ligne depuis « Mise en ligne ».",
   rejetee: "Paiement rejeté : l'auteur peut le déclarer à nouveau.",
   refusee:
     "Œuvre refusée : l'auteur est prévenu. Si un forfait a été versé, remboursez-le et conservez la preuve du remboursement.",
@@ -100,6 +101,7 @@ export default async function AdminPublicationsPage({
   const refusedIds = idsAt(["REFUSED"]);
   const maquetteIds = idsAt(["IN_LAYOUT", "CHANGES_REQUESTED"]);
   const batIds = idsAt(["PROOF_PENDING"]);
+  const readyIds = idsAt(["READY_TO_PUBLISH"]);
   const publishedIds = idsAt(["PUBLISHED"]);
 
   function whereFor(key: TabKey): Prisma.PublicationFeeWhereInput {
@@ -110,6 +112,8 @@ export default async function AdminPublicationsPage({
         return { productId: { in: maquetteIds } };
       case "bat":
         return { productId: { in: batIds } };
+      case "pret":
+        return { productId: { in: readyIds } };
       case "attente":
         return {
           status: { in: ["AWAITING_PAYMENT", "REJECTED"] },
@@ -188,8 +192,12 @@ export default async function AdminPublicationsPage({
         <h1 className="text-2xl font-bold">Éditions à compte d&apos;auteur</h1>
         <p className="mt-1 text-sm text-slate-600">
           Parcours : l&apos;auteur dépose son livre et accepte le contrat, règle le forfait (vous le validez ici),
-          vous réalisez la maquette et déposez l&apos;épreuve, l&apos;auteur approuve le bon à tirer : le livre est
-          alors publié. Rien n&apos;est publié sans cette approbation.
+          vous réalisez la maquette et déposez l&apos;épreuve, puis l&apos;auteur approuve le bon à tirer. Le livre
+          n&apos;est <strong>jamais publié automatiquement</strong> : vous le mettez en ligne vous-même depuis{" "}
+          <Link href="/admin/mise-en-ligne" className="font-semibold text-brand-700 hover:underline">
+            Mise en ligne
+          </Link>
+          , avec son badge.
         </p>
       </div>
 
@@ -339,7 +347,7 @@ export default async function AdminPublicationsPage({
                           <strong>{formatPrice(fee.amountXof, "XOF")}</strong> ont bien été reçus (référence{" "}
                           <strong>{fee.paymentReference ?? "-"}</strong>).
                           {project
-                            ? " L'ouvrage passe en maquette ; il sera publié après le bon à tirer de l'auteur."
+                            ? " L'ouvrage passe en maquette ; vous le mettrez en ligne après le bon à tirer de l'auteur."
                             : " L'ouvrage sera publié aussitôt."}
                         </span>
                       </label>
@@ -431,6 +439,23 @@ export default async function AdminPublicationsPage({
                   </form>
                 )}
 
+                {stage === "READY_TO_PUBLISH" && project && (
+                  <div className="mt-3 rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm text-teal-900">
+                    <p className="font-semibold">Bon à tirer approuvé : prêt à publier</p>
+                    <p className="mt-1">
+                      Version {project.approvedProofVersion ?? "-"} approuvée le{" "}
+                      {project.approvedAt ? formatDate(project.approvedAt) : "-"} par{" "}
+                      {project.approvedByName ?? "-"}. Le livre n&apos;est pas encore en vente.
+                    </p>
+                    <Link
+                      href="/admin/mise-en-ligne"
+                      className="btn-primary mt-3 inline-flex px-3 py-1 text-xs"
+                    >
+                      Aller à la mise en ligne
+                    </Link>
+                  </div>
+                )}
+
                 {stage === "PUBLISHED" && project && (
                   <p className="mt-3 text-sm text-slate-600">
                     Bon à tirer (version {project.approvedProofVersion ?? "-"}) approuvé le{" "}
@@ -483,18 +508,22 @@ export default async function AdminPublicationsPage({
             Money, au bon montant. Une référence de transaction ne peut servir qu&apos;une fois.
           </li>
           <li>
-            À l&apos;approbation du bon à tirer, le fichier vendu devient <strong>l&apos;épreuve</strong> que vous
-            avez déposée ; le manuscrit reste archivé et téléchargeable ici.
+            Quand l&apos;auteur approuve le bon à tirer, le livre passe « prêt à publier » : <strong>vous</strong>{" "}
+            le mettez en ligne depuis « Mise en ligne ». Le fichier vendu devient alors{" "}
+            <strong>l&apos;épreuve</strong> approuvée ; le manuscrit reste archivé et téléchargeable ici.
           </li>
           <li>
             Contrat : l&apos;auteur dispose de 15 jours pour répondre à une épreuve, et de deux séries de
             corrections incluses. Au-delà, un devis de corrections est à établir avec lui.
           </li>
           <li>
-            Un ouvrage dont le forfait n&apos;est pas validé, ou dont le bon à tirer n&apos;est pas approuvé,
-            n&apos;apparaît ni dans le catalogue ni dans le plan du site.
+            Un ouvrage dont le forfait n&apos;est pas validé, dont le bon à tirer n&apos;est pas approuvé, ou que
+            vous n&apos;avez pas mis en ligne, n&apos;apparaît ni dans le catalogue ni dans le plan du site.
           </li>
-          <li>Vos propres ouvrages (compte administrateur) sont publiés sans contrat ni forfait.</li>
+          <li>
+            Vos propres livres (compte administrateur) sont déposés sans contrat ni forfait : ils attendent aussi
+            votre validation dans « Mise en ligne ».
+          </li>
           <li>Chaque validation, rejet, refus et dépôt d&apos;épreuve est inscrit dans le Journal.</li>
         </ul>
       </section>
