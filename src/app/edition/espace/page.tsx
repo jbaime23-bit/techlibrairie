@@ -1,5 +1,5 @@
 // src/app/edition/espace/page.tsx
-// Espace auteur : photo, éditions à compte d'auteur et manuscrits soumis à l'examen éditorial.
+// Espace auteur : photo, éditions à compte d'auteur, manuscrits soumis à l'examen éditorial et contrats en PDF.
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -53,7 +53,7 @@ export default async function EspaceAuteurPage({
     );
   }
 
-  const [products, submissions] = await Promise.all([
+  const [products, submissions, publisherContracts] = await Promise.all([
     prisma.product.findMany({
       where: { sellerId: seller.id, kind: "BOOK_EDITION" },
       orderBy: { createdAt: "desc" },
@@ -71,15 +71,34 @@ export default async function EspaceAuteurPage({
         createdAt: true,
       },
     }),
+    prisma.publisherContract.findMany({
+      where: { userId: user.id },
+      select: { submissionId: true, acceptedAt: true, royaltyPercent: true },
+    }),
   ]);
 
-  const projects = products.length
-    ? await prisma.editionProject.findMany({
-        where: { productId: { in: products.map((product) => product.id) } },
-        select: { productId: true, stage: true },
-      })
-    : [];
+  const productIds = products.map((product) => product.id);
+
+  const [projects, fees] = await Promise.all([
+    productIds.length
+      ? prisma.editionProject.findMany({
+          where: { productId: { in: productIds } },
+          select: { productId: true, stage: true },
+        })
+      : Promise.resolve([]),
+    productIds.length
+      ? prisma.publicationFee.findMany({
+          where: { productId: { in: productIds } },
+          select: { productId: true, status: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
   const stageByProduct = new Map(projects.map((project) => [project.productId, project.stage]));
+  const feePaid = new Set(fees.filter((fee) => fee.status === "VALIDATED").map((fee) => fee.productId));
+  const contractBySubmission = new Map(
+    publisherContracts.map((contract) => [contract.submissionId, contract])
+  );
 
   const justSubmitted = firstParam(sp.message) === "soumis";
 
@@ -91,7 +110,7 @@ export default async function EspaceAuteurPage({
             <p className="eyebrow text-brand-700">Espace auteur</p>
             <h1 className="mt-1 text-3xl font-extrabold">Bonjour, {seller.displayName}</h1>
             <p className="mt-1 text-sm text-slate-600">
-              Retrouvez ici vos éditions et vos manuscrits, et suivez chaque étape.
+              Retrouvez ici vos éditions, vos manuscrits et vos contrats, et suivez chaque étape.
             </p>
           </div>
           <Link href="/edition/deposer" className="btn-accent">
@@ -122,6 +141,7 @@ export default async function EspaceAuteurPage({
               {products.map((product) => {
                 const stage = stageByProduct.get(product.id);
                 const inProgress = product.status === "PENDING_PAYMENT";
+                const contractAvailable = feePaid.has(product.id);
 
                 return (
                   <li key={product.id} className="card flex flex-wrap items-center justify-between gap-3">
@@ -140,6 +160,15 @@ export default async function EspaceAuteurPage({
                     </div>
 
                     <div className="flex flex-wrap gap-2">
+                      {contractAvailable && (
+                        <a
+                          href={`/api/contrat/edition/${product.id}`}
+                          className="btn-secondary px-3 py-1.5 text-xs"
+                        >
+                          Télécharger mon contrat (PDF)
+                        </a>
+                      )}
+
                       {inProgress ? (
                         <Link href={`/vendeur/publication/${product.id}`} className="btn-primary px-3 py-1.5 text-xs">
                           Suivre mon édition
@@ -165,6 +194,12 @@ export default async function EspaceAuteurPage({
               })}
             </ul>
           )}
+
+          {products.length > 0 && (
+            <p className="mt-3 text-xs text-slate-500">
+              Le contrat est téléchargeable en PDF dès que le règlement du forfait est validé.
+            </p>
+          )}
         </section>
 
         <section>
@@ -175,41 +210,89 @@ export default async function EspaceAuteurPage({
             <p className="card mt-4 text-sm text-slate-600">Aucun manuscrit soumis pour le moment.</p>
           ) : (
             <ul className="mt-4 space-y-3">
-              {submissions.map((submission) => (
-                <li key={submission.id} className="card">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="font-semibold">{submission.title}</p>
-                      <p className="text-xs text-slate-500">Soumis le {formatDate(submission.createdAt)}</p>
+              {submissions.map((submission) => {
+                const contract = contractBySubmission.get(submission.id);
+
+                return (
+                  <li key={submission.id} className="card">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold">{submission.title}</p>
+                        <p className="text-xs text-slate-500">Soumis le {formatDate(submission.createdAt)}</p>
+                      </div>
+                      <span className={`badge ${MANUSCRIPT_STATUS_STYLES[submission.status]}`}>
+                        {MANUSCRIPT_STATUS_LABELS[submission.status]}
+                      </span>
                     </div>
-                    <span className={`badge ${MANUSCRIPT_STATUS_STYLES[submission.status]}`}>
-                      {MANUSCRIPT_STATUS_LABELS[submission.status]}
-                    </span>
-                  </div>
 
-                  {submission.decisionMessage && (
-                    <p className="mt-3 whitespace-pre-line rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                      {submission.decisionMessage}
-                    </p>
-                  )}
+                    {submission.decisionMessage && (
+                      <p className="mt-3 whitespace-pre-line rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                        {submission.decisionMessage}
+                      </p>
+                    )}
 
-                  {submission.status === "ACCEPTED" && (
-                    <p className="mt-3 text-sm font-semibold text-green-700">
-                      Bonne nouvelle : nous vous contactons pour vous proposer un contrat d&apos;édition.
-                    </p>
-                  )}
+                    {submission.status === "ACCEPTED" && (
+                      <div className="mt-3 space-y-2 text-sm">
+                        <p className="font-semibold text-green-700">
+                          Bonne nouvelle : TechLibrairie Édition souhaite éditer votre livre.
+                        </p>
 
-                  {submission.status === "REJECTED" && (
-                    <p className="mt-3 text-sm text-slate-600">
-                      Vous pouvez faire éditer ce livre à compte d&apos;auteur : vous gardez vos droits et tous vos
-                      gains.{" "}
-                      <Link href="/edition/deposer?formule=auteur" className="font-semibold text-brand-700 hover:underline">
-                        Déposer à compte d&apos;auteur
-                      </Link>
-                    </p>
-                  )}
-                </li>
-              ))}
+                        {contract ? (
+                          contract.acceptedAt ? (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-slate-600">
+                                Contrat signé le {formatDate(contract.acceptedAt)}.
+                              </span>
+                              <a
+                                href={`/api/contrat/editeur/${submission.id}`}
+                                className="btn-secondary px-3 py-1.5 text-xs"
+                              >
+                                Télécharger mon contrat signé (PDF)
+                              </a>
+                              <Link
+                                href={`/edition/contrat/${submission.id}`}
+                                className="text-xs font-semibold text-brand-700 hover:underline"
+                              >
+                                Relire
+                              </Link>
+                            </div>
+                          ) : (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-slate-600">
+                                Votre contrat d&apos;édition est prêt (redevance de {contract.royaltyPercent} %).
+                              </span>
+                              <Link
+                                href={`/edition/contrat/${submission.id}`}
+                                className="btn-primary px-3 py-1.5 text-xs"
+                              >
+                                Lire et signer mon contrat
+                              </Link>
+                              <a
+                                href={`/api/contrat/editeur/${submission.id}`}
+                                className="text-xs font-semibold text-brand-700 hover:underline"
+                              >
+                                Télécharger le projet (PDF)
+                              </a>
+                            </div>
+                          )
+                        ) : (
+                          <p className="text-slate-600">Votre contrat d&apos;édition vous sera proposé très prochainement.</p>
+                        )}
+                      </div>
+                    )}
+
+                    {submission.status === "REJECTED" && (
+                      <p className="mt-3 text-sm text-slate-600">
+                        Vous pouvez faire éditer ce livre à compte d&apos;auteur : vous gardez vos droits et tous vos
+                        gains.{" "}
+                        <Link href="/edition/deposer?formule=auteur" className="font-semibold text-brand-700 hover:underline">
+                          Déposer à compte d&apos;auteur
+                        </Link>
+                      </p>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>
@@ -224,4 +307,4 @@ export default async function EspaceAuteurPage({
       </div>
     </div>
   );
-    }
+                        }
