@@ -1,5 +1,5 @@
 // src/app/admin/manuscrits/page.tsx
-// Examen éditorial des manuscrits soumis à compte d'éditeur.
+// Examen éditorial des manuscrits soumis à compte d'éditeur, et suivi du contrat d'édition de chaque manuscrit retenu.
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -10,6 +10,7 @@ import {
   decideManuscriptAction,
   startManuscriptReviewAction,
 } from "@/app/admin/manuscrits/actions";
+import { getEditionOffers } from "@/lib/edition-offers";
 import { MANUSCRIPT_STATUS_LABELS, MANUSCRIPT_STATUS_STYLES } from "@/lib/manuscript-validation";
 import { formatDate, formatFileSize } from "@/lib/utils";
 
@@ -37,7 +38,8 @@ const LANGUAGE_LABELS: Record<string, string> = { fr: "Français", en: "Anglais"
 
 const MESSAGES: Record<string, string> = {
   examen: "Manuscrit mis en cours d'examen.",
-  retenu: "Manuscrit retenu : l'auteur est prévenu. Contactez-le pour lui proposer le contrat d'édition.",
+  retenu:
+    "Manuscrit retenu : son contrat d'édition est généré et l'auteur est prévenu. Il le signe en ligne, sans rendez-vous.",
   refuse: "Manuscrit refusé : l'auteur est prévenu avec votre message.",
 };
 
@@ -57,6 +59,7 @@ export default async function AdminManuscritsPage({
 
   const rawTab = firstParam(sp.statut);
   const tab = TABS.find((item) => item.value === rawTab) ?? TABS[0];
+  const defaultPercent = getEditionOffers().publisherRoyaltyPercent;
 
   const [groups, submissions] = await Promise.all([
     prisma.manuscriptSubmission.groupBy({ by: ["status"], _count: { _all: true } }),
@@ -75,8 +78,9 @@ export default async function AdminManuscritsPage({
   const categoryIds = Array.from(
     new Set(submissions.map((submission) => submission.categoryId).filter((id): id is string => id !== null))
   );
+  const submissionIds = submissions.map((submission) => submission.id);
 
-  const [sellers, categories] = await Promise.all([
+  const [sellers, categories, contracts] = await Promise.all([
     sellerIds.length
       ? prisma.sellerProfile.findMany({
           where: { id: { in: sellerIds } },
@@ -86,10 +90,23 @@ export default async function AdminManuscritsPage({
     categoryIds.length
       ? prisma.category.findMany({ where: { id: { in: categoryIds } }, select: { id: true, name: true } })
       : Promise.resolve([]),
+    submissionIds.length
+      ? prisma.publisherContract.findMany({
+          where: { submissionId: { in: submissionIds } },
+          select: {
+            submissionId: true,
+            royaltyPercent: true,
+            offeredAt: true,
+            acceptedAt: true,
+            signerName: true,
+          },
+        })
+      : Promise.resolve([]),
   ]);
 
   const sellerById = new Map(sellers.map((seller) => [seller.id, seller]));
   const categoryById = new Map(categories.map((category) => [category.id, category.name]));
+  const contractBySubmission = new Map(contracts.map((contract) => [contract.submissionId, contract]));
 
   const messageKey = firstParam(sp.message);
   const errorKey = firstParam(sp.erreur);
@@ -102,7 +119,8 @@ export default async function AdminManuscritsPage({
         <h1 className="text-2xl font-bold">Manuscrits à compte d&apos;éditeur</h1>
         <p className="mt-1 text-sm text-slate-600">
           Manuscrits soumis à l&apos;examen éditorial, sans frais pour l&apos;auteur. Vous téléchargez le manuscrit,
-          l&apos;examinez, puis vous le retenez ou le refusez avec un message. L&apos;auteur est prévenu par email.
+          l&apos;examinez, puis vous le retenez ou le refusez avec un message. Un manuscrit retenu reçoit
+          automatiquement son contrat d&apos;édition, que l&apos;auteur signe en ligne.
         </p>
       </div>
 
@@ -132,6 +150,7 @@ export default async function AdminManuscritsPage({
           {submissions.map((submission) => {
             const seller = sellerById.get(submission.sellerId);
             const open = submission.status === "SUBMITTED" || submission.status === "IN_REVIEW";
+            const contract = contractBySubmission.get(submission.id);
 
             return (
               <li key={submission.id} className="card space-y-4">
@@ -214,10 +233,37 @@ export default async function AdminManuscritsPage({
                 )}
 
                 {submission.status === "ACCEPTED" && (
-                  <p className="text-sm font-semibold text-green-700">
-                    Prochaine étape : proposer à l&apos;auteur le contrat d&apos;édition (à rédiger avec votre conseil
-                    juridique ; pas encore généré par le site).
-                  </p>
+                  <div
+                    className={`rounded-xl border p-3 text-sm ${
+                      contract?.acceptedAt
+                        ? "border-green-200 bg-green-50 text-green-900"
+                        : "border-orange-200 bg-orange-50 text-orange-900"
+                    }`}
+                  >
+                    {contract ? (
+                      <>
+                        <p className="font-semibold">
+                          {contract.acceptedAt
+                            ? `Contrat signé le ${formatDate(contract.acceptedAt)} par ${contract.signerName ?? "-"}`
+                            : `Contrat envoyé le ${formatDate(contract.offeredAt)} : en attente de signature`}
+                        </p>
+                        <p className="mt-1">
+                          Redevance de l&apos;auteur : {contract.royaltyPercent} % du prix public hors taxes.{" "}
+                          <a
+                            href={`/api/contrat/editeur/${submission.id}`}
+                            className="font-semibold underline"
+                          >
+                            Télécharger le contrat (PDF)
+                          </a>
+                        </p>
+                        {contract.acceptedAt && (
+                          <p className="mt-1">Vous pouvez lancer l&apos;édition du livre.</p>
+                        )}
+                      </>
+                    ) : (
+                      <p className="font-semibold">Aucun contrat généré pour ce manuscrit.</p>
+                    )}
+                  </div>
                 )}
 
                 {submission.status === "SUBMITTED" && (
@@ -234,6 +280,25 @@ export default async function AdminManuscritsPage({
                     <input type="hidden" name="submissionId" value={submission.id} />
 
                     <div>
+                      <label htmlFor={`royalty-${submission.id}`} className="label">
+                        Redevance de l&apos;auteur si vous le retenez (% du prix public hors taxes)
+                      </label>
+                      <input
+                        id={`royalty-${submission.id}`}
+                        name="royaltyPercent"
+                        type="number"
+                        inputMode="numeric"
+                        min={1}
+                        max={60}
+                        defaultValue={defaultPercent}
+                        className="input max-w-[8rem]"
+                      />
+                      <p className="mt-1 text-xs text-slate-500">
+                        Elle figure dans le contrat généré. L&apos;auteur ne pourra pas la modifier.
+                      </p>
+                    </div>
+
+                    <div>
                       <label htmlFor={`message-${submission.id}`} className="label">
                         Message à l&apos;auteur (obligatoire pour un refus, 10 caractères au minimum)
                       </label>
@@ -248,7 +313,7 @@ export default async function AdminManuscritsPage({
 
                     <div className="flex flex-wrap gap-2">
                       <button type="submit" name="decision" value="accept" className="btn-primary">
-                        Retenir ce manuscrit
+                        Retenir et envoyer le contrat
                       </button>
                       <button type="submit" name="decision" value="reject" className="btn-secondary text-red-700">
                         Refuser
@@ -266,13 +331,21 @@ export default async function AdminManuscritsPage({
         <h2 className="text-lg font-semibold text-slate-900">À savoir</h2>
         <ul className="mt-3 list-disc space-y-2 pl-5">
           <li>
-            La formule à compte d&apos;éditeur ne demande <strong>aucun paiement</strong> et <strong>aucun
-            contrat</strong> à la soumission : l&apos;auteur déclare ses droits et accepte l&apos;examen.
+            La formule à compte d&apos;éditeur ne demande <strong>aucun paiement</strong> à la soumission : l&apos;auteur
+            déclare ses droits et accepte l&apos;examen.
           </li>
           <li>
-            « Retenir » n&apos;enregistre que la décision. Le contrat d&apos;édition (cession des droits, rémunération
-            proportionnelle, obligations de l&apos;éditeur) est à établir avec l&apos;auteur, hors du site, avec votre
-            avocat.
+            « Retenir » génère le <strong>contrat d&apos;édition</strong> avec la redevance que vous avez saisie. L&apos;auteur
+            le lit et le signe en ligne depuis son espace, puis le télécharge en PDF. Le texte proposé et la
+            signature sont archivés avec leur empreinte.
+          </li>
+          <li>
+            Ce contrat est un <strong>modèle à faire relire par votre avocat</strong> avant le premier usage réel
+            (durée, redevance, droits cédés).
+          </li>
+          <li>
+            Le suivi des droits d&apos;auteur dus sur les ventes de ces livres (état annuel, versements) n&apos;est pas
+            encore automatisé dans le site.
           </li>
           <li>Les manuscrits sont stockés en accès privé ; chaque téléchargement est inscrit dans le Journal.</li>
         </ul>
