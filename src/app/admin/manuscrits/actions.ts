@@ -6,6 +6,9 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { assertAdminAction } from "@/lib/admin";
 import { recordAdminAction } from "@/lib/audit";
+import { contractToPlainText, hashText } from "@/lib/edition-contract";
+import { getEditionOffers } from "@/lib/edition-offers";
+import { PUBLISHER_CONTRACT_VERSION, buildPublisherContract } from "@/lib/publisher-contract";
 import { notifyAuthorManuscriptDecision } from "@/lib/manuscript-notifications";
 
 const BACK = "/admin/manuscrits";
@@ -62,7 +65,10 @@ export async function startManuscriptReviewAction(formData: FormData): Promise<v
   redirect(`${BACK}?statut=examen&message=examen`);
 }
 
-/** Retient ou refuse un manuscrit, avec un message transmis à l'auteur. */
+/**
+ * Retient ou refuse un manuscrit, avec un message transmis à l'auteur.
+ * Un manuscrit retenu reçoit aussitôt son contrat d'édition à compte d'éditeur, à signer en ligne.
+ */
 export async function decideManuscriptAction(formData: FormData): Promise<void> {
   const admin = await assertAdminAction();
 
@@ -81,9 +87,17 @@ export async function decideManuscriptAction(formData: FormData): Promise<void> 
     redirect(`${BACK}?erreur=motif`);
   }
 
+  // Redevance de l'auteur (pourcentage du prix public hors taxes) : celle saisie, à défaut la valeur par défaut.
+  const defaultPercent = getEditionOffers().publisherRoyaltyPercent;
+  const parsedPercent = Number.parseInt(readText(formData, "royaltyPercent", 3), 10);
+  const royaltyPercent =
+    Number.isInteger(parsedPercent) && parsedPercent >= 1 && parsedPercent <= 60
+      ? parsedPercent
+      : defaultPercent;
+
   const submission = await prisma.manuscriptSubmission.findUnique({
     where: { id: submissionId },
-    select: { title: true },
+    select: { title: true, authorName: true, sellerId: true, userId: true },
   });
   if (!submission) {
     redirect(BACK);
@@ -105,15 +119,51 @@ export async function decideManuscriptAction(formData: FormData): Promise<void> 
     redirect(`${BACK}?erreur=etat`);
   }
 
+  if (decision === "accept") {
+    const text = contractToPlainText(
+      buildPublisherContract({
+        workTitle: submission.title,
+        authorName: submission.authorName,
+        royaltyPercent,
+      })
+    );
+
+    try {
+      // Idempotent : un contrat déjà proposé (ou signé) n'est jamais écrasé.
+      await prisma.publisherContract.upsert({
+        where: { submissionId },
+        create: {
+          submissionId,
+          sellerId: submission.sellerId,
+          userId: submission.userId,
+          version: PUBLISHER_CONTRACT_VERSION,
+          workTitle: submission.title,
+          royaltyPercent,
+          text,
+          hash: hashText(text),
+        },
+        update: {},
+      });
+    } catch (error) {
+      console.error("Création du contrat d'édition à compte d'éditeur impossible :", error);
+    }
+  }
+
   await recordAdminAction(admin, {
     action: decision === "accept" ? "manuscrit.retenu" : "manuscrit.refuse",
     targetType: "manuscrit",
     targetId: submissionId,
-    details: { titre: submission.title, message: message.slice(0, 200) },
+    details: {
+      titre: submission.title,
+      message: message.slice(0, 200),
+      ...(decision === "accept" ? { redevance_pour_cent: royaltyPercent } : {}),
+    },
   });
 
   await notifyAuthorManuscriptDecision(submissionId);
 
   refresh();
-  redirect(`${BACK}?statut=${decision === "accept" ? "retenus" : "refuses"}&message=${decision === "accept" ? "retenu" : "refuse"}`);
-    }
+  redirect(
+    `${BACK}?statut=${decision === "accept" ? "retenus" : "refuses"}&message=${decision === "accept" ? "retenu" : "refuse"}`
+  );
+}
