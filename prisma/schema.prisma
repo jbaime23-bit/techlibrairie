@@ -1103,3 +1103,35 @@ enum EditionModel {
   AUTHOR_ACCOUNT
   PUBLISHER_ACCOUNT
 }
+
+// ---------------------------------------------------------------------------
+// CONTRAT D'ÉDITION À COMPTE D'ÉDITEUR : proposé à l'auteur d'un manuscrit retenu, signé en ligne
+// ---------------------------------------------------------------------------
+
+model PublisherContract {
+  id           String @id @default(cuid())
+  // Manuscrit retenu (référence simple) : un seul contrat par manuscrit
+  submissionId String @unique
+  sellerId     String
+  userId       String
+
+  version        String
+  workTitle      String
+  // Redevance de l'auteur, en pourcentage du prix public hors taxes
+  royaltyPercent Int
+  // Texte intégral proposé, archivé tel quel, et son empreinte SHA-256
+  text           String @db.Text
+  hash           String
+
+  offeredAt DateTime @default(now())
+
+  // Signature en ligne de l'auteur : date, nom saisi, adresse du compte, empreinte de connexion
+  acceptedAt   DateTime?
+  signerName   String?
+  signerEmail  String?
+  signerIpHash String?
+
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
