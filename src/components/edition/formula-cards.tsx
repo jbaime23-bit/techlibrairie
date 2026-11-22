@@ -23,13 +23,15 @@ export function FormulaCards({ offers }: { offers: EditionOffers }) {
     "100 % du produit net de vos ventes, sans commission",
     "Vous gardez vos droits d'auteur (licence non exclusive)",
     "Frais d'impression déduits des ventes imprimées, jamais avancés",
+    "Contrat signé en ligne, téléchargeable en PDF après le règlement du forfait",
   ];
 
   const publisherPoints = [
     "Aucun frais d'entrée : TechLibrairie finance l'édition si votre manuscrit est retenu",
     "Manuscrit examiné par notre équipe éditoriale : une sélection est opérée",
     "Mise en page, publication et fabrication à notre charge",
-    `Redevance fixe sur chaque vente (indicatif : ${offers.publisherRoyaltyPercent} %), précisée dans un contrat d'édition`,
+    `Redevance fixe sur chaque vente (indicatif : ${offers.publisherRoyaltyPercent} %), précisée dans le contrat d'édition`,
+    "Contrat généré dès que votre manuscrit est retenu, signé en ligne et téléchargeable en PDF",
     "Aucune garantie d'acceptation : vous êtes informé de la décision par email",
   ];
 
@@ -98,11 +100,14 @@ export function FormulaCards({ offers }: { offers: EditionOffers }) {
           <Link href="/edition/deposer?formule=editeur" className="btn-accent mt-6 w-full">
             Soumettre mon manuscrit à l&apos;examen
           </Link>
-          <p className="mt-3 text-center text-xs text-slate-500">
-            Le contrat d&apos;édition est proposé uniquement aux manuscrits retenus.
-          </p>
+          <Link
+            href="/contrat-editeur"
+            className="mt-3 text-center text-sm font-semibold text-accent-700 hover:underline"
+          >
+            Lire le modèle de contrat
+          </Link>
         </div>
       </article>
     </div>
   );
-      }
+}
