@@ -1,10 +1,12 @@
 // src/components/admin/assembly/assembly-studio.tsx
 // Module d'assemblage éditeur : informations du livre, manuscrit, paramètres du dos carré collé,
 // code-barres ISBN-13, aperçus et génération des deux PDF (corps du livre et couverture à plat).
-// Tout se passe dans le navigateur : aucun serveur n'est sollicité pour générer les fichiers.
+// Tout se passe dans le navigateur. Ouvert depuis un dossier d'auteur, il est pré-rempli et peut envoyer
+// l'épreuve et les fichiers d'impression au site.
 "use client";
 
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import Link from "next/link";
 import {
   BookOpen,
   CircleCheck,
@@ -49,8 +51,11 @@ import {
   renderCoverPdf,
   renderInteriorPdf,
   type PdfCtor,
+  type PdfDoc,
 } from "@/lib/assembly/pdf-export";
 import { multiLine, singleLine, slugify } from "@/lib/assembly/text-utils";
+import type { AssemblyDossier } from "@/lib/assembly/dossier-types";
+import { sendPrintFileToSite, sendProofToSite } from "@/lib/assembly/send-to-site";
 import { InteriorPreview } from "@/components/admin/assembly/interior-preview";
 import { CoverPreview } from "@/components/admin/assembly/cover-preview";
 
@@ -90,6 +95,8 @@ interface DraftData {
   trimKey: TrimKey;
   paperKey: PaperKey;
   cover: CoverSettings;
+  // Dossier auquel appartient le brouillon (pour ne pas mélanger deux livres)
+  dossierId?: string | null;
 }
 
 const DRAFT_KEY = "tl-assembly-draft-v1";
@@ -150,6 +157,18 @@ async function loadPdfCtor(): Promise<PdfCtor> {
   return ctor;
 }
 
+async function fetchAsFile(url: string, name: string): Promise<File> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error("Image introuvable.");
+
+  const blob = await response.blob();
+  return new File([blob], name, { type: blob.type || "image/jpeg" });
+}
+
+function pause(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 function formatMm(value: number): string {
   return value.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -195,7 +214,7 @@ function Toggle({
   );
 }
 
-export function AssemblyStudio() {
+export function AssemblyStudio({ dossier = null }: { dossier?: AssemblyDossier | null }) {
   const [info, setInfo] = useState<BookInfo>(DEFAULT_INFO);
   const [manuscript, setManuscript] = useState("");
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
@@ -220,6 +239,15 @@ export function AssemblyStudio() {
   const [notice, setNotice] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [restored, setRestored] = useState(false);
+
+  // Envoi au site (dossier d'un livre à compte d'auteur)
+  const [sending, setSending] = useState<null | "proof" | "print">(null);
+  const [sendProgress, setSendProgress] = useState(0);
+  const [sendLog, setSendLog] = useState<string | null>(null);
+  const [nextProof, setNextProof] = useState(dossier?.nextProofVersion ?? 1);
+
+  const draftDossierRef = useRef<string | null>(null);
+  const appliedDossierRef = useRef<string | null>(null);
 
   const trim = TRIM_FORMATS.find((format) => format.key === trimKey) ?? TRIM_FORMATS[0];
   const paper = PAPER_OPTIONS.find((option) => option.key === paperKey) ?? PAPER_OPTIONS[0];
@@ -271,6 +299,7 @@ export function AssemblyStudio() {
         if (draft.trimKey) setTrimKey(draft.trimKey);
         if (draft.paperKey) setPaperKey(draft.paperKey);
         if (draft.cover) setCover({ ...DEFAULT_COVER, ...draft.cover });
+        draftDossierRef.current = draft.dossierId ?? null;
       }
     } catch {
       // Brouillon illisible : on repart de zéro.
@@ -291,6 +320,7 @@ export function AssemblyStudio() {
           trimKey,
           paperKey,
           cover,
+          dossierId: dossier?.id ?? null,
         };
         window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
       } catch {
@@ -299,7 +329,69 @@ export function AssemblyStudio() {
     }, 1000);
 
     return () => window.clearTimeout(handle);
-  }, [restored, info, manuscript, settings, trimKey, paperKey, cover]);
+  }, [restored, info, manuscript, settings, trimKey, paperKey, cover, dossier?.id]);
+
+  // Dossier d'un auteur : pré-remplissage des informations, de la couverture et de la photo.
+  useEffect(() => {
+    if (!dossier || !restored || appliedDossierRef.current === dossier.id) return;
+
+    appliedDossierRef.current = dossier.id;
+    let cancelled = false;
+
+    // Un brouillon du même dossier (texte déjà collé, retouches) est conservé ; sinon on repart du dossier.
+    if (draftDossierRef.current !== dossier.id) {
+      setInfo({
+        title: dossier.title,
+        subtitle: dossier.subtitle,
+        author: dossier.author,
+        summary: dossier.summary,
+        bio: dossier.bio,
+        isbn: dossier.isbn,
+        year: dossier.year,
+      });
+      setManuscript("");
+    }
+
+    setCoverImage(null);
+    setAuthorPhoto(null);
+
+    (async () => {
+      const failures: string[] = [];
+
+      if (dossier.coverUrl) {
+        try {
+          const file = await fetchAsFile(dossier.coverUrl, "couverture");
+          const prepared = await prepareImageFile(file);
+          if (!cancelled) setCoverImage({ ...prepared, name: "Couverture du dossier" });
+        } catch {
+          failures.push("la couverture");
+        }
+      }
+
+      if (dossier.photoUrl) {
+        try {
+          const file = await fetchAsFile(dossier.photoUrl, "photo");
+          const prepared = await prepareImageFile(file, 1600);
+          const circle = await cropImageToCircle(prepared.dataUrl, 640);
+          if (!cancelled) setAuthorPhoto({ dataUrl: circle, name: "Photo du dossier" });
+        } catch {
+          failures.push("la photo de l'auteur");
+        }
+      }
+
+      if (!cancelled) {
+        setNotice(
+          failures.length > 0
+            ? `Dossier chargé. Impossible de charger ${failures.join(" et ")} : importez-les à l'étape 3.`
+            : "Dossier chargé : informations, couverture et photo de l'auteur pré-remplies."
+        );
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dossier, restored]);
 
   // Code-barres ISBN-13.
   useEffect(() => {
@@ -473,7 +565,7 @@ export function AssemblyStudio() {
   }, [info.title, info.author, isbn, layout, stats.replaced, scene]);
 
   const slug = slugify(info.title) || "livre";
-  const working = busy !== "idle";
+  const working = busy !== "idle" || sending !== null;
 
   function updateInfo(field: keyof BookInfo) {
     return (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -575,6 +667,7 @@ export function AssemblyStudio() {
       // Rien à faire.
     }
 
+    draftDossierRef.current = null;
     setInfo(DEFAULT_INFO);
     setManuscript("");
     setSettings(DEFAULT_SETTINGS);
@@ -586,27 +679,51 @@ export function AssemblyStudio() {
     setNotice("Brouillon effacé.");
   }
 
-  async function downloadInterior() {
-    if (!layout || !pdfCtor) return;
+  /** Vérifie, avant tout PDF intérieur, que le minimum du dos carré collé est atteint (sinon confirmation). */
+  function interiorAccepted(): boolean {
+    if (!layout) return false;
 
-    if (
-      layout.missingForMinimum > 0 &&
-      !window.confirm(
-        `Le livre ne compte que ${layout.totalPages} pages (minimum ${MIN_PAGES_PERFECT_BOUND} pour le dos carré collé). Télécharger quand même ?`
-      )
-    ) {
-      return;
+    if (layout.missingForMinimum > 0) {
+      return window.confirm(
+        `Le livre ne compte que ${layout.totalPages} pages (minimum ${MIN_PAGES_PERFECT_BOUND} pour le dos carré collé). Continuer quand même ?`
+      );
     }
+
+    return true;
+  }
+
+  function coverAccepted(): boolean {
+    if (barcode) return true;
+    return window.confirm("Aucun code-barres ne sera imprimé (ISBN absent ou invalide). Continuer quand même ?");
+  }
+
+  async function makeInteriorDoc(): Promise<PdfDoc> {
+    if (!layout || !pdfCtor) throw new Error("La mise en page n'est pas prête.");
+
+    return renderInteriorPdf(pdfCtor, layout, {
+      title: singleLine(info.title),
+      author: singleLine(info.author),
+    });
+  }
+
+  async function makeCoverDoc(): Promise<PdfDoc> {
+    if (!scene || !pdfCtor) throw new Error("La couverture n'est pas prête.");
+
+    return renderCoverPdf(pdfCtor, scene, {
+      title: singleLine(info.title),
+      author: singleLine(info.author),
+    });
+  }
+
+  async function downloadInterior() {
+    if (!layout || !pdfCtor || !interiorAccepted()) return;
 
     setBusy("interior");
     setProblem(null);
 
     try {
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 30));
-      const doc = await renderInteriorPdf(pdfCtor, layout, {
-        title: singleLine(info.title),
-        author: singleLine(info.author),
-      });
+      await pause(30);
+      const doc = await makeInteriorDoc();
       doc.save(`${slug}-interieur.pdf`);
     } catch (error) {
       setProblem(error instanceof Error ? `Génération du PDF intérieur impossible : ${error.message}` : "Génération impossible.");
@@ -616,26 +733,117 @@ export function AssemblyStudio() {
   }
 
   async function downloadCover() {
-    if (!scene || !pdfCtor) return;
-
-    if (!barcode && !window.confirm("Aucun code-barres ne sera imprimé (ISBN absent ou invalide). Télécharger quand même ?")) {
-      return;
-    }
+    if (!scene || !pdfCtor || !coverAccepted()) return;
 
     setBusy("cover");
     setProblem(null);
 
     try {
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 30));
-      const doc = await renderCoverPdf(pdfCtor, scene, {
-        title: singleLine(info.title),
-        author: singleLine(info.author),
-      });
+      await pause(30);
+      const doc = await makeCoverDoc();
       doc.save(`${slug}-couverture.pdf`);
     } catch (error) {
       setProblem(error instanceof Error ? `Génération du PDF de couverture impossible : ${error.message}` : "Génération impossible.");
     } finally {
       setBusy("idle");
+    }
+  }
+
+  async function sendProof() {
+    if (!dossier?.productId || !layout || !pdfCtor || !interiorAccepted()) return;
+
+    if (
+      !window.confirm(
+        `Envoyer cette mise en page comme épreuve (version ${nextProof}) ? L'auteur sera prévenu par email et pourra l'approuver ou demander des corrections.`
+      )
+    ) {
+      return;
+    }
+
+    setSending("proof");
+    setSendProgress(0);
+    setSendLog(null);
+    setProblem(null);
+
+    try {
+      await pause(30);
+      const doc = await makeInteriorDoc();
+      const result = await sendProofToSite(
+        dossier.productId,
+        nextProof,
+        doc.output("blob"),
+        `${slug}-epreuve.pdf`,
+        setSendProgress
+      );
+
+      if (result.ok) {
+        setSendLog(result.message);
+        setNextProof((value) => value + 1);
+      } else {
+        setProblem(result.message);
+      }
+    } catch (error) {
+      setProblem(error instanceof Error ? `Envoi impossible : ${error.message}` : "Envoi impossible.");
+    } finally {
+      setSending(null);
+    }
+  }
+
+  async function sendPrintFiles() {
+    if (!dossier?.productId || !layout || !scene || !pdfCtor || !interiorAccepted() || !coverAccepted()) return;
+
+    if (
+      !window.confirm(
+        "Envoyer le PDF intérieur et le PDF de couverture comme fichiers d'impression de ce livre ? Ils remplacent les fichiers précédents."
+      )
+    ) {
+      return;
+    }
+
+    setSending("print");
+    setSendProgress(0);
+    setSendLog(null);
+    setProblem(null);
+
+    try {
+      await pause(30);
+
+      const interior = await makeInteriorDoc();
+      const first = await sendPrintFileToSite(
+        dossier.productId,
+        "interieur",
+        interior.output("blob"),
+        `${slug}-interieur.pdf`,
+        setSendProgress
+      );
+
+      if (!first.ok) {
+        setProblem(first.message);
+        return;
+      }
+
+      setSendProgress(0);
+      const coverDoc = await makeCoverDoc();
+      const second = await sendPrintFileToSite(
+        dossier.productId,
+        "couverture",
+        coverDoc.output("blob"),
+        `${slug}-couverture.pdf`,
+        setSendProgress
+      );
+
+      if (!second.ok) {
+        setProblem(`L'intérieur est enregistré, mais la couverture a échoué : ${second.message}`);
+        return;
+      }
+
+      setSendLog(
+        "Fichiers d'impression enregistrés. Complétez le code d'impression, le nombre de pages et le coût de fabrication dans Administration, Impression."
+      );
+    } catch (error) {
+      setProblem(error instanceof Error ? `Envoi impossible : ${error.message}` : "Envoi impossible.");
+    } finally {
+      setSending(null);
     }
   }
 
@@ -651,9 +859,38 @@ export function AssemblyStudio() {
         </h1>
         <p className="mt-1 text-sm text-slate-600">
           Assemblez un manuscrit en livre prêt à imprimer en dos carré collé : PDF du corps du livre et couverture
-          complète à plat. Tout est généré dans votre navigateur ; rien n&apos;est envoyé sur le serveur.
+          complète à plat. Tout est généré dans votre navigateur.
         </p>
       </div>
+
+      {dossier && (
+        <section className="card border-brand-200 bg-brand-50">
+          <p className="eyebrow text-brand-700">Dossier ouvert · {dossier.label}</p>
+          <h2 className="mt-1 text-lg font-extrabold">{dossier.title}</h2>
+          <p className="text-sm text-slate-600">
+            {dossier.author}
+            {dossier.contractSigned === true && " · contrat signé"}
+            {dossier.contractSigned === false && " · contrat en attente de signature"}
+          </p>
+
+          <div className="mt-3 space-y-2 text-sm text-slate-700">
+            <p>
+              <a href={dossier.manuscriptDownloadUrl} className="font-semibold text-brand-700 hover:underline">
+                Télécharger le manuscrit de l&apos;auteur ({dossier.manuscriptFileName})
+              </a>
+            </p>
+            <p>
+              <strong>Le texte du livre</strong> est à charger à l&apos;étape 4. Le manuscrit de l&apos;auteur est un PDF,
+              que le module ne lit pas : importez la version Word (.docx) si l&apos;auteur vous l&apos;envoie, ou
+              ouvrez le PDF, copiez tout son texte, puis collez-le à l&apos;étape 4.
+            </p>
+          </div>
+
+          <Link href="/admin/assemblage" className="mt-3 inline-block text-sm font-semibold text-brand-700 hover:underline">
+            Fermer le dossier et revenir à la liste
+          </Link>
+        </section>
+      )}
 
       {problem && (
         <div className="alert-error" role="alert">
@@ -1229,6 +1466,59 @@ export function AssemblyStudio() {
           Effacer le brouillon enregistré sur cet appareil
         </button>
       </Section>
+
+      {dossier?.productId && (
+        <Section
+          title="10. Envoyer au dossier de l'auteur"
+          hint="Sans téléchargement ni redépôt : les PDF générés partent directement vers le livre."
+        >
+          {sendLog && (
+            <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{sendLog}</div>
+          )}
+
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-slate-200 p-4">
+              <h3 className="font-bold">Épreuve (bon à tirer)</h3>
+              <p className="mt-1 text-sm text-slate-600">
+                Envoie le PDF intérieur comme épreuve version {nextProof} : l&apos;auteur est prévenu par email et
+                l&apos;approuve ou demande des corrections.
+              </p>
+
+              {dossier.canSendProof ? (
+                <button
+                  type="button"
+                  onClick={() => void sendProof()}
+                  disabled={!ready || working}
+                  className="btn-primary mt-3"
+                >
+                  {sending === "proof" ? `Envoi en cours... ${sendProgress} %` : "Envoyer comme épreuve et prévenir l'auteur"}
+                </button>
+              ) : (
+                <p className="mt-3 text-sm text-slate-600">
+                  Indisponible : le forfait doit être validé et l&apos;édition en cours de mise en page.
+                </p>
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 p-4">
+              <h3 className="font-bold">Fichiers d&apos;impression</h3>
+              <p className="mt-1 text-sm text-slate-600">
+                Enregistre le PDF intérieur et le PDF de couverture comme fichiers d&apos;impression du livre
+                (livre imprimé à la demande). Ils remplacent les fichiers précédents.
+              </p>
+
+              <button
+                type="button"
+                onClick={() => void sendPrintFiles()}
+                disabled={!ready || !scene || working}
+                className="btn-accent mt-3"
+              >
+                {sending === "print" ? `Envoi en cours... ${sendProgress} %` : "Envoyer les fichiers d'impression"}
+              </button>
+            </div>
+          </div>
+        </Section>
+      )}
     </div>
   );
 }
