@@ -19,6 +19,7 @@ export interface PdfDoc {
   addImage(data: string, format: string, x: number, y: number, w: number, h: number): unknown;
   setProperties(properties: Record<string, string>): unknown;
   save(filename: string): unknown;
+  output(type: "blob"): Blob;
   internal: { write?: (...parts: string[]) => void; scaleFactor?: number };
 }
 
@@ -175,4 +176,4 @@ export async function renderCoverPdf(
   }
 
   return doc;
-                           }
+        }
