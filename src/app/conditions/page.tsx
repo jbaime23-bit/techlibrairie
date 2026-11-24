@@ -3,323 +3,444 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getContactInfo } from "@/lib/contact";
-import { PAYOUT_HOLD_DAYS } from "@/lib/payouts";
-import { FREE_WAIT_SECONDS } from "@/lib/free-resources";
 import { getLegalConfig, operatorName } from "@/lib/legal-config";
-import {
-  getPaymentMethods,
-  paymentMeansList,
-  refundMeansLabel,
-} from "@/lib/payment-methods";
-import { formatPrice } from "@/lib/utils";
+import { getPaymentMethods, paymentSummary } from "@/lib/payment-methods";
+import { bpsToPercent, getDefaultCommissionRateBps } from "@/lib/commission";
+import { PAYOUT_HOLD_DAYS } from "@/lib/payouts";
+import { formatXofAmount, getEditionOffers } from "@/lib/edition-offers";
+import { CONTRACT_VERSION } from "@/lib/edition-contract";
+import { PUBLISHER_CONTRACT_VERSION } from "@/lib/publisher-contract";
+import { MAX_COPIES_PER_ORDER } from "@/lib/print-shipping";
 import LegalPage, { LegalList, LegalSection } from "@/components/legal/legal-page";
 
 export const metadata: Metadata = {
   title: "Conditions générales d'utilisation et de vente",
   description:
-    "Conditions générales d'utilisation et de vente de TechLibrairie : achat, téléchargement, téléchargements gratuits, paiement, remboursement, vendeurs, contenus interdits et support.",
+    "Conditions générales de TechLibrairie : boutique de livres PDF, livres imprimés à la demande, édition à compte d'auteur et à compte d'éditeur, mise en ligne, vendeurs, contrats, rétractation.",
 };
 
 export const dynamic = "force-dynamic";
 
-async function loadSettings() {
-  try {
-    return await prisma.platformSetting.findUnique({ where: { id: "global" } });
-  } catch {
-    return null;
-  }
-}
-
 export default async function ConditionsPage() {
-  const [settings, contact] = await Promise.all([loadSettings(), getContactInfo()]);
+  const contact = await getContactInfo();
   const legal = getLegalConfig();
-  const operator = operatorName(legal);
   const methods = getPaymentMethods();
-  const meansList = paymentMeansList(methods);
+  const summary = paymentSummary(methods);
+  const offers = getEditionOffers();
 
-  const linkHours = settings?.downloadLinkTtlHours ?? 72;
-  const maxDownloads = settings?.downloadMaxAttempts ?? 5;
-  const commissionPercent = (settings?.defaultCommissionRateBps ?? 1000) / 100;
-  const minPayout = settings?.minPayoutAmountXof ?? 5000;
-  const supportFee = settings?.supportFeeXof ?? 1000;
-  const fxMarginPercent = (settings?.fxMarginBps ?? 200) / 100;
+  const [defaultRateBps, settings] = await Promise.all([
+    getDefaultCommissionRateBps(),
+    prisma.platformSetting
+      .findUnique({ where: { id: "global" }, select: { minPayoutAmountXof: true } })
+      .catch(() => null),
+  ]);
+
+  const commission = bpsToPercent(defaultRateBps);
+  const minimumPayout = settings?.minPayoutAmountXof ?? 5000;
+  const link = "font-semibold text-brand-700 hover:underline";
 
   return (
     <LegalPage title="Conditions générales d'utilisation et de vente">
-      <LegalSection title="1. Objet">
+      <LegalSection title="Article 1. Objet, exploitant et services">
         <p>
-          TechLibrairie est une plateforme en ligne qui met en relation des auteurs et éditeurs
-          (les « vendeurs ») avec des acheteurs de livres et guides techniques au format PDF, et qui propose
-          aussi des PDF en téléchargement gratuit. Le site est exploité par {operator}. Les présentes
-          conditions régissent l&apos;utilisation du site et les achats qui y sont réalisés. En créant un compte,
-          en passant commande ou en téléchargeant un document, vous les acceptez.
+          Les présentes conditions régissent l&apos;utilisation du site TechLibrairie, exploité par {operatorName(legal)}
+          {legal.address ? `, dont le siège est situé ${legal.address}` : ""}. En créant un compte, en passant
+          commande ou en déposant un ouvrage, vous les acceptez.
+        </p>
+        <p>Le site propose quatre services :</p>
+        <LegalList>
+          <li>
+            <strong>La boutique</strong> : vente et achat de livres et documents au format PDF, déposés par des
+            vendeurs ou publiés par TechLibrairie Édition.
+          </li>
+          <li>
+            <strong>L&apos;édition à compte d&apos;auteur</strong> : l&apos;auteur finance l&apos;édition de son livre
+            (contrôle, mise en page, publication) par un forfait, et garde ses droits et ses gains.
+          </li>
+          <li>
+            <strong>L&apos;édition à compte d&apos;éditeur</strong> : TechLibrairie Édition examine un manuscrit et, si
+            elle le retient, finance son édition contre une redevance versée à l&apos;auteur.
+          </li>
+          <li>
+            <strong>Les livres imprimés à la demande</strong> : un exemplaire imprimé d&apos;un livre édité, fabriqué
+            à la commande.
+          </li>
+        </LegalList>
+        <p>
+          Pour l&apos;édition, le contrat signé avec l&apos;auteur complète les présentes conditions et prévaut en cas
+          de contradiction.
         </p>
       </LegalSection>
 
-      <LegalSection title="2. Compte utilisateur">
+      <LegalSection title="Article 2. Comptes et espaces">
         <LegalList>
           <li>
-            Vous devez fournir des informations exactes et être en capacité de contracter selon la loi
-            qui vous est applicable.
+            Vous devez être majeur, ou autorisé par votre représentant légal, et fournir des informations exactes.
+            Une adresse email correspond à un seul compte, qui donne accès à l&apos;espace auteur, à l&apos;espace
+            acheteur et à l&apos;espace vendeur selon votre usage.
           </li>
           <li>
-            Vous êtes responsable de la confidentialité de votre mot de passe et de toute activité
-            réalisée depuis votre compte. Prévenez-nous sans délai en cas d&apos;usage suspect.
+            Vous êtes responsable de la confidentialité de votre mot de passe et de l&apos;activité de votre compte.
+            Prévenez-nous sans délai en cas d&apos;usage frauduleux.
           </li>
           <li>
-            Nous pouvons suspendre ou désactiver un compte en cas de violation des présentes conditions,
-            de fraude ou d&apos;activité illicite.
+            Nous pouvons suspendre un compte en cas de fraude, de contenu illicite ou de violation des présentes
+            conditions.
+          </li>
+          <li>
+            Vous pouvez supprimer votre compte depuis{" "}
+            <Link href="/profil/suppression" className={link}>
+              « Mon profil »
+            </Link>
+            , sous réserve des commandes en cours et des sommes qui vous sont dues.
           </li>
         </LegalList>
       </LegalSection>
 
-      <LegalSection title="3. Produits proposés">
+      <LegalSection title="Article 3. Mise en ligne des ouvrages par TechLibrairie">
         <p>
-          Les produits sont des fichiers numériques au format PDF, publiés par les vendeurs. Chaque vendeur est
-          seul responsable du contenu qu&apos;il publie, de sa description et des droits qu&apos;il détient sur
-          celui-ci. La publication est automatique dès la soumission par le vendeur ; la plateforme peut
-          retirer ou suspendre sans préavis tout contenu contraire à la loi, aux droits de tiers ou aux
-          présentes conditions.
+          <strong>Aucun ouvrage n&apos;est mis en vente sans validation de TechLibrairie.</strong> Seule TechLibrairie
+          met un ouvrage en ligne.
+        </p>
+        <LegalList>
+          <li>
+            <strong>PDF déposé par un vendeur</strong> : il reste invisible tant qu&apos;il n&apos;a pas été vérifié. Nous
+            le validons, ou nous le refusons avec un motif transmis au vendeur. Aucun délai de validation n&apos;est
+            garanti, et la validation ne vaut pas garantie du contenu.
+          </li>
+          <li>
+            <strong>Livre à éditer (compte d&apos;auteur ou compte d&apos;éditeur)</strong> : il est confié à TechLibrairie
+            Édition pour un travail éditorial et n&apos;apparaît jamais dans le catalogue au dépôt. Après l&apos;édition
+            et l&apos;approbation du bon à tirer par l&apos;auteur, TechLibrairie procède à une vérification finale puis
+            met le livre en ligne. L&apos;approbation du bon à tirer ne vaut pas mise en vente.
+          </li>
+          <li>
+            Un vendeur qui remplace le fichier d&apos;un ouvrage déjà en ligne le renvoie en validation. Il peut retirer
+            son ouvrage de la vente à tout moment, et ne peut le remettre en vente lui-même que s&apos;il a déjà été
+            validé.
+          </li>
+          <li>
+            Nous pouvons suspendre ou retirer un ouvrage à tout moment, notamment après un signalement (article 15).
+          </li>
+        </LegalList>
+      </LegalSection>
+
+      <LegalSection title="Article 4. Les types d'ouvrages et leurs badges">
+        <LegalList>
+          <li>
+            <strong>« Document PDF »</strong> : document mis en vente par son auteur ou son vendeur après validation. Il
+            n&apos;a pas fait l&apos;objet d&apos;un travail éditorial de TechLibrairie Édition.
+          </li>
+          <li>
+            <strong>« Compte d&apos;auteur »</strong> : livre dont l&apos;édition a été financée par l&apos;auteur. TechLibrairie
+            Édition en a assuré la mise en page ; le contenu relève de la responsabilité de l&apos;auteur.
+          </li>
+          <li>
+            <strong>« TechLibrairie Édition »</strong> : livre sélectionné, édité et publié par TechLibrairie Édition à
+            compte d&apos;éditeur.
+          </li>
+        </LegalList>
+      </LegalSection>
+
+      <LegalSection title="Article 5. Boutique : prix, commande et paiement">
+        <LegalList>
+          <li>
+            Les prix sont indiqués en francs CFA, sans taxe supplémentaire, et fixés par le vendeur ou l&apos;auteur. Le
+            prix affiché lors de la validation de la commande est le prix applicable.
+          </li>
+          <li>Une commande est conclue lorsque le paiement est confirmé. {summary}.</li>
+          <li>
+            Nous ne conservons aucun numéro de carte ni code secret. Les paiements sont traités par nos prestataires de
+            paiement, qui nous transmettent seulement la confirmation.
+          </li>
+          <li>
+            Un code promotionnel s&apos;applique dans les conditions qui lui sont propres et ne se cumule pas, sauf
+            indication contraire.
+          </li>
+          <li>
+            Un auteur ou un vendeur ne peut pas acheter son propre ouvrage ; il peut en revanche commander ses
+            exemplaires imprimés au prix de fabrication (article 7).
+          </li>
+        </LegalList>
+      </LegalSection>
+
+      <LegalSection title="Article 6. Téléchargement des PDF">
+        <p>
+          Après le paiement, le PDF est disponible immédiatement dans « Mes commandes », par un lien personnel et
+          sécurisé, limité dans le temps et en nombre de téléchargements. Si le lien expire, vous pouvez en demander un
+          nouveau depuis votre espace. Les fichiers ne sont jamais accessibles publiquement.
         </p>
       </LegalSection>
 
-      <LegalSection title="4. Prix">
-        <LegalList>
-          <li>Les prix sont fixés en francs CFA (FCFA) et affichés toutes charges comprises.</li>
-          <li>Aucune taxe supplémentaire n&apos;est ajoutée au prix affiché lors de la commande.</li>
-          {methods.stripeCard && (
-            <li>
-              Pour un paiement par carte bancaire via Stripe, le montant en FCFA est converti en euros ou
-              en dollars au moment du paiement, avec un taux et une marge de conversion de {fxMarginPercent} %
-              inclus. Le montant exact débité est affiché avant la confirmation du paiement.
-            </li>
-          )}
-          {methods.cinetPayCard && (
-            <li>
-              Pour un paiement par carte bancaire via CinetPay, le montant est débité en FCFA. Si votre
-              carte est émise dans une autre devise, votre banque peut appliquer sa propre conversion et
-              ses propres frais, qui ne dépendent pas de TechLibrairie.
-            </li>
-          )}
-        </LegalList>
-      </LegalSection>
-
-      <LegalSection title="5. Commande et paiement">
+      <LegalSection title="Article 7. Livres imprimés à la demande">
         <LegalList>
           <li>
-            {meansList.length > 0
-              ? `Le paiement s'effectue ${meansList.join(", ou ")}.`
-              : "Les moyens de paiement disponibles sont affichés au moment de la commande."}
+            Chaque exemplaire imprimé est <strong>fabriqué à la commande</strong>, sans stock. Le prix de
+            l&apos;exemplaire est fixé par l&apos;auteur ; les frais de livraison, fixés par zone, s&apos;y ajoutent et sont
+            affichés avant la validation. Une commande porte sur {MAX_COPIES_PER_ORDER} exemplaires au maximum.
           </li>
           <li>
-            Nous ne recevons ni ne conservons jamais vos numéros de carte ni vos codes secrets : ils sont
-            traités directement par les prestataires de paiement.
+            Pour commander, vous indiquez le nom du destinataire, une adresse complète et un numéro de téléphone, exigé
+            par le transporteur. Vous déclarez ensuite votre paiement (référence de la transaction) : la fabrication
+            commence quand l&apos;administration l&apos;a vérifié.
           </li>
           <li>
-            La commande est confirmée à réception de la confirmation du paiement par le prestataire. En
-            cas de paiement non abouti, vous n&apos;êtes pas débité et aucun fichier n&apos;est délivré.
+            Une commande livrée au <strong>Burkina Faso</strong> est traitée localement par TechLibrairie. Une commande
+            livrée à l&apos;étranger est fabriquée et expédiée par notre prestataire d&apos;impression, à qui votre nom, votre
+            adresse et votre téléphone sont transmis pour la livraison.
           </li>
           <li>
-            Un code promotionnel, lorsque la boutique en propose, est valable aux conditions indiquées lors de
-            sa diffusion (dates, montant minimum, nombre d&apos;utilisations). La remise est déduite du prix
-            avant le paiement.
+            Les délais de fabrication et de livraison sont donnés à titre indicatif et dépendent du prestataire, du
+            transporteur et des douanes. Vous êtes prévenu par email à l&apos;expédition, avec le suivi du colis quand il
+            existe. Les droits de douane et taxes locales éventuels sont à votre charge.
+          </li>
+          <li>
+            Si l&apos;exemplaire reçu est endommagé ou comporte un défaut de fabrication, signalez-le sous quinze jours :
+            nous le remplaçons ou nous vous remboursons.
+          </li>
+          <li>
+            Votre adresse reste nécessaire jusqu&apos;à la livraison : la suppression d&apos;un compte est refusée tant
+            qu&apos;une commande est en cours.
           </li>
         </LegalList>
       </LegalSection>
 
-      <LegalSection title="6. Livraison et téléchargement des produits payants">
-        <LegalList>
-          <li>
-            Dès la confirmation du paiement, un lien de téléchargement personnel et sécurisé est mis à
-            votre disposition dans votre espace « Mes commandes » (et par email lorsque l&apos;envoi est
-            possible).
-          </li>
-          <li>
-            Chaque lien est valable {linkHours} heures et permet {maxDownloads} téléchargements au plus. Lorsqu&apos;un
-            lien est expiré ou épuisé, vous pouvez en générer un nouveau depuis votre espace, dans la limite
-            d&apos;un usage raisonnable.
-          </li>
-          <li>Vous devez être connecté à votre compte pour télécharger un fichier acheté.</li>
-        </LegalList>
-      </LegalSection>
-
-      <LegalSection title="7. Téléchargements gratuits">
-        <LegalList>
-          <li>
-            Le site propose des PDF en téléchargement gratuit, sans compte. Chaque téléchargement est précédé
-            d&apos;une attente de {FREE_WAIT_SECONDS} secondes pendant laquelle des publicités peuvent être
-            affichées : elles financent la mise à disposition gratuite des documents. Aucun clic sur une
-            publicité n&apos;est jamais exigé.
-          </li>
-          <li>
-            Les publicités de partenaires tiers ne s&apos;affichent que si vous avez accepté les cookies
-            publicitaires ; l&apos;attente reste la même dans tous les cas.
-          </li>
-          <li>
-            Les documents gratuits sont fournis tels quels, sans garantie d&apos;exactitude, d&apos;exhaustivité ni
-            d&apos;adaptation à un besoin particulier. Le nombre de téléchargements d&apos;un même fichier peut être
-            limité pour prévenir les abus.
-          </li>
-          <li>
-            L&apos;usage de ces documents est personnel : les règles de l&apos;article suivant s&apos;y appliquent.
-          </li>
-        </LegalList>
-      </LegalSection>
-
-      <LegalSection title="8. Usage des fichiers et propriété intellectuelle">
+      <LegalSection title="Article 8. Téléchargements gratuits">
         <p>
-          L&apos;achat ou le téléchargement confère un droit d&apos;usage personnel et non exclusif sur le fichier. Il
-          est interdit de le revendre, de le partager publiquement, de le redistribuer ou d&apos;en retirer les
-          mentions de propriété. Les droits d&apos;auteur restent la propriété des vendeurs ou de leurs ayants
-          droit. Si vous estimez qu&apos;un contenu porte atteinte à vos droits, suivez la procédure de signalement
-          de l&apos;article 11.
+          Les PDF gratuits sont téléchargeables sans compte, après une courte attente financée par la publicité. Ils
+          restent soumis aux droits de leurs auteurs : l&apos;article 14 s&apos;applique.
         </p>
       </LegalSection>
 
-      <LegalSection title="9. Droit de rétractation et remboursement">
-        <p>
-          Les produits numériques étant fournis immédiatement après le paiement, aucun droit de
-          rétractation n&apos;est accordé une fois le téléchargement effectué, sous réserve des dispositions
-          impératives de la loi applicable.
-        </p>
-        <p>Nous remboursons toutefois la commande dans les cas suivants, sur demande :</p>
-        <LegalList>
-          <li>fichier illisible, corrompu ou impossible à télécharger malgré nos tentatives d&apos;assistance ;</li>
-          <li>fichier manifestement non conforme à sa description ;</li>
-          <li>achat en double ou erreur de paiement avérée.</li>
-        </LegalList>
-        <p>
-          Le remboursement porte sur le montant réellement payé et est effectué par le même moyen que le
-          paiement ({refundMeansLabel(methods)}). Les liens de téléchargement de la commande remboursée sont
-          alors désactivés. Les délais d&apos;apparition du remboursement dépendent de votre banque ou de votre
-          opérateur.
-        </p>
-      </LegalSection>
-
-      <LegalSection title="10. Dispositions applicables aux vendeurs">
+      <LegalSection title="Article 9. Rétractation, garanties et remboursements">
         <LegalList>
           <li>
-            Le vendeur déclare détenir tous les droits nécessaires sur les fichiers qu&apos;il publie et
-            garantit TechLibrairie contre toute réclamation de tiers à ce titre.
+            <strong>PDF</strong> : le contenu numérique est fourni immédiatement après le paiement. En demandant le
+            téléchargement, vous demandez l&apos;exécution immédiate du contrat et vous reconnaissez, dans la mesure permise
+            par la loi applicable, que vous perdez votre droit de rétractation dès le début du téléchargement. Un PDF
+            défectueux ou ne correspondant pas à sa description est remplacé ou remboursé.
           </li>
           <li>
-            TechLibrairie prélève une commission sur chaque vente. Le taux par défaut est de
-            {" "}{commissionPercent} % ; un taux spécifique peut être convenu avec un vendeur. Le taux appliqué
-            à une vente est celui en vigueur au moment de l&apos;achat.
+            <strong>Livre imprimé</strong> : vous disposez de <strong>quatorze jours à compter de la réception</strong> pour
+            vous rétracter, sans motif, en nous écrivant puis en renvoyant l&apos;exemplaire en bon état. Les frais de
+            retour sont à votre charge. Nous vous remboursons dans les quatorze jours suivant la réception du retour.
           </li>
           <li>
-            Les gains d&apos;une vente deviennent retirables {PAYOUT_HOLD_DAYS} jours après le paiement. Le
-            versement est demandé depuis l&apos;espace vendeur, par Orange Money ou Moov Money, pour un
-            montant minimum de {formatPrice(minPayout, "XOF")}.
+            <strong>Garanties légales</strong> : vous bénéficiez des garanties légales de conformité applicables dans
+            votre pays, qui ne sont pas limitées par les présentes conditions.
           </li>
           <li>
-            En cas de remboursement d&apos;une commande, les gains correspondants sont retirés du solde du
-            vendeur. S&apos;ils ont déjà été versés, TechLibrairie peut en demander la restitution.
+            Les remboursements se font par le moyen de paiement d&apos;origine ou, à défaut, par Mobile Money, et sont
+            traités par l&apos;administration. Un remboursement retire de la commande les gains du vendeur concerné.
           </li>
         </LegalList>
       </LegalSection>
 
-      <LegalSection title="11. Contenus interdits et signalement">
-        <p>Il est interdit de publier ou de proposer sur le site :</p>
+      <LegalSection title="Article 10. Règles applicables aux vendeurs de PDF">
         <LegalList>
-          <li>des copies non autorisées d&apos;œuvres protégées (livres, cours, logiciels, documents payants d&apos;autrui) ;</li>
-          <li>des contenus illicites, haineux, discriminatoires, violents, pornographiques ou portant atteinte à la dignité des personnes ;</li>
-          <li>des contenus trompeurs, des logiciels malveillants ou des fichiers destinés à nuire à des utilisateurs ;</li>
-          <li>des informations personnelles de tiers diffusées sans leur accord.</li>
+          <li>
+            Vous garantissez détenir les droits sur les documents que vous déposez et assumez l&apos;entière responsabilité
+            de leur contenu. Vous cochez une déclaration à chaque dépôt.
+          </li>
+          <li>
+            Votre ouvrage est mis en vente après validation (article 3). Vous fixez votre prix, en francs CFA, par
+            multiples de 5.
+          </li>
+          <li>
+            La boutique prélève une commission de <strong>{commission} %</strong> sur chaque vente, ce taux pouvant être
+            adapté pour un vendeur donné. Les ventes d&apos;un livre édité à compte d&apos;auteur ne supportent aucune
+            commission.
+          </li>
+          <li>
+            Vos gains deviennent retirables <strong>{PAYOUT_HOLD_DAYS} jours</strong> après le paiement de l&apos;acheteur.
+            Pour un exemplaire imprimé, ils le deviennent après l&apos;expédition de la commande, et au moins{" "}
+            {PAYOUT_HOLD_DAYS} jours après son paiement. Le versement, par Mobile Money, se demande depuis votre espace à
+            partir de <strong>{formatXofAmount(minimumPayout)}</strong>.
+          </li>
+          <li>
+            Nous pouvons suspendre vos ventes et retenir les sommes concernées en cas de fraude, de contrefaçon avérée
+            ou de remboursement.
+          </li>
         </LegalList>
+      </LegalSection>
+
+      <LegalSection title="Article 11. Édition à compte d'auteur">
+        <LegalList>
+          <li>
+            L&apos;auteur dépose son livre, déclare ses droits et accepte en ligne le contrat d&apos;édition à compte
+            d&apos;auteur (version {CONTRACT_VERSION}), qu&apos;il signe en tapant son nom.{" "}
+            <Link href="/contrat-edition" className={link}>
+              Lire le contrat
+            </Link>
+            .
+          </li>
+          <li>
+            Il règle ensuite un <strong>forfait unique de {formatXofAmount(offers.authorFeeXof)} par livre</strong>, toutes
+            taxes comprises, par Mobile Money. L&apos;administration vérifie le paiement avant de commencer.
+          </li>
+          <li>
+            Le forfait couvre le contrôle de conformité, la mise en page selon la charte de TechLibrairie Édition et la
+            publication. L&apos;auteur reçoit une épreuve (bon à tirer) à approuver, avec {offers.correctionRounds} séries
+            de corrections incluses. Le livre est mis en ligne par TechLibrairie après l&apos;approbation du bon à tirer.
+          </li>
+          <li>
+            L&apos;auteur garde ses droits d&apos;auteur et 100 % du produit net de ses ventes, sans commission. Les frais
+            d&apos;impression d&apos;un exemplaire imprimé sont à sa charge et déduits de chaque vente imprimée, sans avance de
+            sa part ; le prix de l&apos;exemplaire imprimé ne peut pas être inférieur à un prix plancher couvrant la
+            fabrication.
+          </li>
+          <li>
+            Si le livre est refusé pour non-conformité (contenu illicite, droits non justifiés), le forfait versé est
+            remboursé intégralement.
+          </li>
+          <li>
+            L&apos;auteur peut télécharger son contrat en PDF <strong>dès que le règlement du forfait est validé</strong>,
+            depuis son espace auteur.
+          </li>
+        </LegalList>
+      </LegalSection>
+
+      <LegalSection title="Article 12. Édition à compte d'éditeur">
+        <LegalList>
+          <li>
+            La soumission d&apos;un manuscrit est <strong>gratuite</strong>. Le manuscrit est examiné par l&apos;équipe
+            éditoriale, qui le retient ou le refuse avec un message. Aucune acceptation n&apos;est garantie et la soumission
+            n&apos;engage ni la publication ni la conclusion d&apos;un contrat.
+          </li>
+          <li>
+            Le manuscrit est conservé en accès privé pendant l&apos;examen. Il est supprimé avec le compte de
+            l&apos;auteur.
+          </li>
+          <li>
+            Si le manuscrit est retenu, un <strong>contrat d&apos;édition à compte d&apos;éditeur</strong> (version{" "}
+            {PUBLISHER_CONTRACT_VERSION}) est généré au nom de l&apos;auteur, avec sa redevance (indicativement{" "}
+            {offers.publisherRoyaltyPercent} % du prix public hors taxes de chaque exemplaire vendu, fixée dans le
+            contrat). L&apos;auteur le lit et le signe en ligne, sans rendez-vous, puis le télécharge en PDF.{" "}
+            <Link href="/contrat-editeur" className={link}>
+              Lire le modèle de contrat
+            </Link>
+            .
+          </li>
+          <li>
+            TechLibrairie Édition finance alors la mise en page, la fabrication et la diffusion. L&apos;auteur ne supporte
+            aucun frais d&apos;édition.
+          </li>
+        </LegalList>
+      </LegalSection>
+
+      <LegalSection title="Article 13. Contrats et signature électronique">
+        <LegalList>
+          <li>
+            Les contrats d&apos;édition se concluent en ligne : l&apos;auteur coche la case d&apos;acceptation et saisit son
+            nom, ce qui vaut signature. Aucun rendez-vous n&apos;est nécessaire.
+          </li>
+          <li>
+            Le texte accepté, sa version, son empreinte numérique, la date, le nom saisi, l&apos;adresse email du compte et
+            l&apos;empreinte de la connexion sont conservés et valent preuve entre les parties, y compris après la
+            suppression du compte, pour nos obligations légales.
+          </li>
+          <li>
+            Un contrat signé n&apos;est jamais modifié : toute évolution du texte donne lieu à une nouvelle version, qui ne
+            s&apos;applique qu&apos;aux contrats signés après elle.
+          </li>
+        </LegalList>
+      </LegalSection>
+
+      <LegalSection title="Article 14. Propriété intellectuelle et usage des fichiers">
+        <LegalList>
+          <li>
+            Les ouvrages restent la propriété de leurs auteurs. L&apos;achat d&apos;un PDF donne un droit d&apos;usage personnel
+            et privé : il est interdit de le copier, de le revendre, de le partager ou de le publier.
+          </li>
+          <li>
+            Chaque auteur ou vendeur accorde à TechLibrairie les droits nécessaires pour présenter, diffuser et vendre
+            son ouvrage sur le site. Pour l&apos;édition, le contrat en précise l&apos;étendue.
+          </li>
+          <li>
+            La marque, le logo, la charte et la mise en page de TechLibrairie Édition appartiennent à l&apos;exploitant du
+            site.
+          </li>
+        </LegalList>
+      </LegalSection>
+
+      <LegalSection title="Article 15. Contenus interdits et signalement">
         <p>
-          Pour signaler un contenu, écrivez-nous par le formulaire de contact
+          Sont interdits les contenus illicites, contrefaisants, diffamatoires, haineux, portant atteinte à la vie privée
+          ou aux mineurs, ainsi que ceux dont le déposant n&apos;a pas les droits. Pour signaler un contenu, écrivez-nous
+          par le formulaire en bas de page en indiquant l&apos;ouvrage concerné, vos droits et vos coordonnées. Après un
+          signalement vraisemblable, nous pouvons retirer l&apos;ouvrage sans délai, informer son vendeur et lui permettre
+          de répondre.
+        </p>
+      </LegalSection>
+
+      <LegalSection title="Article 16. Support et publicité">
+        <p>
+          Le support peut être payant selon la catégorie de la demande, le tarif étant affiché avant l&apos;envoi. Le site
+          affiche des publicités de partenaires, chargées seulement après votre accord ; la{" "}
+          <Link href="/confidentialite" className={link}>
+            politique de confidentialité
+          </Link>{" "}
+          en précise les conditions.
+        </p>
+      </LegalSection>
+
+      <LegalSection title="Article 17. Responsabilité">
+        <p>
+          TechLibrairie met en œuvre les moyens raisonnables pour assurer la disponibilité du site, sans garantie
+          d&apos;accès ininterrompu. Le contenu d&apos;un ouvrage relève de la responsabilité de son auteur ou de son vendeur.
+          Notre responsabilité ne saurait être engagée pour les dommages indirects, ni pour un retard dû à un cas de force
+          majeure (panne du réseau, du prestataire de paiement ou d&apos;impression, transporteur, douane), sous réserve des
+          droits que la loi vous reconnaît.
+        </p>
+      </LegalSection>
+
+      <LegalSection title="Article 18. Données personnelles">
+        <p>
+          Le traitement de vos données, y compris celles des commandes imprimées et des manuscrits, est décrit dans la{" "}
+          <Link href="/confidentialite" className={link}>
+            politique de confidentialité
+          </Link>
+          , qui explique aussi comment télécharger vos données et supprimer votre compte.
+        </p>
+      </LegalSection>
+
+      <LegalSection title="Article 19. Droit applicable, litiges et médiation">
+        <p>
+          Les présentes conditions sont soumises au droit en vigueur au {legal.country}. En cas de litige, contactez-nous
+          d&apos;abord : nous recherchons une solution amiable. Vous pouvez aussi recourir gratuitement au médiateur de la
+          consommation compétent dans votre pays, ou à tout autre mode alternatif de règlement des litiges. À défaut
+          d&apos;accord, le litige relève de la juridiction compétente selon la loi applicable, sans priver le consommateur
+          des protections qui lui sont reconnues.
+        </p>
+      </LegalSection>
+
+      <LegalSection title="Article 20. Modification des conditions">
+        <p>
+          Nous pouvons modifier ces conditions. La date de dernière mise à jour figure en haut de cette page. Les
+          modifications s&apos;appliquent aux commandes et aux dépôts postérieurs ; les contrats d&apos;édition déjà signés
+          restent régis par leur propre version.
+        </p>
+      </LegalSection>
+
+      <LegalSection title="Article 21. Contact">
+        <p>
+          Pour toute question, écrivez-nous par le formulaire en bas de page
           {contact.email ? (
             <>
               {" "}
               ou à{" "}
-              <a href={`mailto:${contact.email}`} className="font-semibold text-brand-700 hover:underline">
+              <a href={`mailto:${contact.email}`} className={link}>
                 {contact.email}
               </a>
             </>
-          ) : null}{" "}
-          en indiquant : l&apos;adresse de la page concernée, la description du contenu, les raisons de votre
-          demande et, s&apos;il s&apos;agit d&apos;une atteinte à vos droits, la preuve que vous en êtes titulaire. Nous
-          examinons les signalements dans les meilleurs délais, pouvons suspendre le contenu pendant
-          l&apos;examen, et suspendons ou désactivons les comptes qui enfreignent ces règles de façon répétée.
-        </p>
-      </LegalSection>
-
-      <LegalSection title="12. Support payant">
-        <p>
-          Le support par conversation est un service payant, au tarif de {formatPrice(supportFee, "XOF")} par
-          conversation (tarif affiché avant tout paiement), payable par Mobile Money. Le message n&apos;est lu par
-          l&apos;équipe qu&apos;après paiement. Le tarif reste dû même si la réponse ne vous satisfait pas ; en
-          l&apos;absence de toute réponse de notre part, vous pouvez demander le remboursement de la
-          conversation. Pour une simple question sans suite, le formulaire de contact du pied de page reste
-          gratuit.
-        </p>
-      </LegalSection>
-
-      <LegalSection title="13. Publicité">
-        <p>
-          Le site affiche des publicités, y compris celles de régies publicitaires tierces (notamment Google
-          AdSense et Adsterra), affichées après votre accord (voir la{" "}
-          <Link href="/confidentialite" className="font-semibold text-brand-700 hover:underline">
-            politique de confidentialité
-          </Link>
-          ). Ces annonces sont choisies par ces régies : TechLibrairie n&apos;est pas responsable de leur contenu ni
-          du contenu des sites vers lesquels elles renvoient. Vous pouvez signaler une annonce inappropriée par
-          le formulaire de contact.
-        </p>
-      </LegalSection>
-
-      <LegalSection title="14. Responsabilité">
-        <p>
-          Nous mettons tout en œuvre pour assurer la disponibilité du site, sans pouvoir garantir
-          l&apos;absence d&apos;interruption. TechLibrairie ne saurait être tenue responsable du contenu des
-          ouvrages publiés par les vendeurs, ni des dommages indirects résultant de l&apos;usage du site,
-          dans les limites permises par la loi applicable.
-        </p>
-      </LegalSection>
-
-      <LegalSection title="15. Données personnelles">
-        <p>
-          Le traitement de vos données personnelles est décrit dans notre{" "}
-          <Link href="/confidentialite" className="font-semibold text-brand-700 hover:underline">
-            politique de confidentialité
+          ) : null}
+          . Les mentions légales se trouvent{" "}
+          <Link href="/mentions-legales" className={link}>
+            ici
           </Link>
           .
         </p>
       </LegalSection>
-
-      <LegalSection title="16. Droit applicable et litiges">
-        <p>
-          Les présentes conditions sont régies par le droit en vigueur au {legal.country}. En cas de
-          différend, nous vous invitons à nous contacter en priorité afin de rechercher une solution
-          amiable. À défaut, les juridictions compétentes seront celles du {legal.country}, sous réserve
-          des règles impératives de compétence applicables aux consommateurs.
-        </p>
-      </LegalSection>
-
-      <LegalSection title="17. Modification des conditions">
-        <p>
-          Nous pouvons modifier les présentes conditions. La version applicable à une commande est celle en
-          vigueur à la date de cette commande. La date de dernière mise à jour figure en haut de cette page.
-        </p>
-      </LegalSection>
-
-      <LegalSection title="18. Contact">
-        <p>
-          Pour toute question :
-          {contact.email ? (
-            <>
-              {" "}
-              par email à{" "}
-              <a href={`mailto:${contact.email}`} className="font-semibold text-brand-700 hover:underline">
-                {contact.email}
-              </a>
-              ,
-            </>
-          ) : null}{" "}
-          ou par le formulaire de contact disponible en bas de chaque page.
-        </p>
-      </LegalSection>
     </LegalPage>
   );
-            }
+}
