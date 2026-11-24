@@ -103,7 +103,7 @@ export default async function BoutiquePage() {
             <p className="eyebrow text-emerald-700">Espace vendeur</p>
             <h2 className="mt-2 text-2xl font-extrabold">Je vends mes PDF</h2>
             <ul className="mt-4 space-y-2 text-sm text-slate-600">
-              <li>Publication immédiate de vos documents (cours, rapports, guides)</li>
+              <li>Mise en vente après validation par TechLibrairie (cours, rapports, guides)</li>
               <li>Commission de la boutique : {commission} % sur chaque vente</li>
               <li>Suivi des ventes et versements par Mobile Money</li>
             </ul>
@@ -172,4 +172,4 @@ export default async function BoutiquePage() {
       </section>
     </div>
   );
-              }
+}
