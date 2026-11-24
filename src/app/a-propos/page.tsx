@@ -9,7 +9,7 @@ import LegalPage, { LegalList, LegalSection } from "@/components/legal/legal-pag
 export const metadata: Metadata = {
   title: "À propos de TechLibrairie",
   description:
-    "TechLibrairie est une plateforme multi-vendeurs de livres et guides techniques au format PDF, avec une section de téléchargements gratuits.",
+    "TechLibrairie Édition est une maison d'édition numérique et imprimée à la demande, avec sa boutique de livres et guides techniques au format PDF et ses téléchargements gratuits.",
 };
 
 export const dynamic = "force-dynamic";
@@ -23,15 +23,24 @@ export default async function AProposPage() {
     <LegalPage title="À propos de TechLibrairie">
       <LegalSection title="Qui sommes-nous ?">
         <p>
-          TechLibrairie est une plateforme en ligne consacrée aux livres et guides techniques au format PDF.
-          Elle est exploitée par {operatorName(legal)}. Notre objectif : permettre à des auteurs et à des
-          éditeurs de proposer leurs ouvrages à un public francophone, et aux lecteurs de les trouver et de
-          les télécharger simplement.
+          TechLibrairie Édition est une maison d&apos;édition numérique et imprimée à la demande, adossée à une
+          boutique de livres et de guides techniques au format PDF. Elle est exploitée par {operatorName(legal)}.
+          Notre objectif : permettre à des auteurs et à des éditeurs de proposer leurs ouvrages à un public
+          francophone, et aux lecteurs de les trouver et de les télécharger simplement.
         </p>
       </LegalSection>
 
       <LegalSection title="Ce que vous trouvez sur le site">
         <LegalList>
+          <li>
+            <strong>L&apos;édition</strong> : deux formules pour faire publier votre livre, à compte d&apos;auteur ou
+            à compte d&apos;éditeur, avec mise en page professionnelle, publication en PDF et en livre imprimé à la
+            demande.{" "}
+            <Link href="/edition" className="font-semibold text-brand-700 hover:underline">
+              Découvrir l&apos;édition
+            </Link>
+            .
+          </li>
           <li>
             <strong>Un catalogue</strong> de livres et de guides en PDF, classés par catégories, avec une
             description, une couverture et les avis des acheteurs.{" "}
@@ -58,21 +67,28 @@ export default async function AProposPage() {
             Votre PDF est disponible immédiatement dans votre espace « Mes commandes », par un lien de
             téléchargement personnel et sécurisé. Les fichiers ne sont jamais accessibles publiquement.
           </li>
+          <li>Les livres édités par TechLibrairie Édition sont aussi proposés en exemplaire imprimé, fabriqué à la commande.</li>
           <li>Les prix sont affichés en francs CFA, sans taxe supplémentaire.</li>
         </LegalList>
       </LegalSection>
 
       <LegalSection title="Pour les auteurs et les éditeurs">
         <p>
-          Vous avez écrit un livre ou un guide technique ? Créez un compte vendeur, déposez votre PDF et sa
-          couverture : l&apos;ouvrage est publié automatiquement. Vous fixez votre prix, suivez vos ventes et
-          demandez vos versements par Mobile Money. La boutique prélève une commission sur chaque vente ;
-          les conditions détaillées figurent dans les{" "}
+          Vous avez écrit un livre ? Déposez votre manuscrit : à compte d&apos;auteur, vous financez son édition et
+          gardez vos droits et tous vos gains ; à compte d&apos;éditeur, notre équipe l&apos;examine et, si elle le
+          retient, finance son édition contre une redevance. Dans les deux cas, le contrat se signe en ligne et se
+          télécharge en PDF.
+        </p>
+        <p>
+          Vous avez un document technique à vendre (cours, rapport, guide) ? Créez un compte vendeur et déposez votre
+          PDF : <strong>il est vérifié par TechLibrairie, puis mis en vente après sa validation</strong>. Vous fixez
+          votre prix, suivez vos ventes et demandez vos versements par Mobile Money. La boutique prélève une
+          commission sur chaque vente ; les conditions détaillées figurent dans les{" "}
           <Link href="/conditions" className="font-semibold text-brand-700 hover:underline">
             conditions générales
           </Link>
           .{" "}
-          <Link href="/inscription" className="font-semibold text-brand-700 hover:underline">
+          <Link href="/boutique/vendeur/inscription" className="font-semibold text-brand-700 hover:underline">
             Devenir vendeur
           </Link>
           .
@@ -82,8 +98,9 @@ export default async function AProposPage() {
       <LegalSection title="Nos engagements">
         <LegalList>
           <li>
-            Les contenus contraires à la loi ou aux droits de tiers sont retirés après signalement (voir la
-            procédure dans les conditions générales).
+            Aucun ouvrage n&apos;est mis en vente sans avoir été validé par TechLibrairie. Les contenus contraires à la
+            loi ou aux droits de tiers sont retirés après signalement (voir la procédure dans les conditions
+            générales).
           </li>
           <li>
             Vos données sont protégées et vous gardez la main : copie de vos données et suppression du compte
@@ -118,4 +135,4 @@ export default async function AProposPage() {
       </LegalSection>
     </LegalPage>
   );
-      }
+}
