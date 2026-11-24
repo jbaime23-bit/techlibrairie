@@ -41,7 +41,7 @@ export const AUTH_SPACES: Record<SpaceKey, AuthSpace> = {
     perks: [
       "Un dépôt en quelques étapes simples",
       "Le suivi de votre édition, du manuscrit à la publication",
-      "Vous gardez vos droits d'auteur",
+      "Votre contrat signé en ligne et téléchargeable en PDF",
     ],
     displayNameLabel: "Nom d'auteur (affiché publiquement)",
     sellerNote:
@@ -80,19 +80,20 @@ export const AUTH_SPACES: Record<SpaceKey, AuthSpace> = {
     loginTitle: "Espace vendeur",
     loginSubtitle: "Gérez vos PDF, suivez vos ventes et demandez vos versements.",
     registerTitle: "Créer mon compte vendeur",
-    registerSubtitle: "Mettez vos documents et ressources en vente : publication immédiate.",
+    registerSubtitle:
+      "Mettez vos documents et ressources en vente : ils sont vérifiés, puis mis en ligne par TechLibrairie.",
     perks: [
-      "Publication immédiate de vos PDF",
+      "Mise en ligne de vos PDF après validation par TechLibrairie",
       "Suivi de vos ventes et de vos revenus",
       "Versements par Mobile Money",
     ],
     displayNameLabel: "Nom de vendeur ou d'éditeur (affiché publiquement)",
     sellerNote:
-      "Vos PDF sont publiés dès leur dépôt dans la boutique. Une commission est prélevée sur chaque vente.",
+      "Vos PDF sont vérifiés par TechLibrairie avant d'être mis en vente. Une commission est prélevée sur chaque vente.",
     submitLabel: "Créer mon compte vendeur",
   },
 };
 
 export function isSpaceKey(value: string): value is SpaceKey {
   return value === "edition" || value === "acheteur" || value === "vendeur";
-      }
+}
