@@ -4,6 +4,7 @@
 // - Édition de livres à compte d'auteur (BOOK_EDITION) : contrat accepté au dépôt (texte archivé), forfait à
 //   régler aussitôt après ; l'ouvrage suit le circuit d'édition et n'est mis en ligne que par TechLibrairie.
 //   Les livres d'un administrateur (sans contrat ni forfait) attendent aussi leur mise en ligne.
+// Un livre à éditer peut être accompagné de la version Word (.docx) du manuscrit, pour la mise en page.
 
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
@@ -26,6 +27,7 @@ import {
 import { getContributionConfig } from "@/lib/publication-fee";
 import { hashClientIp } from "@/lib/login-throttle";
 import { notifyAdminsReviewNeeded } from "@/lib/publication-notifications";
+import { isOwnedSourceKey, looksLikeDocx, sanitizeDocxName } from "@/lib/source-files";
 import {
   deletePrivateFile,
   deletePublicCover,
@@ -183,6 +185,37 @@ export async function POST(request: Request) {
     return validationError({ pdf: ["Le fichier envoyé n'est pas un PDF valide."] });
   }
 
+  // Version Word du manuscrit (facultative, livre à éditer seulement) : sert à la mise en page.
+  let docx: { key: string; name: string; size: number } | null = null;
+  const docxKey = readField(formData, "docxStorageKey");
+
+  if (docxKey) {
+    if (!isOwnedSourceKey(docxKey, seller.id)) {
+      return validationError({ docx: ["Fichier Word non autorisé."] }, 403);
+    }
+
+    if (!isEdition) {
+      await deletePrivateFile(docxKey).catch(() => undefined);
+    } else {
+      const docxInspection = await inspectPrivatePdf(docxKey);
+
+      if (!docxInspection.exists || !(await looksLikeDocx(docxKey))) {
+        await deletePrivateFile(docxKey).catch(() => undefined);
+        return validationError({
+          docx: [
+            "La version Word est introuvable ou n'est pas un document .docx valide. Envoyez-la à nouveau, ou retirez-la.",
+          ],
+        });
+      }
+
+      docx = {
+        key: docxKey,
+        name: sanitizeDocxName(readField(formData, "docxFileName") ?? "manuscrit.docx"),
+        size: docxInspection.sizeBytes ?? 0,
+      };
+    }
+  }
+
   // Couverture facultative (via le serveur, 2 Mo maximum).
   let coverImageUrl: string | null = null;
   const cover = formData.get("cover");
@@ -264,6 +297,19 @@ export async function POST(request: Request) {
         });
       }
 
+      if (docx) {
+        await tx.manuscriptSource.create({
+          data: {
+            sellerId: seller.id,
+            productId: created.id,
+            storageKey: docx.key,
+            fileName: docx.name,
+            sizeBytes: docx.size,
+            addedBy: "AUTHOR",
+          },
+        });
+      }
+
       return created;
     });
 
@@ -290,9 +336,12 @@ export async function POST(request: Request) {
       await deletePublicCover(coverImageUrl).catch(() => undefined);
     }
     await deletePrivateFile(fields.pdfStorageKey).catch(() => undefined);
+    if (docx) {
+      await deletePrivateFile(docx.key).catch(() => undefined);
+    }
     return NextResponse.json(
       { error: "Une erreur est survenue. Veuillez réessayer dans un instant." },
       { status: 500 }
     );
   }
-              }
+}
