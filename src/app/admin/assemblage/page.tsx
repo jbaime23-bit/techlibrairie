@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { firstParam, requireAdmin } from "@/lib/admin";
 import { AssemblyStudio } from "@/components/admin/assembly/assembly-studio";
+import { DossierBootstrap } from "@/components/admin/assembly/dossier-bootstrap";
 import { listAssemblyDossiers, loadAssemblyDossier } from "@/lib/assembly/dossier-loader";
 
 export const metadata: Metadata = {
@@ -34,6 +35,7 @@ export default async function AssemblagePage({
 
   const requested = Boolean(projectId || manuscriptId);
   const dossiers = dossier ? [] : await listAssemblyDossiers();
+  const dossierKey = dossier ? `${dossier.kind}-${dossier.id}` : "libre";
 
   return (
     <div className="space-y-8">
@@ -47,9 +49,9 @@ export default async function AssemblagePage({
         <section className="card mx-auto max-w-3xl">
           <h2 className="text-lg font-extrabold">Dossiers à assembler</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Ouvrir un dossier pré-remplit le module : informations, couverture et photo de l&apos;auteur. Pour un
-            livre à compte d&apos;auteur, vous pouvez ensuite envoyer l&apos;épreuve directement. Sans dossier, le module
-            fonctionne aussi seul, plus bas.
+            Ouvrir un dossier pré-remplit le module : informations, couverture, photo de l&apos;auteur et, si
+            l&apos;auteur a joint sa version Word, le texte du livre. Pour un livre à compte d&apos;auteur, vous pouvez
+            ensuite envoyer l&apos;épreuve directement. Sans dossier, le module fonctionne aussi seul, plus bas.
           </p>
 
           {dossiers.length === 0 ? (
@@ -83,7 +85,9 @@ export default async function AssemblagePage({
         </section>
       )}
 
-      <AssemblyStudio key={dossier ? `${dossier.kind}-${dossier.id}` : "libre"} dossier={dossier} />
+      <DossierBootstrap key={dossierKey} dossier={dossier}>
+        <AssemblyStudio key={dossierKey} dossier={dossier} />
+      </DossierBootstrap>
     </div>
   );
-                  }
+}
