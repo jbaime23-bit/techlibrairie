@@ -50,14 +50,28 @@ export async function listAssemblyDossiers(): Promise<AssemblyDossierSummary[]> 
     select: { id: true, title: true, authorName: true },
   });
 
-  const contracts = submissions.length
-    ? await prisma.publisherContract.findMany({
-        where: { submissionId: { in: submissions.map((submission) => submission.id) } },
-        select: { submissionId: true, acceptedAt: true },
-      })
-    : [];
+  const submissionIds = submissions.map((submission) => submission.id);
+
+  const [contracts, sources] = await Promise.all([
+    submissionIds.length
+      ? prisma.publisherContract.findMany({
+          where: { submissionId: { in: submissionIds } },
+          select: { submissionId: true, acceptedAt: true },
+        })
+      : Promise.resolve([]),
+    prisma.manuscriptSource.findMany({
+      where: {
+        OR: [{ productId: { in: productIds } }, { submissionId: { in: submissionIds } }],
+      },
+      select: { productId: true, submissionId: true },
+    }),
+  ]);
+
   const signedBySubmission = new Map(
     contracts.map((contract) => [contract.submissionId, contract.acceptedAt !== null])
+  );
+  const withWord = new Set(
+    sources.map((source) => source.productId ?? source.submissionId).filter((value): value is string => value !== null)
   );
 
   const list: AssemblyDossierSummary[] = [];
@@ -72,7 +86,7 @@ export async function listAssemblyDossiers(): Promise<AssemblyDossierSummary[]> 
       title: product.title,
       author: product.authorName ?? product.seller.displayName,
       label: AUTHOR_LABEL,
-      detail: EDITION_STAGE_LABELS[project.stage],
+      detail: `${EDITION_STAGE_LABELS[project.stage]} · ${withWord.has(project.productId) ? "Word joint" : "sans Word"}`,
     });
   }
 
@@ -83,7 +97,9 @@ export async function listAssemblyDossiers(): Promise<AssemblyDossierSummary[]> 
       title: submission.title,
       author: submission.authorName,
       label: PUBLISHER_LABEL,
-      detail: signedBySubmission.get(submission.id) ? "Contrat signé" : "Contrat en attente de signature",
+      detail: `${signedBySubmission.get(submission.id) ? "Contrat signé" : "Contrat en attente de signature"} · ${
+        withWord.has(submission.id) ? "Word joint" : "sans Word"
+      }`,
     });
   }
 
@@ -120,10 +136,16 @@ export async function loadAssemblyDossier(
 
     if (!product || !project) return null;
 
-    const fee = await prisma.publicationFee.findUnique({
-      where: { productId: id },
-      select: { status: true },
-    });
+    const [fee, source] = await Promise.all([
+      prisma.publicationFee.findUnique({
+        where: { productId: id },
+        select: { status: true },
+      }),
+      prisma.manuscriptSource.findUnique({
+        where: { productId: id },
+        select: { fileName: true },
+      }),
+    ]);
 
     return {
       kind,
@@ -141,6 +163,8 @@ export async function loadAssemblyDossier(
       photoUrl: product.seller.avatarUrl,
       manuscriptDownloadUrl: `/api/admin/edition/${id}/manuscrit`,
       manuscriptFileName: project.manuscriptFileName,
+      sourceUrl: source ? `/api/admin/source/projet/${id}` : null,
+      sourceFileName: source?.fileName ?? null,
       canSendProof: OPEN_STAGES.includes(project.stage) && fee?.status === "VALIDATED",
       nextProofVersion: project.proofVersion + 1,
       contractSigned: null,
@@ -162,7 +186,7 @@ export async function loadAssemblyDossier(
 
   if (!submission) return null;
 
-  const [seller, contract] = await Promise.all([
+  const [seller, contract, source] = await Promise.all([
     prisma.sellerProfile.findUnique({
       where: { id: submission.sellerId },
       select: { bio: true, avatarUrl: true },
@@ -170,6 +194,10 @@ export async function loadAssemblyDossier(
     prisma.publisherContract.findUnique({
       where: { submissionId: id },
       select: { acceptedAt: true },
+    }),
+    prisma.manuscriptSource.findUnique({
+      where: { submissionId: id },
+      select: { fileName: true },
     }),
   ]);
 
@@ -189,8 +217,10 @@ export async function loadAssemblyDossier(
     photoUrl: seller?.avatarUrl ?? null,
     manuscriptDownloadUrl: `/api/admin/manuscrit/${id}`,
     manuscriptFileName: submission.manuscriptFileName,
+    sourceUrl: source ? `/api/admin/source/manuscrit/${id}` : null,
+    sourceFileName: source?.fileName ?? null,
     canSendProof: false,
     nextProofVersion: 1,
     contractSigned: contract ? contract.acceptedAt !== null : false,
   };
-    }
+      }
