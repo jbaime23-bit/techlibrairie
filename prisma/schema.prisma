@@ -1135,3 +1135,26 @@ model PublisherContract {
 
   @@index([userId])
 }
+
+// ---------------------------------------------------------------------------
+// VERSION WORD DU MANUSCRIT : fichier .docx joint à un livre à compte d'auteur ou à un manuscrit soumis
+// ---------------------------------------------------------------------------
+
+model ManuscriptSource {
+  id           String  @id @default(cuid())
+  sellerId     String
+  // Livre à compte d'auteur (référence simple) OU manuscrit soumis à compte d'éditeur
+  productId    String? @unique
+  submissionId String? @unique
+
+  storageKey String
+  fileName   String
+  sizeBytes  Int
+  // AUTHOR (joint au dépôt) ou ADMIN (joint par l'administration)
+  addedBy    String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sellerId])
+}
