@@ -1,6 +1,7 @@
 // src/components/edition/manuscript-wizard.tsx
 // Formulaire de dépôt par étapes : une question par écran, un bouton « Suivant ».
-// Étapes : titre, résumé, manuscrit, couverture (et photo de l'auteur), informations, validation.
+// Étapes : titre, résumé, manuscrit (PDF, et version Word facultative), couverture (et photo de l'auteur),
+// informations, validation.
 // - Formule à compte d'auteur : création de l'édition (contrat accepté, forfait à régler ensuite).
 // - Formule à compte d'éditeur : soumission du manuscrit à l'examen éditorial.
 "use client";
@@ -18,6 +19,7 @@ import {
   PRODUCT_LANGUAGES,
   normalizeIsbn,
 } from "@/lib/product-validation";
+import { DOCX_CONTENT_TYPE, toSafeSourceName } from "@/lib/source-constants";
 
 export type WizardFormula = "auteur" | "editeur";
 type Capacity = "AUTHOR" | "THIRD_PARTY_SELLER";
@@ -53,6 +55,7 @@ const FIELD_STEP: Record<string, number> = {
   title: 0,
   description: 1,
   pdf: 2,
+  docx: 2,
   cover: 3,
   photo: 3,
   price: 4,
@@ -138,6 +141,7 @@ export function ManuscriptWizard({
   const [reviewConsent, setReviewConsent] = useState(false);
 
   const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [docxFile, setDocxFile] = useState<File | null>(null);
   const [coverMode, setCoverMode] = useState<CoverMode>("upload");
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
@@ -147,10 +151,12 @@ export function ManuscriptWizard({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [busy, setBusy] = useState<Busy>("idle");
+  const [uploadLabel, setUploadLabel] = useState("manuscrit");
   const [progress, setProgress] = useState(0);
 
-  // Mémorise le PDF et la photo déjà envoyés pour ne pas les renvoyer quand on revient en arrière.
+  // Mémorise les fichiers déjà envoyés pour ne pas les renvoyer quand on revient en arrière.
   const uploadedRef = useRef<{ file: File; pathname: string } | null>(null);
+  const docxUploadedRef = useRef<{ file: File; pathname: string } | null>(null);
   const photoSentRef = useRef<File | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
 
@@ -213,6 +219,17 @@ export function ManuscriptWizard({
         found.pdf = "Le fichier PDF est vide.";
       } else if (pdfFile.size > MAX_PDF_SIZE_BYTES) {
         found.pdf = "Le PDF dépasse la taille maximale de 50 Mo.";
+      }
+
+      if (docxFile) {
+        if (!docxFile.name.toLowerCase().endsWith(".docx")) {
+          found.docx =
+            "La version Word doit être un fichier .docx : dans Word, choisissez « Enregistrer sous » puis le format .docx.";
+        } else if (docxFile.size === 0) {
+          found.docx = "Le fichier Word est vide.";
+        } else if (docxFile.size > MAX_PDF_SIZE_BYTES) {
+          found.docx = "Le fichier Word dépasse la taille maximale de 50 Mo.";
+        }
       }
     }
 
@@ -290,26 +307,48 @@ export function ManuscriptWizard({
   async function uploadManuscript(): Promise<boolean> {
     if (!pdfFile) return false;
 
-    if (uploadedRef.current && uploadedRef.current.file === pdfFile) return true;
+    const pdfDone = Boolean(uploadedRef.current && uploadedRef.current.file === pdfFile);
+    const docxDone = !docxFile || Boolean(docxUploadedRef.current && docxUploadedRef.current.file === docxFile);
+
+    if (pdfDone && docxDone) return true;
 
     setBusy("uploading");
     setProgress(0);
 
     try {
-      const folder = isAuthorFormula ? "pdfs" : "manuscrits";
-      const blob = await upload(`${folder}/${sellerId}/${toSafeFileName(pdfFile.name)}.pdf`, pdfFile, {
-        access: "private",
-        handleUploadUrl: isAuthorFormula ? "/api/upload/pdf" : "/api/edition/manuscrit/upload",
-        onUploadProgress: ({ percentage }) => setProgress(Math.round(percentage)),
-      });
+      if (!pdfDone) {
+        setUploadLabel("manuscrit PDF");
 
-      uploadedRef.current = { file: pdfFile, pathname: blob.pathname };
+        const folder = isAuthorFormula ? "pdfs" : "manuscrits";
+        const blob = await upload(`${folder}/${sellerId}/${toSafeFileName(pdfFile.name)}.pdf`, pdfFile, {
+          access: "private",
+          handleUploadUrl: isAuthorFormula ? "/api/upload/pdf" : "/api/edition/manuscrit/upload",
+          onUploadProgress: ({ percentage }) => setProgress(Math.round(percentage)),
+        });
+
+        uploadedRef.current = { file: pdfFile, pathname: blob.pathname };
+      }
+
+      if (docxFile && !docxDone) {
+        setUploadLabel("version Word");
+        setProgress(0);
+
+        const blob = await upload(`sources/${sellerId}/${toSafeSourceName(docxFile.name)}.docx`, docxFile, {
+          access: "private",
+          handleUploadUrl: "/api/source/upload",
+          contentType: DOCX_CONTENT_TYPE,
+          onUploadProgress: ({ percentage }) => setProgress(Math.round(percentage)),
+        });
+
+        docxUploadedRef.current = { file: docxFile, pathname: blob.pathname };
+      }
+
       return true;
     } catch (error) {
       setGlobalError(
         error instanceof Error && error.message
-          ? `Envoi du manuscrit impossible : ${error.message}`
-          : "Envoi du manuscrit impossible. Vérifiez votre connexion et réessayez."
+          ? `Envoi du fichier impossible : ${error.message}`
+          : "Envoi du fichier impossible. Vérifiez votre connexion et réessayez."
       );
       return false;
     } finally {
@@ -393,6 +432,13 @@ export function ManuscriptWizard({
       formData.append("pdfSizeBytes", String(pdfFile.size));
       if (coverMode === "upload" && coverFile) formData.append("cover", coverFile);
 
+      // Version Word du manuscrit (facultative) : déjà envoyée à l'étape 3.
+      if (docxFile && docxUploadedRef.current && docxUploadedRef.current.file === docxFile) {
+        formData.append("docxStorageKey", docxUploadedRef.current.pathname);
+        formData.append("docxFileName", docxFile.name);
+        formData.append("docxSizeBytes", String(docxFile.size));
+      }
+
       let endpoint: string;
 
       if (isAuthorFormula) {
@@ -432,6 +478,7 @@ export function ManuscriptWizard({
           flat[field] = first;
           target = Math.min(target, FIELD_STEP[field] ?? STEPS.length - 1);
           if (field === "pdf") uploadedRef.current = null;
+          if (field === "docx") docxUploadedRef.current = null;
         }
 
         setErrors(flat);
@@ -580,12 +627,53 @@ export function ManuscriptWizard({
             )}
             <FieldError message={errors.pdf} />
 
+            <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <h3 className="font-bold">Version Word (.docx) de votre manuscrit : facultatif, recommandé</h3>
+              <p className="mt-1 text-sm text-slate-600">
+                Si vous avez écrit votre livre dans Word, joignez-le aussi : notre équipe s&apos;en sert pour la mise
+                en page, plus vite et sans erreur de recopie. Il reste privé, comme votre PDF.
+              </p>
+              <label htmlFor="docx" className="sr-only">
+                Fichier Word du manuscrit
+              </label>
+              <input
+                id="docx"
+                name="docx"
+                type="file"
+                accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                disabled={working}
+                onChange={(event) => setDocxFile(event.target.files?.[0] ?? null)}
+                className="input mt-3"
+              />
+              {docxFile && (
+                <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-slate-600">
+                  <span>
+                    {docxFile.name} · {formatSize(docxFile.size)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDocxFile(null);
+                      docxUploadedRef.current = null;
+                    }}
+                    disabled={working}
+                    className="text-xs font-semibold text-red-700 hover:underline"
+                  >
+                    Retirer
+                  </button>
+                </div>
+              )}
+              <FieldError message={errors.docx} />
+            </div>
+
             {busy === "uploading" && (
               <div className="mt-4" aria-live="polite">
                 <div className="h-2 overflow-hidden rounded-full bg-slate-200">
                   <div className="h-full bg-brand-600 transition-all" style={{ width: `${progress}%` }} />
                 </div>
-                <p className="mt-1 text-xs text-slate-600">Envoi du manuscrit : {progress} %</p>
+                <p className="mt-1 text-xs text-slate-600">
+                  Envoi du {uploadLabel} : {progress} %
+                </p>
               </div>
             )}
           </div>
@@ -941,6 +1029,10 @@ export function ManuscriptWizard({
                 <dd>{pdfFile ? `${pdfFile.name} (${formatSize(pdfFile.size)})` : "-"}</dd>
               </div>
               <div>
+                <dt className="text-xs text-slate-500">Version Word</dt>
+                <dd>{docxFile ? `${docxFile.name} (${formatSize(docxFile.size)})` : "Non jointe"}</dd>
+              </div>
+              <div>
                 <dt className="text-xs text-slate-500">Couverture</dt>
                 <dd>{coverMode === "upload" && coverFile ? coverFile.name : "Pas de couverture pour le moment"}</dd>
               </div>
@@ -981,7 +1073,8 @@ export function ManuscriptWizard({
 
             {isAuthorFormula && isAdmin && (
               <p className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                Compte administrateur : votre livre est publié directement, sans contrat ni forfait.
+                Compte administrateur : ni contrat ni forfait. Le livre reste en attente de votre validation dans
+                Administration, Mise en ligne.
               </p>
             )}
 
@@ -1100,14 +1193,14 @@ export function ManuscriptWizard({
 
           <button type="submit" disabled={working} className={isLast ? "btn-accent px-8" : "btn-primary px-8"}>
             {busy === "uploading"
-              ? "Envoi du manuscrit..."
+              ? `Envoi du ${uploadLabel}...`
               : busy === "sending"
                 ? "Envoi en cours..."
                 : isLast
                   ? isAuthorFormula
                     ? needsContract
                       ? "Envoyer et passer au forfait"
-                      : "Publier mon livre"
+                      : "Déposer mon livre"
                     : "Soumettre mon manuscrit"
                   : "Suivant"}
           </button>
