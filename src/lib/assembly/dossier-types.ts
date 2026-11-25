@@ -22,6 +22,9 @@ export interface AssemblyDossier {
   photoUrl: string | null;
   manuscriptDownloadUrl: string;
   manuscriptFileName: string;
+  // Version Word du manuscrit, jointe par l'auteur ou par l'administration (null si aucune)
+  sourceUrl: string | null;
+  sourceFileName: string | null;
   // L'épreuve peut être envoyée (forfait validé, édition en cours de mise en page)
   canSendProof: boolean;
   nextProofVersion: number;
