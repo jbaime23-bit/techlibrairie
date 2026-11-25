@@ -828,3 +828,8 @@ export function findDataset(key: string | null): BackupDataset | null {
 // Jeux de données de l'édition et de l'impression à la demande (fichier séparé).
 import { PRINT_BACKUP_DATASETS } from "@/lib/backup-print";
 BACKUP_DATASETS.push(...PRINT_BACKUP_DATASETS);
+
+
+// Versions Word des manuscrits (fichier séparé).
+import { SOURCE_BACKUP_DATASETS } from "@/lib/backup-sources";
+BACKUP_DATASETS.push(...SOURCE_BACKUP_DATASETS);
