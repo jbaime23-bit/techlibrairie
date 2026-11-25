@@ -1,6 +1,7 @@
 // src/app/api/edition/soumission/route.ts
 // Soumission d'un manuscrit à l'examen éditorial (formule à compte d'éditeur) : aucun paiement ni contrat à
 // la soumission. Les déclarations (droits, examen) sont vérifiées ici, côté serveur.
+// Le manuscrit peut être accompagné de sa version Word (.docx), pour la mise en page.
 
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
@@ -14,6 +15,7 @@ import {
   manuscriptFieldsSchema,
 } from "@/lib/manuscript-validation";
 import { notifyAdminsManuscriptSubmitted } from "@/lib/manuscript-notifications";
+import { isOwnedSourceKey, looksLikeDocx, sanitizeDocxName } from "@/lib/source-files";
 import {
   deletePrivateFile,
   deletePublicCover,
@@ -133,6 +135,33 @@ export async function POST(request: Request) {
     return validationError({ pdf: ["Le fichier envoyé n'est pas un PDF valide."] });
   }
 
+  // Version Word du manuscrit (facultative) : sert à la mise en page si le manuscrit est retenu.
+  let docx: { key: string; name: string; size: number } | null = null;
+  const docxKey = readField(formData, "docxStorageKey");
+
+  if (docxKey) {
+    if (!isOwnedSourceKey(docxKey, seller.id)) {
+      return validationError({ docx: ["Fichier Word non autorisé."] }, 403);
+    }
+
+    const docxInspection = await inspectPrivatePdf(docxKey);
+
+    if (!docxInspection.exists || !(await looksLikeDocx(docxKey))) {
+      await deletePrivateFile(docxKey).catch(() => undefined);
+      return validationError({
+        docx: [
+          "La version Word est introuvable ou n'est pas un document .docx valide. Envoyez-la à nouveau, ou retirez-la.",
+        ],
+      });
+    }
+
+    docx = {
+      key: docxKey,
+      name: sanitizeDocxName(readField(formData, "docxFileName") ?? "manuscrit.docx"),
+      size: docxInspection.sizeBytes ?? 0,
+    };
+  }
+
   // Couverture facultative (via le serveur, 2 Mo maximum).
   let coverImageUrl: string | null = null;
   const cover = formData.get("cover");
@@ -149,27 +178,44 @@ export async function POST(request: Request) {
   const now = new Date();
 
   try {
-    const submission = await prisma.manuscriptSubmission.create({
-      data: {
-        sellerId: seller.id,
-        userId: user.id,
-        title: fields.title,
-        description: fields.description,
-        language: fields.language,
-        pageCount: fields.pageCount ?? null,
-        categoryId: fields.categoryId ?? null,
-        authorName: fields.authorName,
-        capacity: fields.capacity,
-        manuscriptStorageKey: fields.pdfStorageKey,
-        manuscriptFileName: sanitizeFileName(fields.pdfFileName),
-        manuscriptSizeBytes: inspection.sizeBytes ?? fields.pdfSizeBytes,
-        coverImageUrl,
-        // Preuves des déclarations : date du serveur et texte exact accepté.
-        rightsAcceptedAt: now,
-        rightsText: RIGHTS_WARRANTY_TEXT,
-        reviewConsentAt: now,
-      },
-      select: { id: true },
+    const submission = await prisma.$transaction(async (tx) => {
+      const created = await tx.manuscriptSubmission.create({
+        data: {
+          sellerId: seller.id,
+          userId: user.id,
+          title: fields.title,
+          description: fields.description,
+          language: fields.language,
+          pageCount: fields.pageCount ?? null,
+          categoryId: fields.categoryId ?? null,
+          authorName: fields.authorName,
+          capacity: fields.capacity,
+          manuscriptStorageKey: fields.pdfStorageKey,
+          manuscriptFileName: sanitizeFileName(fields.pdfFileName),
+          manuscriptSizeBytes: inspection.sizeBytes ?? fields.pdfSizeBytes,
+          coverImageUrl,
+          // Preuves des déclarations : date du serveur et texte exact accepté.
+          rightsAcceptedAt: now,
+          rightsText: RIGHTS_WARRANTY_TEXT,
+          reviewConsentAt: now,
+        },
+        select: { id: true },
+      });
+
+      if (docx) {
+        await tx.manuscriptSource.create({
+          data: {
+            sellerId: seller.id,
+            submissionId: created.id,
+            storageKey: docx.key,
+            fileName: docx.name,
+            sizeBytes: docx.size,
+            addedBy: "AUTHOR",
+          },
+        });
+      }
+
+      return created;
     });
 
     await notifyAdminsManuscriptSubmitted(submission.id);
@@ -184,9 +230,12 @@ export async function POST(request: Request) {
       await deletePublicCover(coverImageUrl).catch(() => undefined);
     }
     await deletePrivateFile(fields.pdfStorageKey).catch(() => undefined);
+    if (docx) {
+      await deletePrivateFile(docx.key).catch(() => undefined);
+    }
     return NextResponse.json(
       { error: "Une erreur est survenue. Veuillez réessayer dans un instant." },
       { status: 500 }
     );
   }
-       }
+}
