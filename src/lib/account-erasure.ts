@@ -3,8 +3,8 @@
 // Le compte n'est pas supprimé de la base : les commandes passées sont conservées
 // (obligations comptables) mais ne sont plus reliées à des données personnelles.
 // Les commandes d'exemplaires imprimés sont anonymisées (adresse, téléphone) ; les manuscrits soumis
-// à l'examen éditorial et la photo d'auteur sont supprimés, fichiers compris. Les preuves du contrat
-// à compte d'auteur (version, date, signature) sont conservées pour nos obligations légales.
+// à l'examen éditorial, les versions Word des manuscrits et la photo d'auteur sont supprimés, fichiers compris.
+// Les preuves du contrat à compte d'auteur (version, date, signature) sont conservées pour nos obligations légales.
 
 import { randomBytes } from "crypto";
 import type { PrintOrderStatus, Role } from "@prisma/client";
@@ -223,6 +223,20 @@ export async function eraseUserAccount(userId: string): Promise<ErasureResult> {
           publicUrls.push(user.sellerProfile.avatarUrl);
         }
 
+        // Versions Word des manuscrits : supprimées (lignes et fichiers).
+        const sources = await tx.manuscriptSource.findMany({
+          where: { sellerId },
+          select: { storageKey: true },
+        });
+
+        if (sources.length > 0) {
+          await tx.manuscriptSource.deleteMany({ where: { sellerId } });
+
+          for (const source of sources) {
+            privateKeys.push(source.storageKey);
+          }
+        }
+
         // Preuves des contrats à compte d'auteur : conservées (obligations légales).
         contractsKept = await tx.editionProject.count({ where: { sellerId } });
 
@@ -326,4 +340,4 @@ export async function eraseUserAccount(userId: string): Promise<ErasureResult> {
     ordersKept: outcome.outcome.ordersKept,
     printOrdersAnonymized: outcome.outcome.printOrdersAnonymized,
   };
-                                            }
+}
