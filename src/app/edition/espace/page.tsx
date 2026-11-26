@@ -1,6 +1,6 @@
 // src/app/edition/espace/page.tsx
-// Espace auteur : photo, éditions à compte d'auteur, manuscrits soumis à l'examen éditorial, contrats en PDF
-// et droits d'auteur.
+// Espace auteur : photo, éditions à compte d'auteur, manuscrits soumis à l'examen éditorial, contrats et reçus
+// en PDF, et droits d'auteur.
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -112,7 +112,7 @@ export default async function EspaceAuteurPage({
             <p className="eyebrow text-brand-700">Espace auteur</p>
             <h1 className="mt-1 text-3xl font-extrabold">Bonjour, {seller.displayName}</h1>
             <p className="mt-1 text-sm text-slate-600">
-              Retrouvez ici vos éditions, vos manuscrits, vos contrats et vos droits d&apos;auteur.
+              Retrouvez ici vos éditions, vos manuscrits, vos contrats, vos reçus et vos droits d&apos;auteur.
             </p>
           </div>
           <Link href="/edition/deposer" className="btn-accent">
@@ -158,7 +158,7 @@ export default async function EspaceAuteurPage({
               {products.map((product) => {
                 const stage = stageByProduct.get(product.id);
                 const inProgress = product.status === "PENDING_PAYMENT";
-                const contractAvailable = feePaid.has(product.id);
+                const documentsAvailable = feePaid.has(product.id);
 
                 return (
                   <li key={product.id} className="card flex flex-wrap items-center justify-between gap-3">
@@ -177,13 +177,21 @@ export default async function EspaceAuteurPage({
                     </div>
 
                     <div className="flex flex-wrap gap-2">
-                      {contractAvailable && (
-                        <a
-                          href={`/api/contrat/edition/${product.id}`}
-                          className="btn-secondary px-3 py-1.5 text-xs"
-                        >
-                          Télécharger mon contrat (PDF)
-                        </a>
+                      {documentsAvailable && (
+                        <>
+                          <a
+                            href={`/api/contrat/edition/${product.id}`}
+                            className="btn-secondary px-3 py-1.5 text-xs"
+                          >
+                            Télécharger mon contrat (PDF)
+                          </a>
+                          <a
+                            href={`/api/recu/forfait/${product.id}`}
+                            className="btn-secondary px-3 py-1.5 text-xs"
+                          >
+                            Télécharger mon reçu (PDF)
+                          </a>
+                        </>
                       )}
 
                       {inProgress ? (
@@ -214,7 +222,7 @@ export default async function EspaceAuteurPage({
 
           {products.length > 0 && (
             <p className="mt-3 text-xs text-slate-500">
-              Le contrat est téléchargeable en PDF dès que le règlement du forfait est validé.
+              Le contrat et le reçu sont téléchargeables en PDF dès que le règlement du forfait est validé.
             </p>
           )}
         </section>
