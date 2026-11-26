@@ -1158,3 +1158,29 @@ model ManuscriptSource {
 
   @@index([sellerId])
 }
+
+// ---------------------------------------------------------------------------
+// DROITS D'AUTEUR : accord entre un livre à compte d'éditeur et le contrat signé de son auteur
+// ---------------------------------------------------------------------------
+
+model RoyaltyAgreement {
+  id String @id @default(cuid())
+
+  // Livre concerné (un seul accord par livre) et contrat signé dont il découle (un seul livre par contrat)
+  productId    String @unique
+  submissionId String @unique
+
+  // Auteur rémunéré (références simples)
+  authorSellerId String
+  authorUserId   String
+
+  // Redevance, en pourcentage du prix public hors taxes de chaque exemplaire vendu (reprise du contrat)
+  royaltyPercent  Int
+  contractVersion String
+
+  active   Boolean  @default(true)
+  linkedAt DateTime @default(now())
+  linkedBy String
+
+  @@index([authorSellerId])
+}
