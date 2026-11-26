@@ -29,6 +29,8 @@ export const ACTION_LABELS: Record<string, string> = {
   "edition.refusee": "Œuvre refusée pour l'édition",
   "edition.mise_en_ligne": "Livre édité mis en ligne",
   "source.jointe": "Version Word jointe à un dossier",
+  "droits.lie": "Livre lié au contrat de son auteur (droits d'auteur)",
+  "droits.delie": "Livre délié de son contrat (droits d'auteur)",
   "manuscrit.telecharge": "Manuscrit soumis téléchargé",
   "manuscrit.en_examen": "Manuscrit mis en cours d'examen",
   "manuscrit.retenu": "Manuscrit retenu pour l'édition",
@@ -80,7 +82,7 @@ export function actionLabel(code: string): string {
 export const AUDIT_CATEGORIES: { value: string; label: string; prefixes: string[] }[] = [
   { value: "securite", label: "Connexions et sécurité", prefixes: ["admin."] },
   { value: "commandes", label: "Commandes", prefixes: ["commande."] },
-  { value: "versements", label: "Versements", prefixes: ["versement."] },
+  { value: "versements", label: "Versements et droits d'auteur", prefixes: ["versement.", "droits."] },
   {
     value: "catalogue",
     label: "Vendeurs, produits, éditions, manuscrits, impression, avis et PDF gratuits",
