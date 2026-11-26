@@ -1,5 +1,6 @@
 // src/app/edition/espace/page.tsx
-// Espace auteur : photo, éditions à compte d'auteur, manuscrits soumis à l'examen éditorial et contrats en PDF.
+// Espace auteur : photo, éditions à compte d'auteur, manuscrits soumis à l'examen éditorial, contrats en PDF
+// et droits d'auteur.
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -53,7 +54,7 @@ export default async function EspaceAuteurPage({
     );
   }
 
-  const [products, submissions, publisherContracts] = await Promise.all([
+  const [products, submissions, publisherContracts, royaltyAgreements] = await Promise.all([
     prisma.product.findMany({
       where: { sellerId: seller.id, kind: "BOOK_EDITION" },
       orderBy: { createdAt: "desc" },
@@ -75,6 +76,7 @@ export default async function EspaceAuteurPage({
       where: { userId: user.id },
       select: { submissionId: true, acceptedAt: true, royaltyPercent: true },
     }),
+    prisma.royaltyAgreement.count({ where: { authorSellerId: seller.id, active: true } }),
   ]);
 
   const productIds = products.map((product) => product.id);
@@ -110,7 +112,7 @@ export default async function EspaceAuteurPage({
             <p className="eyebrow text-brand-700">Espace auteur</p>
             <h1 className="mt-1 text-3xl font-extrabold">Bonjour, {seller.displayName}</h1>
             <p className="mt-1 text-sm text-slate-600">
-              Retrouvez ici vos éditions, vos manuscrits et vos contrats, et suivez chaque étape.
+              Retrouvez ici vos éditions, vos manuscrits, vos contrats et vos droits d&apos;auteur.
             </p>
           </div>
           <Link href="/edition/deposer" className="btn-accent">
@@ -125,6 +127,21 @@ export default async function EspaceAuteurPage({
               Notre équipe éditoriale l&apos;examine. Vous serez informé de la décision, ici et par email.
             </p>
           </div>
+        )}
+
+        {royaltyAgreements > 0 && (
+          <section className="card flex flex-wrap items-center justify-between gap-3 border-accent-200 bg-accent-50">
+            <div>
+              <h2 className="text-lg font-extrabold">Mes droits d&apos;auteur</h2>
+              <p className="mt-1 text-sm text-slate-700">
+                Vos droits sur {royaltyAgreements} livre{royaltyAgreements > 1 ? "s" : ""} à compte d&apos;éditeur, et
+                vos relevés annuels en PDF.
+              </p>
+            </div>
+            <Link href="/edition/droits" className="btn-accent">
+              Voir mes droits
+            </Link>
+          </section>
         )}
 
         <AuthorPhotoCard currentUrl={seller.avatarUrl} displayName={seller.displayName} />
@@ -307,4 +324,4 @@ export default async function EspaceAuteurPage({
       </div>
     </div>
   );
-                        }
+}
