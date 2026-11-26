@@ -1,5 +1,5 @@
 // src/app/acheteur/impression/[number]/page.tsx
-// Suivi d'une commande d'exemplaires imprimés : récapitulatif, paiement, statut et suivi du colis.
+// Suivi d'une commande d'exemplaires imprimés : récapitulatif, paiement, statut, suivi du colis et facture.
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -8,6 +8,7 @@ import { requireUser } from "@/lib/auth";
 import { firstParam } from "@/lib/admin";
 import { declarePrintPaymentAction } from "@/app/acheteur/impression/actions";
 import { getContributionConfig } from "@/lib/publication-fee";
+import { PRINT_EARNED_STATUSES } from "@/lib/print-statuses";
 import {
   BUYER_STATUS_LABELS,
   PRINT_COUNTRIES,
@@ -71,6 +72,7 @@ export default async function PrintOrderDetailPage({
     .filter((line) => /^https?:\/\//.test(line));
 
   const toPay = order.status === "AWAITING_PAYMENT";
+  const invoiceAvailable = PRINT_EARNED_STATUSES.includes(order.status);
   const messageKey = firstParam(sp.message);
   const errorKey = firstParam(sp.erreur);
   const message = messageKey ? MESSAGES[messageKey] : undefined;
@@ -120,6 +122,12 @@ export default async function PrintOrderDetailPage({
             <p className="mt-2 text-xs text-slate-500">
               Exemplaires d&apos;auteur : commandés au prix de fabrication, sans gain.
             </p>
+          )}
+
+          {invoiceAvailable && (
+            <a href={`/api/facture/impression/${order.number}`} className="btn-secondary mt-4 w-full sm:w-auto">
+              Télécharger ma facture (PDF)
+            </a>
           )}
         </section>
 
@@ -292,4 +300,4 @@ export default async function PrintOrderDetailPage({
       </div>
     </div>
   );
-  }
+}
