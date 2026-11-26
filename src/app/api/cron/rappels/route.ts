@@ -1,6 +1,7 @@
 // src/app/api/cron/rappels/route.ts
 // Appelée chaque jour par la tâche planifiée de Vercel (voir vercel.json) :
 // - rappel des commandes non terminées ;
+// - relances des bons à tirer en attente de la réponse de l'auteur (10e, 14e et 15e jour) ;
 // - envoi du rapport mensuel aux administrateurs, une fois par mois (sans effet les autres jours) ;
 // - envoi des alertes aux administrateurs, s'il y en a (au plus un email par jour).
 // Chaque traitement est indépendant : la panne de l'un n'empêche pas les autres.
@@ -9,6 +10,7 @@
 import { createHash, timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 import { sendAbandonedOrderReminders } from "@/lib/reminders";
+import { sendProofReminders } from "@/lib/edition-reminders";
 import { sendMonthlyReportIfDue } from "@/lib/monthly-report";
 import { sendAdminAlertsIfDue } from "@/lib/admin-alerts";
 import { recordTaskRun } from "@/lib/task-heartbeat";
@@ -51,6 +53,14 @@ export async function GET(request: Request) {
     reminders = { erreur: "echec" };
   }
 
+  let proofReminders: unknown;
+  try {
+    proofReminders = await sendProofReminders({ budgetMs: 5000 });
+  } catch (error) {
+    console.error("Relances de bons à tirer : échec :", error);
+    proofReminders = { status: "echec" };
+  }
+
   let monthlyReport: unknown;
   try {
     monthlyReport = await sendMonthlyReportIfDue();
@@ -69,13 +79,14 @@ export async function GET(request: Request) {
 
   console.log(
     "Tâche quotidienne terminée :",
-    JSON.stringify({ reminders, monthlyReport, alerts })
+    JSON.stringify({ reminders, proofReminders, monthlyReport, alerts })
   );
 
   await recordTaskRun("quotidienne", {
     rapport_mensuel: statusOf(monthlyReport),
     alertes: statusOf(alerts),
+    relances_epreuves: statusOf(proofReminders),
   });
 
-  return NextResponse.json({ reminders, monthlyReport, alerts });
+  return NextResponse.json({ reminders, proofReminders, monthlyReport, alerts });
 }
