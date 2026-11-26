@@ -3,7 +3,7 @@
 // Aucun texte "à compléter" n'est affiché aux visiteurs : une information absente est simplement omise.
 
 // Date de dernière mise à jour des documents légaux (à modifier quand vous les révisez).
-export const LEGAL_UPDATED_AT = "12 octobre 2026";
+export const LEGAL_UPDATED_AT = "23 novembre 2026";
 
 export interface LegalConfig {
   name: string | null;
@@ -39,4 +39,4 @@ export function missingLegalFields(config: LegalConfig): string[] {
 /** Nom de l'exploitant tel qu'il apparaît dans les textes. */
 export function operatorName(config: LegalConfig): string {
   return config.name ?? "l'exploitant de TechLibrairie";
-    }
+}
